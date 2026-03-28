@@ -34,7 +34,7 @@ This will generate or update the output.csv file with the simulation results.
 
 ## Project Structure
 - inv_proj.py — Core simulation logic and classes
-- inv_proj_run.py — Main script to run the Monte Carlo simulation
+- inv_proj_run.py — Main script to select assumptions and run the Monte Carlo simulation
 - finproj.xlsx — Companion Excel workbook for visualization and analysis
 - output.csv — Generated simulation results (created at runtime, not committed to Git)
 ## License
