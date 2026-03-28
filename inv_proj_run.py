@@ -27,7 +27,7 @@ CAPITAL = '1M'
 WITHDRAWALS = '40k'
 CASH_BUFFER= '100k'
 MAXYEAR=15
-NB_PROJECTIONS = 1000
+NB_PROJECTIONS = 2000
 
 
 # ---------------------------------------------------------------------------------------
