@@ -61,19 +61,6 @@ class rc(Enum):
             else:
                 trs[''] = nst
 
-            '''
-            p = re.compile(r"(.*)\[(.*)\]")
-            for item in translations.split(","):
-                m = p.match(item)
-                if m:
-                    value, key = m.groups()
-                    tr2[key]=value
-
-            self.translations={}
-            for language in ['en', 'fr','es']:    
-                self.translations[language] = tr2[language] if language in tr2 else name
-            '''
-
             rc.risk_names[risk_class] = trs
 
 

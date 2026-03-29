@@ -76,7 +76,7 @@ def define_observers(simulation):
         simulation.registerObserver(navObserver)
 
     # audit observer
-    auditObserver = AuditObserver(out=open('output.txt', mode="w"))
+    auditObserver = AuditObserver(out=open('audit.txt', mode="w"))
     simulation.registerObserver(auditObserver)
 
     # csv file observer
