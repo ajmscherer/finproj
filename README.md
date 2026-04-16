@@ -2,13 +2,14 @@
 
 ## Stochastic Financial Projections to optimize asset management
 
-A Monte Carlo simulation tool that projects future investment portfolio performance under various assumptions regarding target asset allocation, expected return and volatility for the different asset classes. It helps users evaluate different asset allocation strategies, and safety cash levels, under various market scenarios to make better-informed asset allocation and fund withdrawal decisions.
+A simple Monte Carlo simulation tool that projects future investment portfolio performance under various assumptions regarding target asset allocation, expected return and volatility for the different asset classes. It helps users evaluate different asset allocation strategies, and safety cash levels, under various market scenarios to make better-informed asset allocation and fund withdrawal decisions.
 
 ## Features
 - Stochastic modeling using Monte Carlo simulation
 - Flexible input assumptions (expected returns, volatility, inflation, contributions/withdrawals, etc.)
 - Generates thousands of possible future scenarios
 - Companion Excel visualizer (finproj.xlsx) for easy analysis and charting
+- this version does not feature correlations between asset classes (something left for future development)
 
 ## Quick Start
 
