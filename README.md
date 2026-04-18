@@ -4,6 +4,12 @@
 
 A simple Monte Carlo simulation tool that projects future investment portfolio performance under various assumptions regarding target asset allocation, expected return and volatility for the different asset classes. It helps users evaluate different asset allocation strategies, and safety cash levels, under various market scenarios to make better-informed asset allocation and fund withdrawal decisions.
 
+
+<div align="center">
+<img src="screenshots/IMG_2570.jpeg" alt="Illustration of a couple walking on a beach" width="500">
+</div>
+
+
 ## Features
 - Stochastic modeling using Monte Carlo simulation
 - Flexible input assumptions (expected returns, volatility, inflation, contributions/withdrawals, etc.)
