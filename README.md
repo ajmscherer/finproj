@@ -15,16 +15,14 @@ A simple Monte Carlo simulation tool that projects future investment portfolio p
 - Flexible input assumptions (expected returns, volatility, inflation, contributions/withdrawals, etc.)
 - Generates thousands of possible future scenarios
 - Companion Excel visualizer (finproj.xlsx) for easy analysis and charting
+- Simulations run privately on a local machine. No interaction with AI or other third party service. Important for a financial security standpoint!
 - this version does not feature correlations between asset classes (something left for future development)
 
 ## Quick Start
 
 ### 1. Prerequisites
 - Python 3.8+
-- Install dependencies:
-  ```bash
-  pip install pandas numpy
-  ```
+
 ### 2. Run the Monte Carlo Simulation
 - type:
   ```bash
@@ -40,6 +38,17 @@ This will generate or update the output.csv file with the simulation results.
 - Go to the Data tab → click Refresh All
 
 - After running a new simulation with Python, simply refresh the Excel file to see the latest Monte Carlo results seamlessly.
+
+### 4. Change the Financial Assumptions
+All user-editable financial assumptions are defined near the top of [inv_proj_run.py](inv_proj_run.py). This is the main file to open if you want to customize the simulation before running it.
+
+- Edit `CAPITAL`, `WITHDRAWALS`, and `CASH_BUFFER` to change the starting portfolio size, annual spending, and target liquidity reserve.
+- Edit `MAXYEAR` and `NB_PROJECTIONS` to change the investment horizon and the number of Monte Carlo runs.
+- Edit the `risk_mix` dictionary to change the target asset allocation for the `safe`, `moderate`, or `performance` portfolios.
+- Edit the `risk_param` dictionary to change the expected return (`mu`) and volatility (`sigma`) assumptions for each asset class.
+- If you want to run a different portfolio mix, change `risk_mix['performance']` in the `Projection(...)` call to another mix name, or replace it with your own custom allocation.
+
+The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so you can modify those assumptions without converting everything to raw numbers first.
 
 
 ## Project Structure
