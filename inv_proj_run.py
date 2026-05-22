@@ -58,6 +58,17 @@ risk_param = {
     rc.REAL_ESTATE:[{'from_year':1, 'rv':'norm', 'mu':3.0, 'sigma':15.0},],
 }
 
+# Pairwise correlations between asset classes (symmetric; unspecified pairs default to 0).
+# The matrix must be positive definite or simulation startup will raise an error.
+risk_correlation = {
+    (rc.MONEY_MARKET, rc.BOND): 0.50,
+    (rc.EQUITY, rc.BOND): -0.20,
+    (rc.EQUITY, rc.REAL_ESTATE): 0.30,
+    (rc.BOND, rc.REAL_ESTATE): 0.10,
+    (rc.EQUITY, rc.PMETAL): 0.05,
+    (rc.EQUITY, rc.CRYPTO): 0.15,
+}
+
 
 # ---------------------------------------------------------------------------------------
 #
@@ -106,7 +117,8 @@ def run():
             risk_mix=risk_mix['performance'],
             risk_distrib=distributions,
             nb_years=MAXYEAR,
-            nb_projections=NB_PROJECTIONS)
+            nb_projections=NB_PROJECTIONS,
+            correlations=risk_correlation)
     
     # create observers
     nav = define_observers(simulation)

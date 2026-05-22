@@ -162,12 +162,92 @@ class Norm(RV):
     def draw(self):
         return self.rn.gauss(mu=self.mu, sigma=self.sigma)
 
+
+def build_correlation_matrix(risk_classes, correlations=None):
+    '''
+    Build a symmetric correlation matrix for the given risk classes.
+
+    :param risk_classes: ordered list of rc values
+    :param correlations: optional dict mapping (rc_a, rc_b) pairs to correlation coefficients
+    '''
+    n = len(risk_classes)
+    matrix = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        matrix[i][i] = 1.0
+
+    if not correlations:
+        return matrix
+
+    index = {risk_class: i for i, risk_class in enumerate(risk_classes)}
+    for (risk_a, risk_b), rho in correlations.items():
+        if risk_a not in index or risk_b not in index:
+            raise ValueError(f"Unknown risk class in correlation: {risk_a}, {risk_b}")
+        i, j = index[risk_a], index[risk_b]
+        matrix[i][j] = rho
+        matrix[j][i] = rho
+
+    return matrix
+
+
+def cholesky_decomposition(matrix):
+    '''Return lower-triangular Cholesky factor L such that matrix = L @ L.T'''
+    n = len(matrix)
+    L = [[0.0] * n for _ in range(n)]
+
+    for i in range(n):
+        for j in range(i + 1):
+            s = sum(L[i][k] * L[j][k] for k in range(j))
+            if i == j:
+                val = matrix[i][i] - s
+                if val <= 0:
+                    raise ValueError(
+                        f"Correlation matrix is not positive definite (failed at diagonal index {i})"
+                    )
+                L[i][j] = math.sqrt(val)
+            else:
+                L[i][j] = (matrix[i][j] - s) / L[j][j]
+
+    return L
+
+
+class CorrelatedReturns:
+    '''
+    Draw correlated annual returns for all risk classes using a Cholesky decomposition
+    of the correlation matrix and independent standard normal shocks.
+    '''
+
+    def __init__(self, risk_distrib, correlations=None, risk_classes=None):
+        self.risk_distrib = risk_distrib
+        self.risk_classes = list(risk_classes or risk_distrib.keys())
+        self.rng = random.Random()
+
+        corr_matrix = build_correlation_matrix(self.risk_classes, correlations)
+        self.cholesky = cholesky_decomposition(corr_matrix)
+
+    def draw(self, period):
+        '''
+        Draw one correlated return sample per risk class for the given period.
+
+        Returns a dict keyed by rc with return values expressed in percent (same units as Norm.draw()).
+        '''
+        n = len(self.risk_classes)
+        z = [self.rng.gauss(0, 1) for _ in range(n)]
+        returns = {}
+
+        for i, risk_class in enumerate(self.risk_classes):
+            rv = self.risk_distrib[risk_class].distribution[period]
+            correlated_z = sum(self.cholesky[i][j] * z[j] for j in range(n))
+            returns[risk_class] = rv.mu + rv.sigma * correlated_z
+
+        return returns
+
 """
 Risks
 """
 
 class Risk:
-
+    '''A risk class'''
+    
     def __init__(self, name, rc,  quantifications, max_year):
         self.name = name
         self.rc = rc
@@ -342,7 +422,7 @@ class Projection(Observable):
     A class that projects a P&L over multiple years using specified assumptions
     '''
     
-    def __init__(self, initial_capital, withdrawals, cashBuffer, risk_mix, risk_distrib, nb_years, nb_projections):
+    def __init__(self, initial_capital, withdrawals, cashBuffer, risk_mix, risk_distrib, nb_years, nb_projections, correlations=None):
         '''
         arguments:
             capital:        the initial amount of capital
@@ -352,6 +432,7 @@ class Projection(Observable):
             risk_distrib:   the risk distributions
             nb_years:       the number of years to run
             nb_projections: the number of projections to run
+            correlations:   optional dict of (rc, rc) pairs to correlation coefficients
 
         '''
 
@@ -361,6 +442,7 @@ class Projection(Observable):
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
+        self.correlated_returns = CorrelatedReturns(risk_distrib, correlations=correlations)
         self.nb_years = nb_years
         self.nb_projections = nb_projections
         
@@ -428,8 +510,8 @@ class Projection(Observable):
         self.ptf2.rebalance(self.risk_mix)
         v1 = self.ptf2.total_value()
 
-        # investment income
-        self.returns = {k:self.risk_distribution[k].distribution[period].draw()/100.0 for k in self.risk_distribution}
+        # investment income (correlated draws via Cholesky decomposition)
+        self.returns = {k: v / 100.0 for k, v in self.correlated_returns.draw(period).items()}
     
         # Apply returns
         self.ptf3 = self.ptf2.dup()
