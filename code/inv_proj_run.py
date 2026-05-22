@@ -15,7 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+from pathlib import Path
+
 from inv_proj import rc, Risk, Projection, StatisticalObserver, ps, AuditObserver, CSV_Observer
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = PROJECT_ROOT / 'output'
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ---------------------------------------------------------------------------------------
 #
@@ -87,11 +93,11 @@ def define_observers(simulation):
         simulation.registerObserver(navObserver)
 
     # audit observer
-    auditObserver = AuditObserver(out=open('audit.txt', mode="w"))
+    auditObserver = AuditObserver(out=open(OUTPUT_DIR / 'audit.txt', mode="w"))
     simulation.registerObserver(auditObserver)
 
     # csv file observer
-    csv = CSV_Observer('output.csv')
+    csv = CSV_Observer(str(OUTPUT_DIR / 'output.csv'))
     simulation.registerObserver(csv)
 
     return nav

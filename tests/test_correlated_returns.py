@@ -4,7 +4,11 @@
 # Run from project root with: python3 -m unittest discover -s tests -v
 
 import math
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'code'))
 
 from inv_proj import (
     CorrelatedReturns,

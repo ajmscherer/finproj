@@ -708,4 +708,4 @@ class CSV_Observer(Observer):
             indirection[step](observed)
 
 if __name__ == '__main__':
-    raise(Exception('This code is meant to be used as a library, not to be run. Run inv_proj_run.py instead.'))
+    raise(Exception('This code is meant to be used as a library, not to be run. Run code/inv_proj_run.py instead.'))
