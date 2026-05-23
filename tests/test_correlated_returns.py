@@ -3,6 +3,7 @@
 #
 # Run from project root with: python3 -m unittest discover -s tests -v
 
+import csv
 import math
 import sys
 import unittest
@@ -17,6 +18,10 @@ from inv_proj import (
     cholesky_decomposition,
     rc,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = PROJECT_ROOT / 'output'
+SAMPLES_CSV = OUTPUT_DIR / 'test_correlated_returns_samples.csv'
 
 
 # Assumed return parameters used throughout these tests (percent units).
@@ -95,6 +100,22 @@ def correlation_tolerance(target_rho, n_draws):
     return SIGMA_LEVEL * (1 - target_rho**2) / math.sqrt(n_draws - 1)
 
 
+def save_samples_to_csv(samples, file_path):
+    risk_classes = list(samples.keys())
+    fieldnames = ['draw'] + [risk_class.name for risk_class in risk_classes]
+    n_draws = len(next(iter(samples.values())))
+
+    file_path.parent.mkdir(exist_ok=True)
+    with open(file_path, 'w', newline='') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        for draw_index in range(n_draws):
+            row = {'draw': draw_index + 1}
+            for risk_class in risk_classes:
+                row[risk_class.name] = samples[risk_class][draw_index]
+            writer.writerow(row)
+
+
 class CorrelatedReturnsStatisticsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -110,6 +131,8 @@ class CorrelatedReturnsStatisticsTest(unittest.TestCase):
             draw = cls.correlated_returns.draw(PERIOD)
             for risk_class, value in draw.items():
                 cls.samples[risk_class].append(value)
+
+        save_samples_to_csv(cls.samples, SAMPLES_CSV)
 
     def test_sample_means_match_assumed_mu(self):
         for risk_class, values in self.samples.items():
