@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'code'))
 
+from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
@@ -40,19 +42,6 @@ from inv_proj_runner import (  # noqa: E402
 
 def _nav_key(year: int) -> str:
     return f'Net Asset Value @ year {year:>2}'
-
-
-def _init_session_state() -> None:
-    if 'asset_catalog' not in st.session_state:
-        st.session_state.asset_catalog = default_asset_catalog()
-    if 'allocation' not in st.session_state:
-        st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance'])
-    if 'mix_preset' not in st.session_state:
-        st.session_state.mix_preset = 'performance'
-    if 'result' not in st.session_state:
-        st.session_state.result = None
-    if 'correlation_values' not in st.session_state:
-        st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
@@ -83,6 +72,127 @@ def _default_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], 
     return values
 
 
+def _init_mu_sigma_keys(catalog: AssetCatalog) -> None:
+    for asset_id in return_model_asset_ids(catalog):
+        defaults = DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]
+        st.session_state.setdefault(f'mu_{asset_id}', float(defaults['mu']))
+        st.session_state.setdefault(f'sigma_{asset_id}', float(defaults['sigma']))
+
+
+def _init_correlation_keys(catalog: AssetCatalog) -> None:
+    for left, right in _correlation_pairs(catalog):
+        canonical = normalize_correlation_pair(left, right, return_model_asset_ids(catalog))
+        key = f'corr_{canonical[0]}_{canonical[1]}'
+        st.session_state.setdefault(key, float(st.session_state.correlation_values.get(canonical, 0.0)))
+
+
+def _init_session_state() -> None:
+    st.session_state.setdefault('asset_catalog', default_asset_catalog())
+    st.session_state.setdefault('allocation', copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance']))
+    st.session_state.setdefault('mix_preset', 'performance')
+    st.session_state.setdefault('result', None)
+    st.session_state.setdefault('initial_capital', '1M')
+    st.session_state.setdefault('withdrawals', '40k')
+    st.session_state.setdefault('cash_buffer', '100k')
+    st.session_state.setdefault('max_year', 15)
+    st.session_state.setdefault('nb_projections', 2000)
+    st.session_state.setdefault('output_dir', str(DEFAULT_OUTPUT_DIR))
+    st.session_state.setdefault('assumptions_name', 'Untitled')
+    st.session_state.setdefault('assumptions_file', '')
+    st.session_state.setdefault('assumptions_save_as', 'my_scenario.json')
+    if 'correlation_values' not in st.session_state:
+        st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
+    _init_mu_sigma_keys(st.session_state.asset_catalog)
+    _init_correlation_keys(st.session_state.asset_catalog)
+
+
+def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
+    mu_sigma: dict[str, tuple[float, float]] = {}
+    for asset_id in return_model_asset_ids(catalog):
+        mu_sigma[asset_id] = (
+            float(st.session_state[f'mu_{asset_id}']),
+            float(st.session_state[f'sigma_{asset_id}']),
+        )
+    return mu_sigma
+
+
+def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
+    asset_order = return_model_asset_ids(catalog)
+    values: dict[tuple[str, str], float] = {}
+    for left, right in _correlation_pairs(catalog):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        key = f'corr_{canonical[0]}_{canonical[1]}'
+        values[canonical] = float(st.session_state.get(key, 0.0))
+    st.session_state.correlation_values = values
+    return values
+
+
+def _collect_assumptions() -> Assumptions:
+    catalog: AssetCatalog = st.session_state.asset_catalog
+    return Assumptions.from_gui_state(
+        name=st.session_state.assumptions_name.strip() or 'Untitled',
+        initial_capital=st.session_state.initial_capital,
+        withdrawals=st.session_state.withdrawals,
+        cash_buffer=st.session_state.cash_buffer,
+        max_year=int(st.session_state.max_year),
+        nb_projections=int(st.session_state.nb_projections),
+        output_dir=st.session_state.output_dir,
+        mix_preset=st.session_state.mix_preset,
+        asset_catalog=catalog,
+        allocation=dict(st.session_state.allocation),
+        mu_sigma=_read_mu_sigma(catalog),
+        correlation_values=_read_correlation_values(catalog),
+    )
+
+
+def _queue_assumptions_load(assumptions: Assumptions, file_path: Path | None = None) -> None:
+    st.session_state['_pending_assumptions'] = assumptions.to_dict()
+    st.session_state['_pending_assumptions_file'] = str(file_path) if file_path else ''
+
+
+def _process_pending_assumptions() -> None:
+    if '_pending_assumptions' not in st.session_state:
+        return
+    assumptions = Assumptions.from_dict(st.session_state['_pending_assumptions'])
+    file_path = st.session_state.get('_pending_assumptions_file') or ''
+    del st.session_state['_pending_assumptions']
+    del st.session_state['_pending_assumptions_file']
+    _apply_assumptions(assumptions, Path(file_path) if file_path else None)
+    st.session_state['_assumptions_load_message'] = f'Loaded "{assumptions.name}".'
+
+
+def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) -> None:
+    st.session_state.initial_capital = assumptions.initial_capital
+    st.session_state.withdrawals = assumptions.withdrawals
+    st.session_state.cash_buffer = assumptions.cash_buffer
+    st.session_state.max_year = assumptions.max_year
+    st.session_state.nb_projections = assumptions.nb_projections
+    st.session_state.output_dir = assumptions.output_dir
+    st.session_state.mix_preset = assumptions.mix_preset
+    st.session_state.assumptions_name = assumptions.name
+    st.session_state.asset_catalog = assumptions.asset_catalog.copy()
+    st.session_state.allocation = copy.deepcopy(assumptions.allocation)
+    st.session_state.correlation_values = assumptions.correlation_values()
+    st.session_state.assumptions_file = str(file_path) if file_path else ''
+    st.session_state.result = None
+
+    for asset in assumptions.asset_catalog.assets:
+        st.session_state[f'asset_name_{asset.id}'] = asset.name
+
+    for asset_id, weight in assumptions.allocation.items():
+        st.session_state[f'alloc_{asset_id}'] = float(weight)
+
+    for asset_id, (mu, sigma) in assumptions.mu_sigma_tuples().items():
+        st.session_state[f'mu_{asset_id}'] = float(mu)
+        st.session_state[f'sigma_{asset_id}'] = float(sigma)
+
+    asset_order = assumptions.asset_catalog.return_model_ids()
+    for key, rho in assumptions.correlations.items():
+        left, right = key.split('|', 1)
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        st.session_state[f'corr_{canonical[0]}_{canonical[1]}'] = float(rho)
+
+
 def _build_risk_param(catalog: AssetCatalog, mu_sigma: dict[str, tuple[float, float]]) -> dict:
     risk_param = {}
     for asset_id in return_model_asset_ids(catalog):
@@ -93,31 +203,99 @@ def _build_risk_param(catalog: AssetCatalog, mu_sigma: dict[str, tuple[float, fl
 
 
 def _build_config(
-    initial_capital: str,
-    withdrawals: str,
-    cash_buffer: str,
-    max_year: int,
-    nb_projections: int,
     catalog: AssetCatalog,
     allocation: dict[str, float],
     mu_sigma: dict[str, tuple[float, float]],
     correlation_values: dict[tuple[str, str], float],
-    output_dir: Path,
 ) -> SimulationConfig:
     config = SimulationConfig(
-        initial_capital=initial_capital,
-        withdrawals=withdrawals,
-        cash_buffer=cash_buffer,
-        max_year=max_year,
-        nb_projections=nb_projections,
+        initial_capital=st.session_state.initial_capital,
+        withdrawals=st.session_state.withdrawals,
+        cash_buffer=st.session_state.cash_buffer,
+        max_year=int(st.session_state.max_year),
+        nb_projections=int(st.session_state.nb_projections),
         asset_catalog=catalog.copy(),
         risk_mix=copy.deepcopy(allocation),
         risk_param=_build_risk_param(catalog, mu_sigma),
         risk_correlation=_correlation_from_inputs(correlation_values),
-        output_dir=output_dir,
+        output_dir=Path(st.session_state.output_dir),
     )
     sync_config_with_catalog(config)
     return config
+
+
+def _render_assumptions_file_controls() -> None:
+    st.header('Assumptions file')
+    st.text_input('Scenario name', key='assumptions_name')
+
+    current_file = st.session_state.assumptions_file
+    if current_file:
+        st.caption(f'Current file: `{current_file}`')
+    else:
+        st.caption('No file saved yet — use **Save as** for the first save.')
+
+    uploaded = st.file_uploader('Load from JSON file', type=['json'], key='assumptions_uploader')
+    if st.button('Load', use_container_width=True):
+        if uploaded is None:
+            st.warning('Choose a JSON file first.')
+        else:
+            try:
+                assumptions = Assumptions.from_json(uploaded.getvalue().decode('utf-8'))
+                _queue_assumptions_load(assumptions)
+                st.rerun()
+            except (ValueError, KeyError, json.JSONDecodeError) as exc:
+                st.error(f'Could not load file: {exc}')
+
+    save_col, save_as_col = st.columns(2)
+    with save_col:
+        if st.button('Save', use_container_width=True):
+            try:
+                assumptions = _collect_assumptions()
+                if st.session_state.assumptions_file:
+                    path = Path(st.session_state.assumptions_file)
+                else:
+                    path = DEFAULT_ASSUMPTIONS_DIR / assumptions.safe_filename()
+                    st.session_state.assumptions_file = str(path)
+                assumptions.save(path)
+                st.success(f'Saved to `{path}`.')
+            except (ValueError, OSError) as exc:
+                st.error(str(exc))
+
+    with save_as_col:
+        st.text_input(
+            'Save as filename',
+            key='assumptions_save_as',
+            label_visibility='collapsed',
+            placeholder='my_scenario.json',
+        )
+
+    if st.button('Save as', use_container_width=True):
+        try:
+            assumptions = _collect_assumptions()
+            filename = st.session_state.assumptions_save_as.strip() or assumptions.safe_filename()
+            if not filename.endswith('.json'):
+                filename = f'{filename}.json'
+            path = DEFAULT_ASSUMPTIONS_DIR / filename
+            assumptions.save(path)
+            st.session_state.assumptions_file = str(path)
+            st.success(f'Saved to `{path}`.')
+        except (ValueError, OSError) as exc:
+            st.error(str(exc))
+
+    try:
+        download_payload = _collect_assumptions().to_json()
+    except ValueError as exc:
+        download_payload = None
+        st.warning(f'Cannot export assumptions: {exc}')
+
+    if download_payload:
+        st.download_button(
+            'Download JSON',
+            data=download_payload,
+            file_name=_collect_assumptions().safe_filename(),
+            mime='application/json',
+            use_container_width=True,
+        )
 
 
 def _render_asset_editor() -> AssetCatalog:
@@ -134,6 +312,8 @@ def _render_asset_editor() -> AssetCatalog:
             st.session_state.asset_catalog = default_asset_catalog()
             st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance'])
             st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
+            _init_mu_sigma_keys(st.session_state.asset_catalog)
+            _init_correlation_keys(st.session_state.asset_catalog)
             st.rerun()
 
     for asset in catalog.assets:
@@ -141,10 +321,11 @@ def _render_asset_editor() -> AssetCatalog:
         with cols[0]:
             st.text(asset.id)
         with cols[1]:
+            name_key = f'asset_name_{asset.id}'
+            st.session_state.setdefault(name_key, asset.name)
             new_name = st.text_input(
                 'Name',
-                value=asset.name,
-                key=f'asset_name_{asset.id}',
+                key=name_key,
                 label_visibility='collapsed',
             )
             if new_name.strip() and new_name.strip() != asset.name:
@@ -158,6 +339,8 @@ def _render_asset_editor() -> AssetCatalog:
                     st.session_state.asset_catalog = catalog
                     st.session_state.allocation.pop(asset.id, None)
                     st.session_state.correlation_values = _default_correlation_values(catalog)
+                    _init_mu_sigma_keys(catalog)
+                    _init_correlation_keys(catalog)
                     st.rerun()
                 except ValueError as exc:
                     st.error(str(exc))
@@ -172,9 +355,12 @@ def _render_asset_editor() -> AssetCatalog:
                 st.error('Enter a name for the new asset.')
             else:
                 try:
-                    catalog.add(new_asset_name)
+                    added = catalog.add(new_asset_name)
                     st.session_state.asset_catalog = catalog
+                    st.session_state.allocation.setdefault(added.id, 0.0)
                     st.session_state.correlation_values = _default_correlation_values(catalog)
+                    _init_mu_sigma_keys(catalog)
+                    _init_correlation_keys(catalog)
                     st.rerun()
                 except ValueError as exc:
                     st.error(str(exc))
@@ -197,7 +383,7 @@ def _render_summary(result: RunResult, max_year: int) -> None:
             'Min': observer.min(),
             'Max': observer.max(),
         })
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width='stretch', hide_index=True)
 
     horizon_key = _nav_key(max_year)
     if horizon_key in result.nav_observers:
@@ -251,13 +437,18 @@ def _render_charts(result: RunResult, chart_year: int) -> None:
 def main() -> None:
     st.set_page_config(page_title='finproj', layout='wide')
     _init_session_state()
+    _process_pending_assumptions()
 
     st.title('finproj')
     st.caption('Stochastic financial projections — runs locally on your machine.')
 
     with st.sidebar:
+        if st.session_state.get('_assumptions_load_message'):
+            st.success(st.session_state.pop('_assumptions_load_message'))
+        _render_assumptions_file_controls()
+        st.divider()
         st.header('Output')
-        output_dir = st.text_input('Output directory', value=str(DEFAULT_OUTPUT_DIR))
+        st.text_input('Output directory', key='output_dir')
         st.info(
             'After running, refresh `output/finproj.xlsx` in Excel for deeper analysis '
             '(fan charts, scenario navigator).'
@@ -267,20 +458,19 @@ def main() -> None:
     st.header('1. Portfolio assumptions')
     col1, col2, col3 = st.columns(3)
     with col1:
-        initial_capital = st.text_input('Initial capital', value='1M', help='Supports shorthand such as 1M or 40k.')
-        withdrawals = st.text_input('Annual withdrawals', value='40k')
+        st.text_input('Initial capital', key='initial_capital', help='Supports shorthand such as 1M or 40k.')
+        st.text_input('Annual withdrawals', key='withdrawals')
     with col2:
-        cash_buffer = st.text_input('Cash buffer', value='100k')
-        max_year = st.number_input('Horizon (years)', min_value=1, max_value=50, value=15, step=1)
+        st.text_input('Cash buffer', key='cash_buffer')
+        st.number_input('Horizon (years)', min_value=1, max_value=50, step=1, key='max_year')
     with col3:
-        nb_projections = st.number_input('Number of projections', min_value=10, max_value=20000, value=2000, step=10)
-        if nb_projections > 5000:
+        st.number_input('Number of projections', min_value=10, max_value=20000, step=10, key='nb_projections')
+        if int(st.session_state.nb_projections) > 5000:
             st.warning('Large projection counts can take several minutes.')
 
     st.header('2. Investable asset classes')
     catalog = _render_asset_editor()
     investable_ids = investable_asset_ids(catalog)
-    return_ids = return_model_asset_ids(catalog)
 
     st.header('3. Asset allocation')
     preset_col, reset_col = st.columns([3, 1])
@@ -298,6 +488,8 @@ def main() -> None:
                 asset_id: preset.get(asset_id, 0.0)
                 for asset_id in investable_ids
             }
+            for asset_id, weight in st.session_state.allocation.items():
+                st.session_state[f'alloc_{asset_id}'] = float(weight)
             st.session_state.mix_preset = mix_preset
             st.rerun()
 
@@ -307,19 +499,22 @@ def main() -> None:
             asset_id: preset.get(asset_id, 0.0)
             for asset_id in investable_ids
         }
+        for asset_id, weight in st.session_state.allocation.items():
+            st.session_state[f'alloc_{asset_id}'] = float(weight)
         st.session_state.mix_preset = mix_preset
 
     alloc_cols = st.columns(max(len(investable_ids), 1))
     allocation: dict[str, float] = {}
     for idx, asset_id in enumerate(investable_ids):
+        alloc_key = f'alloc_{asset_id}'
+        st.session_state.setdefault(alloc_key, float(st.session_state.allocation.get(asset_id, 0.0)))
         with alloc_cols[idx]:
             allocation[asset_id] = st.number_input(
                 catalog.name(asset_id),
                 min_value=0.0,
                 max_value=100.0,
-                value=float(st.session_state.allocation.get(asset_id, 0.0)),
                 step=1.0,
-                key=f'alloc_{asset_id}',
+                key=alloc_key,
             )
     st.session_state.allocation = allocation
 
@@ -331,67 +526,46 @@ def main() -> None:
 
     st.header('4. Return assumptions')
     st.caption('Expected return (mu) and volatility (sigma) in percent.')
-    mu_sigma: dict[str, tuple[float, float]] = {}
+    mu_sigma = _read_mu_sigma(catalog)
+    return_ids = return_model_asset_ids(catalog)
     return_cols = st.columns(max(len(return_ids), 1))
     for idx, asset_id in enumerate(return_ids):
-        defaults = DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]
         with return_cols[idx]:
             st.markdown(f'**{catalog.name(asset_id)}**')
-            mu = st.number_input(
-                'mu (%)',
-                value=float(defaults['mu']),
-                format='%.2f',
-                key=f'mu_{asset_id}',
-            )
-            sigma = st.number_input(
-                'sigma (%)',
-                min_value=0.0,
-                value=float(defaults['sigma']),
-                format='%.2f',
-                key=f'sigma_{asset_id}',
-            )
-            mu_sigma[asset_id] = (mu, sigma)
+            st.number_input('mu (%)', format='%.2f', key=f'mu_{asset_id}')
+            st.number_input('sigma (%)', min_value=0.0, format='%.2f', key=f'sigma_{asset_id}')
+    mu_sigma = _read_mu_sigma(catalog)
 
     with st.expander('Pairwise correlations', expanded=False):
         asset_order = return_model_asset_ids(catalog)
         if st.button('Reset correlations to defaults'):
             st.session_state.correlation_values = _default_correlation_values(catalog)
+            _init_correlation_keys(catalog)
             st.rerun()
 
-        correlation_values = st.session_state.correlation_values.copy()
         corr_cols = st.columns(2)
         for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
             label = f'{catalog.name(left)} / {catalog.name(right)}'
             canonical = normalize_correlation_pair(left, right, asset_order)
+            corr_key = f'corr_{canonical[0]}_{canonical[1]}'
+            st.session_state.setdefault(corr_key, float(st.session_state.correlation_values.get(canonical, 0.0)))
             with corr_cols[idx % 2]:
-                correlation_values[canonical] = st.number_input(
+                st.number_input(
                     label,
                     min_value=-1.0,
                     max_value=1.0,
-                    value=float(correlation_values.get(canonical, 0.0)),
                     step=0.05,
                     format='%.2f',
-                    key=f'corr_{left}_{right}',
+                    key=corr_key,
                 )
-        st.session_state.correlation_values = correlation_values
+    correlation_values = _read_correlation_values(catalog)
 
     st.header('5. Run and results')
     run_clicked = st.button('Run simulation', type='primary')
 
     if run_clicked:
         try:
-            config = _build_config(
-                initial_capital=initial_capital,
-                withdrawals=withdrawals,
-                cash_buffer=cash_buffer,
-                max_year=int(max_year),
-                nb_projections=int(nb_projections),
-                catalog=catalog,
-                allocation=allocation,
-                mu_sigma=mu_sigma,
-                correlation_values=st.session_state.correlation_values,
-                output_dir=Path(output_dir),
-            )
+            config = _build_config(catalog, allocation, mu_sigma, correlation_values)
             validate_allocation(config.risk_mix, config.asset_catalog)
             validate_correlation(config.risk_param, config.risk_correlation)
 
@@ -409,7 +583,7 @@ def main() -> None:
                 f'Finished {config.nb_projections:,} projections over {config.max_year} years.'
             )
             st.session_state.result = result
-            st.session_state.result_max_year = int(max_year)
+            st.session_state.result_max_year = int(st.session_state.max_year)
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
@@ -417,7 +591,7 @@ def main() -> None:
 
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
-        result_year = st.session_state.get('result_max_year', int(max_year))
+        result_year = st.session_state.get('result_max_year', int(st.session_state.max_year))
 
         _render_summary(result, result_year)
 
