@@ -21,6 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT / 'code'))
 
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
+from theme import inject_theme  # noqa: E402
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
@@ -86,20 +87,56 @@ def _init_correlation_keys(catalog: AssetCatalog) -> None:
         st.session_state.setdefault(key, float(st.session_state.correlation_values.get(canonical, 0.0)))
 
 
+PORTFOLIO_FIELD_DEFAULTS = {
+    'initial_capital': '1M',
+    'withdrawals': '40k',
+    'cash_buffer': '100k',
+    'max_year': 15,
+    'nb_projections': 2000,
+}
+
+
+def _init_portfolio_fields() -> None:
+    if 'portfolio' not in st.session_state:
+        st.session_state.portfolio = copy.deepcopy(PORTFOLIO_FIELD_DEFAULTS)
+
+
+def _sync_portfolio_to_edit_widgets() -> None:
+    portfolio = st.session_state.portfolio
+    st.session_state.portfolio_edit_initial_capital = portfolio['initial_capital']
+    st.session_state.portfolio_edit_withdrawals = portfolio['withdrawals']
+    st.session_state.portfolio_edit_cash_buffer = portfolio['cash_buffer']
+    st.session_state.portfolio_edit_max_year = int(portfolio['max_year'])
+    st.session_state.portfolio_edit_nb_projections = int(portfolio['nb_projections'])
+
+
+def _sync_edit_widgets_to_portfolio() -> None:
+    portfolio = st.session_state.portfolio
+    portfolio['initial_capital'] = st.session_state.portfolio_edit_initial_capital
+    portfolio['withdrawals'] = st.session_state.portfolio_edit_withdrawals
+    portfolio['cash_buffer'] = st.session_state.portfolio_edit_cash_buffer
+    portfolio['max_year'] = int(st.session_state.portfolio_edit_max_year)
+    portfolio['nb_projections'] = int(st.session_state.portfolio_edit_nb_projections)
+
+
+def _read_portfolio_fields() -> dict:
+    if st.session_state.get('portfolio_assumptions_editing'):
+        _sync_edit_widgets_to_portfolio()
+    return st.session_state.portfolio
+
+
 def _init_session_state() -> None:
     st.session_state.setdefault('asset_catalog', default_asset_catalog())
     st.session_state.setdefault('allocation', copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance']))
     st.session_state.setdefault('mix_preset', 'performance')
     st.session_state.setdefault('result', None)
-    st.session_state.setdefault('initial_capital', '1M')
-    st.session_state.setdefault('withdrawals', '40k')
-    st.session_state.setdefault('cash_buffer', '100k')
-    st.session_state.setdefault('max_year', 15)
-    st.session_state.setdefault('nb_projections', 2000)
+    _init_portfolio_fields()
     st.session_state.setdefault('output_dir', str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault('assumptions_name', 'Untitled')
     st.session_state.setdefault('assumptions_file', '')
     st.session_state.setdefault('assumptions_save_as', 'my_scenario.json')
+    st.session_state.setdefault('portfolio_assumptions_editing', False)
+    st.session_state.setdefault('asset_classes_editing', False)
     if 'correlation_values' not in st.session_state:
         st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
     _init_mu_sigma_keys(st.session_state.asset_catalog)
@@ -128,14 +165,15 @@ def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], flo
 
 
 def _collect_assumptions() -> Assumptions:
-    catalog: AssetCatalog = st.session_state.asset_catalog
+    catalog: AssetCatalog = _read_asset_catalog()
+    portfolio = _read_portfolio_fields()
     return Assumptions.from_gui_state(
         name=st.session_state.assumptions_name.strip() or 'Untitled',
-        initial_capital=st.session_state.initial_capital,
-        withdrawals=st.session_state.withdrawals,
-        cash_buffer=st.session_state.cash_buffer,
-        max_year=int(st.session_state.max_year),
-        nb_projections=int(st.session_state.nb_projections),
+        initial_capital=portfolio['initial_capital'],
+        withdrawals=portfolio['withdrawals'],
+        cash_buffer=portfolio['cash_buffer'],
+        max_year=int(portfolio['max_year']),
+        nb_projections=int(portfolio['nb_projections']),
         output_dir=st.session_state.output_dir,
         mix_preset=st.session_state.mix_preset,
         asset_catalog=catalog,
@@ -162,11 +200,13 @@ def _process_pending_assumptions() -> None:
 
 
 def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) -> None:
-    st.session_state.initial_capital = assumptions.initial_capital
-    st.session_state.withdrawals = assumptions.withdrawals
-    st.session_state.cash_buffer = assumptions.cash_buffer
-    st.session_state.max_year = assumptions.max_year
-    st.session_state.nb_projections = assumptions.nb_projections
+    st.session_state.portfolio = {
+        'initial_capital': assumptions.initial_capital,
+        'withdrawals': assumptions.withdrawals,
+        'cash_buffer': assumptions.cash_buffer,
+        'max_year': assumptions.max_year,
+        'nb_projections': assumptions.nb_projections,
+    }
     st.session_state.output_dir = assumptions.output_dir
     st.session_state.mix_preset = assumptions.mix_preset
     st.session_state.assumptions_name = assumptions.name
@@ -175,6 +215,8 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.correlation_values = assumptions.correlation_values()
     st.session_state.assumptions_file = str(file_path) if file_path else ''
     st.session_state.result = None
+    st.session_state.portfolio_assumptions_editing = False
+    st.session_state.asset_classes_editing = False
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f'asset_name_{asset.id}'] = asset.name
@@ -208,12 +250,13 @@ def _build_config(
     mu_sigma: dict[str, tuple[float, float]],
     correlation_values: dict[tuple[str, str], float],
 ) -> SimulationConfig:
+    portfolio = _read_portfolio_fields()
     config = SimulationConfig(
-        initial_capital=st.session_state.initial_capital,
-        withdrawals=st.session_state.withdrawals,
-        cash_buffer=st.session_state.cash_buffer,
-        max_year=int(st.session_state.max_year),
-        nb_projections=int(st.session_state.nb_projections),
+        initial_capital=portfolio['initial_capital'],
+        withdrawals=portfolio['withdrawals'],
+        cash_buffer=portfolio['cash_buffer'],
+        max_year=int(portfolio['max_year']),
+        nb_projections=int(portfolio['nb_projections']),
         asset_catalog=catalog.copy(),
         risk_mix=copy.deepcopy(allocation),
         risk_param=_build_risk_param(catalog, mu_sigma),
@@ -298,7 +341,38 @@ def _render_assumptions_file_controls() -> None:
         )
 
 
-def _render_asset_editor() -> AssetCatalog:
+def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
+    for asset in catalog.assets:
+        st.session_state[f'asset_name_{asset.id}'] = asset.name
+    st.session_state.setdefault('asset_classes_edit_new_name', '')
+
+
+def _sync_edit_widgets_to_catalog() -> None:
+    catalog: AssetCatalog = st.session_state.asset_catalog.copy()
+    for asset in list(catalog.assets):
+        name_key = f'asset_name_{asset.id}'
+        if name_key in st.session_state:
+            new_name = str(st.session_state[name_key]).strip()
+            if new_name and new_name != asset.name:
+                catalog.rename(asset.id, new_name)
+    st.session_state.asset_catalog = catalog
+
+
+def _read_asset_catalog() -> AssetCatalog:
+    if st.session_state.get('asset_classes_editing'):
+        _sync_edit_widgets_to_catalog()
+    return st.session_state.asset_catalog
+
+
+def _render_asset_classes_readonly(catalog: AssetCatalog) -> None:
+    # HTML collapses regular spaces; use non-breaking spaces so separators stay visible.
+    separator = '\u00a0\u00a0|\u00a0\u00a0'
+    summary = separator.join(asset.name for asset in catalog.assets)
+    with st.container(border=True):
+        st.markdown(summary)
+
+
+def _render_asset_classes_edit_form() -> AssetCatalog:
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
 
     st.caption(
@@ -347,7 +421,11 @@ def _render_asset_editor() -> AssetCatalog:
 
     add_cols = st.columns([3, 1])
     with add_cols[0]:
-        new_asset_name = st.text_input('New asset name', placeholder='e.g. Commodities')
+        new_asset_name = st.text_input(
+            'New asset name',
+            placeholder='e.g. Commodities',
+            key='asset_classes_edit_new_name',
+        )
     with add_cols[1]:
         st.write('')
         if st.button('Add asset'):
@@ -366,6 +444,37 @@ def _render_asset_editor() -> AssetCatalog:
                     st.error(str(exc))
 
     st.session_state.asset_catalog = catalog
+    return catalog
+
+
+def _render_asset_classes_section() -> AssetCatalog:
+    editing = st.session_state.asset_classes_editing
+    catalog: AssetCatalog = st.session_state.asset_catalog
+
+    with st.container(
+        horizontal=True,
+        width='content',
+        gap='small',
+        vertical_alignment='center',
+        key='asset_classes_section_header',
+    ):
+        st.header('2. Investable asset classes')
+        if editing:
+            if st.button('✓', help='Done editing', key='asset_classes_done'):
+                _sync_edit_widgets_to_catalog()
+                st.session_state.asset_classes_editing = False
+                st.rerun()
+        elif st.button('✎', help='Edit asset classes', key='asset_classes_edit'):
+            _sync_catalog_to_edit_widgets(catalog)
+            st.session_state.asset_classes_editing = True
+            st.rerun()
+
+    if editing:
+        if catalog.assets and f'asset_name_{catalog.assets[0].id}' not in st.session_state:
+            _sync_catalog_to_edit_widgets(catalog)
+        return _render_asset_classes_edit_form()
+
+    _render_asset_classes_readonly(catalog)
     return catalog
 
 
@@ -392,6 +501,68 @@ def _render_summary(result: RunResult, max_year: int) -> None:
             f'Paths with positive NAV at year {max_year}',
             f'{rate:.1f}%',
         )
+
+
+def _render_portfolio_assumptions_section() -> None:
+    editing = st.session_state.portfolio_assumptions_editing
+    portfolio = st.session_state.portfolio
+
+    with st.container(
+        horizontal=True,
+        width='content',
+        gap='small',
+        vertical_alignment='center',
+        key='portfolio_section_header',
+    ):
+        st.header('1. Portfolio assumptions')
+        if editing:
+            if st.button('✓', help='Done editing', key='portfolio_assumptions_done'):
+                _sync_edit_widgets_to_portfolio()
+                st.session_state.portfolio_assumptions_editing = False
+                st.rerun()
+        elif st.button('✎', help='Edit portfolio assumptions', key='portfolio_assumptions_edit'):
+            _sync_portfolio_to_edit_widgets()
+            st.session_state.portfolio_assumptions_editing = True
+            st.rerun()
+
+    if editing:
+        if 'portfolio_edit_initial_capital' not in st.session_state:
+            _sync_portfolio_to_edit_widgets()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.text_input(
+                'Initial capital',
+                key='portfolio_edit_initial_capital',
+                help='Supports shorthand such as 1M or 40k.',
+            )
+            st.text_input('Annual withdrawals', key='portfolio_edit_withdrawals')
+        with col2:
+            st.text_input('Cash buffer', key='portfolio_edit_cash_buffer')
+            st.number_input(
+                'Horizon (years)',
+                min_value=1,
+                max_value=50,
+                step=1,
+                key='portfolio_edit_max_year',
+            )
+        with col3:
+            st.number_input(
+                'Number of projections',
+                min_value=10,
+                max_value=20000,
+                step=10,
+                key='portfolio_edit_nb_projections',
+            )
+            if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                st.warning('Large projection counts can take several minutes.')
+    else:
+        with st.container(border=True):
+            summary_cols = st.columns(5)
+            summary_cols[0].metric('Initial capital', portfolio['initial_capital'])
+            summary_cols[1].metric('Annual withdrawals', portfolio['withdrawals'])
+            summary_cols[2].metric('Cash buffer', portfolio['cash_buffer'])
+            summary_cols[3].metric('Horizon', f"{int(portfolio['max_year'])} yrs")
+            summary_cols[4].metric('Projections', f"{int(portfolio['nb_projections']):,}")
 
 
 def _render_charts(result: RunResult, chart_year: int) -> None:
@@ -436,6 +607,7 @@ def _render_charts(result: RunResult, chart_year: int) -> None:
 
 def main() -> None:
     st.set_page_config(page_title='finproj', layout='wide')
+    inject_theme()
     _init_session_state()
     _process_pending_assumptions()
 
@@ -455,21 +627,9 @@ def main() -> None:
         )
         st.caption('Mac: open the output folder in Finder. Windows: open in File Explorer.')
 
-    st.header('1. Portfolio assumptions')
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.text_input('Initial capital', key='initial_capital', help='Supports shorthand such as 1M or 40k.')
-        st.text_input('Annual withdrawals', key='withdrawals')
-    with col2:
-        st.text_input('Cash buffer', key='cash_buffer')
-        st.number_input('Horizon (years)', min_value=1, max_value=50, step=1, key='max_year')
-    with col3:
-        st.number_input('Number of projections', min_value=10, max_value=20000, step=10, key='nb_projections')
-        if int(st.session_state.nb_projections) > 5000:
-            st.warning('Large projection counts can take several minutes.')
+    _render_portfolio_assumptions_section()
 
-    st.header('2. Investable asset classes')
-    catalog = _render_asset_editor()
+    catalog = _render_asset_classes_section()
     investable_ids = investable_asset_ids(catalog)
 
     st.header('3. Asset allocation')
@@ -583,7 +743,7 @@ def main() -> None:
                 f'Finished {config.nb_projections:,} projections over {config.max_year} years.'
             )
             st.session_state.result = result
-            st.session_state.result_max_year = int(st.session_state.max_year)
+            st.session_state.result_max_year = int(_read_portfolio_fields()['max_year'])
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
@@ -591,7 +751,7 @@ def main() -> None:
 
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
-        result_year = st.session_state.get('result_max_year', int(st.session_state.max_year))
+        result_year = st.session_state.get('result_max_year', int(_read_portfolio_fields()['max_year']))
 
         _render_summary(result, result_year)
 

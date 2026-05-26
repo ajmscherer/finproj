@@ -110,6 +110,8 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `code/inv_proj_runner.py` — Shared simulation configuration and runner (used by CLI and GUI)
 - `code/inv_proj_run.py` — Command-line entry point
 - `gui/app.py` — Streamlit GUI for asset list, assumptions, runs, and summary charts
+- `gui/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
+- `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
 - `requirements-gui.txt` — Optional GUI dependencies (Streamlit, matplotlib)
 - `output/finproj.xlsx` — Companion Excel workbook for visualization and analysis
 - `output/output.csv` — Generated simulation results (created at runtime, not committed to Git)
