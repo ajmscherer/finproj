@@ -1,0 +1,4 @@
+# Optional GUI dependencies (Python 3.10+).
+# Core simulation engine remains stdlib-only.
+streamlit>=1.55.0,<2
+matplotlib>=3.10.0,<4
