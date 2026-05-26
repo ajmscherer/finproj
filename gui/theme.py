@@ -108,22 +108,22 @@ section.main h2,
 
 /* Section title with inline action icon (edit/done) */
 .st-key-portfolio_section_header,
-.st-key-asset_classes_section_header {{
+.st-key-asset_allocation_section_header {{
     margin-top: {t["section_margin_top"]};
     margin-bottom: {t["section_margin_bottom"]};
 }}
 .st-key-portfolio_section_header h2,
-.st-key-asset_classes_section_header h2 {{
+.st-key-asset_allocation_section_header h2 {{
     margin-top: 0 !important;
     margin-bottom: 0 !important;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"],
-.st-key-asset_classes_section_header [data-testid="stButton"] {{
+.st-key-asset_allocation_section_header [data-testid="stButton"] {{
     margin: 0;
     padding: 0;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"] button,
-.st-key-asset_classes_section_header [data-testid="stButton"] button {{
+.st-key-asset_allocation_section_header [data-testid="stButton"] button {{
     min-height: 1.5rem;
     padding: 0.05rem 0.35rem;
     line-height: 1;

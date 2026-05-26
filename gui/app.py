@@ -136,7 +136,9 @@ def _init_session_state() -> None:
     st.session_state.setdefault('assumptions_file', '')
     st.session_state.setdefault('assumptions_save_as', 'my_scenario.json')
     st.session_state.setdefault('portfolio_assumptions_editing', False)
-    st.session_state.setdefault('asset_classes_editing', False)
+    if 'asset_allocation_editing' not in st.session_state:
+        st.session_state.asset_allocation_editing = st.session_state.pop('asset_classes_editing', False)
+    st.session_state.setdefault('asset_allocation_editing', False)
     if 'correlation_values' not in st.session_state:
         st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
     _init_mu_sigma_keys(st.session_state.asset_catalog)
@@ -216,7 +218,7 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.assumptions_file = str(file_path) if file_path else ''
     st.session_state.result = None
     st.session_state.portfolio_assumptions_editing = False
-    st.session_state.asset_classes_editing = False
+    st.session_state.asset_allocation_editing = False
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f'asset_name_{asset.id}'] = asset.name
@@ -359,28 +361,59 @@ def _sync_edit_widgets_to_catalog() -> None:
 
 
 def _read_asset_catalog() -> AssetCatalog:
-    if st.session_state.get('asset_classes_editing'):
+    if st.session_state.get('asset_allocation_editing'):
         _sync_edit_widgets_to_catalog()
     return st.session_state.asset_catalog
 
 
-def _render_asset_classes_readonly(catalog: AssetCatalog) -> None:
-    # HTML collapses regular spaces; use non-breaking spaces so separators stay visible.
-    separator = '\u00a0\u00a0|\u00a0\u00a0'
-    summary = separator.join(asset.name for asset in catalog.assets)
+def _sync_allocation_to_edit_widgets(investable_ids: list[str]) -> None:
+    for asset_id in investable_ids:
+        st.session_state[f'alloc_{asset_id}'] = float(st.session_state.allocation.get(asset_id, 0.0))
+
+
+def _apply_mix_preset(catalog: AssetCatalog, mix_preset: str) -> None:
+    investable_ids = investable_asset_ids(catalog)
+    preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
+    st.session_state.allocation = {
+        asset_id: preset.get(asset_id, 0.0)
+        for asset_id in investable_ids
+    }
+    for asset_id, weight in st.session_state.allocation.items():
+        st.session_state[f'alloc_{asset_id}'] = float(weight)
+    st.session_state.mix_preset = mix_preset
+
+
+def _show_allocation_total(allocation: dict[str, float]) -> None:
+    alloc_total = sum(allocation.values())
+    if abs(alloc_total - 100.0) > 0.01:
+        st.error(f'Allocation must sum to 100%. Current total: {alloc_total:.1f}%')
+    else:
+        st.success(f'Allocation total: {alloc_total:.1f}%')
+
+
+def _render_asset_allocation_readonly(catalog: AssetCatalog, allocation: dict[str, float]) -> None:
+    investable_ids = set(investable_asset_ids(catalog))
     with st.container(border=True):
-        st.markdown(summary)
+        summary_cols = st.columns(max(len(catalog.assets), 1))
+        for idx, asset in enumerate(catalog.assets):
+            with summary_cols[idx]:
+                if asset.id in investable_ids:
+                    weight = allocation.get(asset.id, 0.0)
+                    st.metric(asset.name, f'{weight:.0f}%')
+                else:
+                    st.metric(asset.name, '—')
 
 
-def _render_asset_classes_edit_form() -> AssetCatalog:
+def _render_asset_allocation_edit_form() -> AssetCatalog:
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
+    investable_ids = set(investable_asset_ids(catalog))
 
     st.caption(
         'Required assets: Cash (liquidity buffer), Money Market, Bonds, and Stocks. '
         'You can rename them, add optional classes, or remove optional classes.'
     )
 
-    reset_col, _ = st.columns([1, 3])
+    reset_col, preset_col, load_col = st.columns([1.4, 2, 1.2])
     with reset_col:
         if st.button('Reset asset list to defaults'):
             st.session_state.asset_catalog = default_asset_catalog()
@@ -389,44 +422,79 @@ def _render_asset_classes_edit_form() -> AssetCatalog:
             _init_mu_sigma_keys(st.session_state.asset_catalog)
             _init_correlation_keys(st.session_state.asset_catalog)
             st.rerun()
+    with preset_col:
+        mix_preset = st.selectbox(
+            'Preset mix',
+            options=list(DEFAULT_RISK_MIX_PRESETS.keys()),
+            index=list(DEFAULT_RISK_MIX_PRESETS.keys()).index(st.session_state.mix_preset),
+        )
+    with load_col:
+        st.write('')
+        if st.button('Load preset weights', key='asset_allocation_load_preset'):
+            _apply_mix_preset(catalog, mix_preset)
+            st.rerun()
 
+    if mix_preset != st.session_state.mix_preset:
+        _apply_mix_preset(catalog, mix_preset)
+
+    header_cols = st.columns([4, 1.5, 0.5])
+    with header_cols[0]:
+        st.markdown('**Asset**')
+    with header_cols[1]:
+        st.markdown('**Weight %**')
+
+    allocation: dict[str, float] = {}
     for asset in catalog.assets:
-        cols = st.columns([2, 3, 1, 1])
+        cols = st.columns([4, 1.5, 0.5])
         with cols[0]:
-            st.text(asset.id)
-        with cols[1]:
             name_key = f'asset_name_{asset.id}'
             st.session_state.setdefault(name_key, asset.name)
             new_name = st.text_input(
-                'Name',
+                'Asset',
                 key=name_key,
                 label_visibility='collapsed',
             )
             if new_name.strip() and new_name.strip() != asset.name:
                 catalog.rename(asset.id, new_name)
+        with cols[1]:
+            if asset.id in investable_ids:
+                alloc_key = f'alloc_{asset.id}'
+                st.session_state.setdefault(
+                    alloc_key,
+                    float(st.session_state.allocation.get(asset.id, 0.0)),
+                )
+                allocation[asset.id] = st.number_input(
+                    'Weight %',
+                    min_value=0.0,
+                    max_value=100.0,
+                    step=1.0,
+                    key=alloc_key,
+                    label_visibility='collapsed',
+                )
+            else:
+                st.write('—')
         with cols[2]:
-            st.write('Required' if asset.required else 'Optional')
-        with cols[3]:
-            if not asset.required and st.button('Delete', key=f'delete_{asset.id}'):
-                try:
-                    catalog.remove(asset.id)
-                    st.session_state.asset_catalog = catalog
-                    st.session_state.allocation.pop(asset.id, None)
-                    st.session_state.correlation_values = _default_correlation_values(catalog)
-                    _init_mu_sigma_keys(catalog)
-                    _init_correlation_keys(catalog)
-                    st.rerun()
-                except ValueError as exc:
-                    st.error(str(exc))
+            if not asset.required:
+                if st.button('×', help='Remove asset', key=f'delete_{asset.id}'):
+                    try:
+                        catalog.remove(asset.id)
+                        st.session_state.asset_catalog = catalog
+                        st.session_state.allocation.pop(asset.id, None)
+                        st.session_state.correlation_values = _default_correlation_values(catalog)
+                        _init_mu_sigma_keys(catalog)
+                        _init_correlation_keys(catalog)
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
 
-    add_cols = st.columns([3, 1])
+    add_cols = st.columns([4, 1.5, 0.5])
     with add_cols[0]:
         new_asset_name = st.text_input(
             'New asset name',
             placeholder='e.g. Commodities',
             key='asset_classes_edit_new_name',
         )
-    with add_cols[1]:
+    with add_cols[2]:
         st.write('')
         if st.button('Add asset'):
             if not new_asset_name.strip():
@@ -444,38 +512,44 @@ def _render_asset_classes_edit_form() -> AssetCatalog:
                     st.error(str(exc))
 
     st.session_state.asset_catalog = catalog
+    st.session_state.allocation = allocation
+    _show_allocation_total(allocation)
     return catalog
 
 
-def _render_asset_classes_section() -> AssetCatalog:
-    editing = st.session_state.asset_classes_editing
+def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
+    editing = st.session_state.asset_allocation_editing
     catalog: AssetCatalog = st.session_state.asset_catalog
+    investable_ids = investable_asset_ids(catalog)
 
     with st.container(
         horizontal=True,
         width='content',
         gap='small',
         vertical_alignment='center',
-        key='asset_classes_section_header',
+        key='asset_allocation_section_header',
     ):
-        st.header('2. Investable asset classes')
+        st.header('2. Asset allocation')
         if editing:
-            if st.button('✓', help='Done editing', key='asset_classes_done'):
+            if st.button('✓', help='Done editing', key='asset_allocation_done'):
                 _sync_edit_widgets_to_catalog()
-                st.session_state.asset_classes_editing = False
+                st.session_state.asset_allocation_editing = False
                 st.rerun()
-        elif st.button('✎', help='Edit asset classes', key='asset_classes_edit'):
+        elif st.button('✎', help='Edit asset allocation', key='asset_allocation_edit'):
             _sync_catalog_to_edit_widgets(catalog)
-            st.session_state.asset_classes_editing = True
+            _sync_allocation_to_edit_widgets(investable_ids)
+            st.session_state.asset_allocation_editing = True
             st.rerun()
 
     if editing:
         if catalog.assets and f'asset_name_{catalog.assets[0].id}' not in st.session_state:
             _sync_catalog_to_edit_widgets(catalog)
-        return _render_asset_classes_edit_form()
+            _sync_allocation_to_edit_widgets(investable_ids)
+        catalog = _render_asset_allocation_edit_form()
+    else:
+        _render_asset_allocation_readonly(catalog, st.session_state.allocation)
 
-    _render_asset_classes_readonly(catalog)
-    return catalog
+    return catalog, dict(st.session_state.allocation)
 
 
 def _render_summary(result: RunResult, max_year: int) -> None:
@@ -629,62 +703,9 @@ def main() -> None:
 
     _render_portfolio_assumptions_section()
 
-    catalog = _render_asset_classes_section()
-    investable_ids = investable_asset_ids(catalog)
+    catalog, allocation = _render_asset_allocation_section()
 
-    st.header('3. Asset allocation')
-    preset_col, reset_col = st.columns([3, 1])
-    with preset_col:
-        mix_preset = st.selectbox(
-            'Preset mix',
-            options=list(DEFAULT_RISK_MIX_PRESETS.keys()),
-            index=list(DEFAULT_RISK_MIX_PRESETS.keys()).index(st.session_state.mix_preset),
-        )
-    with reset_col:
-        st.write('')
-        if st.button('Load preset weights'):
-            preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
-            st.session_state.allocation = {
-                asset_id: preset.get(asset_id, 0.0)
-                for asset_id in investable_ids
-            }
-            for asset_id, weight in st.session_state.allocation.items():
-                st.session_state[f'alloc_{asset_id}'] = float(weight)
-            st.session_state.mix_preset = mix_preset
-            st.rerun()
-
-    if mix_preset != st.session_state.mix_preset:
-        preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
-        st.session_state.allocation = {
-            asset_id: preset.get(asset_id, 0.0)
-            for asset_id in investable_ids
-        }
-        for asset_id, weight in st.session_state.allocation.items():
-            st.session_state[f'alloc_{asset_id}'] = float(weight)
-        st.session_state.mix_preset = mix_preset
-
-    alloc_cols = st.columns(max(len(investable_ids), 1))
-    allocation: dict[str, float] = {}
-    for idx, asset_id in enumerate(investable_ids):
-        alloc_key = f'alloc_{asset_id}'
-        st.session_state.setdefault(alloc_key, float(st.session_state.allocation.get(asset_id, 0.0)))
-        with alloc_cols[idx]:
-            allocation[asset_id] = st.number_input(
-                catalog.name(asset_id),
-                min_value=0.0,
-                max_value=100.0,
-                step=1.0,
-                key=alloc_key,
-            )
-    st.session_state.allocation = allocation
-
-    alloc_total = sum(allocation.values())
-    if abs(alloc_total - 100.0) > 0.01:
-        st.error(f'Allocation must sum to 100%. Current total: {alloc_total:.1f}%')
-    else:
-        st.success(f'Allocation total: {alloc_total:.1f}%')
-
-    st.header('4. Return assumptions')
+    st.header('3. Return assumptions')
     st.caption('Expected return (mu) and volatility (sigma) in percent.')
     mu_sigma = _read_mu_sigma(catalog)
     return_ids = return_model_asset_ids(catalog)
@@ -720,7 +741,7 @@ def main() -> None:
                 )
     correlation_values = _read_correlation_values(catalog)
 
-    st.header('5. Run and results')
+    st.header('4. Run and results')
     run_clicked = st.button('Run simulation', type='primary')
 
     if run_clicked:
