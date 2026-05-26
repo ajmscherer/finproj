@@ -18,26 +18,24 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'code'))
 
-from inv_proj import rc  # noqa: E402
+from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
 from inv_proj_runner import (  # noqa: E402
-    ALLOCATION_ASSET_CLASSES,
-    CORRELATION_ASSET_CLASSES,
+    DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_RISK_CORRELATION,
     DEFAULT_RISK_MIX_PRESETS,
     DEFAULT_RISK_PARAM,
     RunResult,
     SimulationConfig,
+    investable_asset_ids,
     normalize_correlation_pair,
+    return_model_asset_ids,
     success_rate,
+    sync_config_with_catalog,
     validate_allocation,
     validate_correlation,
     run_simulation,
 )
-
-
-def _asset_label(asset_class: rc) -> str:
-    return asset_class.getDescription()
 
 
 def _nav_key(year: int) -> str:
@@ -45,47 +43,52 @@ def _nav_key(year: int) -> str:
 
 
 def _init_session_state() -> None:
-    defaults = {
-        'allocation': copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance']),
-        'mix_preset': 'performance',
-        'result': None,
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if 'asset_catalog' not in st.session_state:
+        st.session_state.asset_catalog = default_asset_catalog()
+    if 'allocation' not in st.session_state:
+        st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance'])
+    if 'mix_preset' not in st.session_state:
+        st.session_state.mix_preset = 'performance'
+    if 'result' not in st.session_state:
+        st.session_state.result = None
+    if 'correlation_values' not in st.session_state:
+        st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
 
 
-def _correlation_pairs() -> list[tuple[rc, rc]]:
+def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
+    asset_order = return_model_asset_ids(catalog)
     pairs = []
-    classes = CORRELATION_ASSET_CLASSES
-    for i, left in enumerate(classes):
-        for right in classes[i + 1:]:
+    for i, left in enumerate(asset_order):
+        for right in asset_order[i + 1:]:
             pairs.append((left, right))
     return pairs
 
 
-def _correlation_from_inputs(values: dict[tuple[rc, rc], float]) -> dict[tuple[rc, rc], float]:
-    correlations: dict[tuple[rc, rc], float] = {}
+def _correlation_from_inputs(values: dict[tuple[str, str], float]) -> dict[tuple[str, str], float]:
+    correlations: dict[tuple[str, str], float] = {}
     for pair, rho in values.items():
         if abs(rho) > 1e-12:
             correlations[pair] = rho
     return correlations
 
 
-def _default_correlation_values() -> dict[tuple[rc, rc], float]:
-    values = {pair: 0.0 for pair in _correlation_pairs()}
+def _default_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
+    asset_order = return_model_asset_ids(catalog)
+    values = {pair: 0.0 for pair in _correlation_pairs(catalog)}
     for pair, rho in DEFAULT_RISK_CORRELATION.items():
         left, right = pair
-        canonical = normalize_correlation_pair(left, right)
+        canonical = normalize_correlation_pair(left, right, asset_order)
         if canonical in values:
             values[canonical] = rho
     return values
 
 
-def _build_risk_param(mu_sigma: dict[rc, tuple[float, float]]) -> dict:
-    risk_param = copy.deepcopy(DEFAULT_RISK_PARAM)
-    for asset_class, (mu, sigma) in mu_sigma.items():
-        risk_param[asset_class] = [{'from_year': 1, 'rv': 'norm', 'mu': mu, 'sigma': sigma}]
+def _build_risk_param(catalog: AssetCatalog, mu_sigma: dict[str, tuple[float, float]]) -> dict:
+    risk_param = {}
+    for asset_id in return_model_asset_ids(catalog):
+        defaults = DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]
+        mu, sigma = mu_sigma.get(asset_id, (defaults['mu'], defaults['sigma']))
+        risk_param[asset_id] = [{'from_year': 1, 'rv': 'norm', 'mu': mu, 'sigma': sigma}]
     return risk_param
 
 
@@ -95,22 +98,89 @@ def _build_config(
     cash_buffer: str,
     max_year: int,
     nb_projections: int,
-    allocation: dict[rc, float],
-    mu_sigma: dict[rc, tuple[float, float]],
-    correlation_values: dict[tuple[rc, rc], float],
+    catalog: AssetCatalog,
+    allocation: dict[str, float],
+    mu_sigma: dict[str, tuple[float, float]],
+    correlation_values: dict[tuple[str, str], float],
     output_dir: Path,
 ) -> SimulationConfig:
-    return SimulationConfig(
+    config = SimulationConfig(
         initial_capital=initial_capital,
         withdrawals=withdrawals,
         cash_buffer=cash_buffer,
         max_year=max_year,
         nb_projections=nb_projections,
+        asset_catalog=catalog.copy(),
         risk_mix=copy.deepcopy(allocation),
-        risk_param=_build_risk_param(mu_sigma),
+        risk_param=_build_risk_param(catalog, mu_sigma),
         risk_correlation=_correlation_from_inputs(correlation_values),
         output_dir=output_dir,
     )
+    sync_config_with_catalog(config)
+    return config
+
+
+def _render_asset_editor() -> AssetCatalog:
+    catalog: AssetCatalog = st.session_state.asset_catalog.copy()
+
+    st.caption(
+        'Required assets: Cash (liquidity buffer), Money Market, Bonds, and Stocks. '
+        'You can rename them, add optional classes, or remove optional classes.'
+    )
+
+    reset_col, _ = st.columns([1, 3])
+    with reset_col:
+        if st.button('Reset asset list to defaults'):
+            st.session_state.asset_catalog = default_asset_catalog()
+            st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance'])
+            st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
+            st.rerun()
+
+    for asset in catalog.assets:
+        cols = st.columns([2, 3, 1, 1])
+        with cols[0]:
+            st.text(asset.id)
+        with cols[1]:
+            new_name = st.text_input(
+                'Name',
+                value=asset.name,
+                key=f'asset_name_{asset.id}',
+                label_visibility='collapsed',
+            )
+            if new_name.strip() and new_name.strip() != asset.name:
+                catalog.rename(asset.id, new_name)
+        with cols[2]:
+            st.write('Required' if asset.required else 'Optional')
+        with cols[3]:
+            if not asset.required and st.button('Delete', key=f'delete_{asset.id}'):
+                try:
+                    catalog.remove(asset.id)
+                    st.session_state.asset_catalog = catalog
+                    st.session_state.allocation.pop(asset.id, None)
+                    st.session_state.correlation_values = _default_correlation_values(catalog)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+
+    add_cols = st.columns([3, 1])
+    with add_cols[0]:
+        new_asset_name = st.text_input('New asset name', placeholder='e.g. Commodities')
+    with add_cols[1]:
+        st.write('')
+        if st.button('Add asset'):
+            if not new_asset_name.strip():
+                st.error('Enter a name for the new asset.')
+            else:
+                try:
+                    catalog.add(new_asset_name)
+                    st.session_state.asset_catalog = catalog
+                    st.session_state.correlation_values = _default_correlation_values(catalog)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+
+    st.session_state.asset_catalog = catalog
+    return catalog
 
 
 def _render_summary(result: RunResult, max_year: int) -> None:
@@ -207,7 +277,12 @@ def main() -> None:
         if nb_projections > 5000:
             st.warning('Large projection counts can take several minutes.')
 
-    st.header('2. Asset allocation')
+    st.header('2. Investable asset classes')
+    catalog = _render_asset_editor()
+    investable_ids = investable_asset_ids(catalog)
+    return_ids = return_model_asset_ids(catalog)
+
+    st.header('3. Asset allocation')
     preset_col, reset_col = st.columns([3, 1])
     with preset_col:
         mix_preset = st.selectbox(
@@ -218,25 +293,33 @@ def main() -> None:
     with reset_col:
         st.write('')
         if st.button('Load preset weights'):
-            st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
+            preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
+            st.session_state.allocation = {
+                asset_id: preset.get(asset_id, 0.0)
+                for asset_id in investable_ids
+            }
             st.session_state.mix_preset = mix_preset
             st.rerun()
 
     if mix_preset != st.session_state.mix_preset:
-        st.session_state.allocation = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
+        preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
+        st.session_state.allocation = {
+            asset_id: preset.get(asset_id, 0.0)
+            for asset_id in investable_ids
+        }
         st.session_state.mix_preset = mix_preset
 
-    alloc_cols = st.columns(len(ALLOCATION_ASSET_CLASSES))
-    allocation: dict[rc, float] = {}
-    for idx, asset_class in enumerate(ALLOCATION_ASSET_CLASSES):
+    alloc_cols = st.columns(max(len(investable_ids), 1))
+    allocation: dict[str, float] = {}
+    for idx, asset_id in enumerate(investable_ids):
         with alloc_cols[idx]:
-            allocation[asset_class] = st.number_input(
-                _asset_label(asset_class),
+            allocation[asset_id] = st.number_input(
+                catalog.name(asset_id),
                 min_value=0.0,
                 max_value=100.0,
-                value=float(st.session_state.allocation.get(asset_class, 0.0)),
+                value=float(st.session_state.allocation.get(asset_id, 0.0)),
                 step=1.0,
-                key=f'alloc_{asset_class.name}',
+                key=f'alloc_{asset_id}',
             )
     st.session_state.allocation = allocation
 
@@ -246,54 +329,53 @@ def main() -> None:
     else:
         st.success(f'Allocation total: {alloc_total:.1f}%')
 
-    st.header('3. Return assumptions')
+    st.header('4. Return assumptions')
     st.caption('Expected return (mu) and volatility (sigma) in percent.')
-    mu_sigma: dict[rc, tuple[float, float]] = {}
-    return_cols = st.columns(len(CORRELATION_ASSET_CLASSES))
-    for idx, asset_class in enumerate(CORRELATION_ASSET_CLASSES):
-        defaults = DEFAULT_RISK_PARAM[asset_class][0]
+    mu_sigma: dict[str, tuple[float, float]] = {}
+    return_cols = st.columns(max(len(return_ids), 1))
+    for idx, asset_id in enumerate(return_ids):
+        defaults = DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]
         with return_cols[idx]:
-            st.markdown(f'**{_asset_label(asset_class)}**')
+            st.markdown(f'**{catalog.name(asset_id)}**')
             mu = st.number_input(
                 'mu (%)',
                 value=float(defaults['mu']),
                 format='%.2f',
-                key=f'mu_{asset_class.name}',
+                key=f'mu_{asset_id}',
             )
             sigma = st.number_input(
                 'sigma (%)',
                 min_value=0.0,
                 value=float(defaults['sigma']),
                 format='%.2f',
-                key=f'sigma_{asset_class.name}',
+                key=f'sigma_{asset_id}',
             )
-            mu_sigma[asset_class] = (mu, sigma)
+            mu_sigma[asset_id] = (mu, sigma)
 
     with st.expander('Pairwise correlations', expanded=False):
+        asset_order = return_model_asset_ids(catalog)
         if st.button('Reset correlations to defaults'):
-            st.session_state.correlation_values = _default_correlation_values()
+            st.session_state.correlation_values = _default_correlation_values(catalog)
             st.rerun()
-
-        if 'correlation_values' not in st.session_state:
-            st.session_state.correlation_values = _default_correlation_values()
 
         correlation_values = st.session_state.correlation_values.copy()
         corr_cols = st.columns(2)
-        for idx, (left, right) in enumerate(_correlation_pairs()):
-            label = f'{_asset_label(left)} / {_asset_label(right)}'
+        for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
+            label = f'{catalog.name(left)} / {catalog.name(right)}'
+            canonical = normalize_correlation_pair(left, right, asset_order)
             with corr_cols[idx % 2]:
-                correlation_values[(left, right)] = st.number_input(
+                correlation_values[canonical] = st.number_input(
                     label,
                     min_value=-1.0,
                     max_value=1.0,
-                    value=float(correlation_values.get((left, right), 0.0)),
+                    value=float(correlation_values.get(canonical, 0.0)),
                     step=0.05,
                     format='%.2f',
-                    key=f'corr_{left.name}_{right.name}',
+                    key=f'corr_{left}_{right}',
                 )
         st.session_state.correlation_values = correlation_values
 
-    st.header('4. Run and results')
+    st.header('5. Run and results')
     run_clicked = st.button('Run simulation', type='primary')
 
     if run_clicked:
@@ -304,12 +386,13 @@ def main() -> None:
                 cash_buffer=cash_buffer,
                 max_year=int(max_year),
                 nb_projections=int(nb_projections),
+                catalog=catalog,
                 allocation=allocation,
                 mu_sigma=mu_sigma,
                 correlation_values=st.session_state.correlation_values,
                 output_dir=Path(output_dir),
             )
-            validate_allocation(config.risk_mix)
+            validate_allocation(config.risk_mix, config.asset_catalog)
             validate_correlation(config.risk_param, config.risk_correlation)
 
             progress = st.progress(0.0, text='Starting simulation...')

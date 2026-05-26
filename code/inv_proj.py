@@ -248,25 +248,32 @@ Risks
 class Risk:
     '''A risk class'''
     
-    def __init__(self, name, rc,  quantifications, max_year):
+    def __init__(self, asset_id, name, quantifications, max_year):
+        self.asset_id = asset_id
         self.name = name
-        self.rc = rc
 
         # init distribution
         self.distribution=init_distrib(quantifications, max_year=max_year)
 
         
     @staticmethod
-    def buildRisks(risk_param, max_year):
+    def buildRisks(risk_param, max_year, asset_names=None):
         '''
         Static method to create a set of risks
         
-        :param risk_param: assumptions for risk distribution
+        :param risk_param: assumptions for risk distribution keyed by asset id
         :param max_year: the number of years to project
+        :param asset_names: optional asset id -> display name mapping
         '''
         result = {}
-        for rc in risk_param:
-            result[rc] = Risk(name=rc.name, rc=rc, quantifications=risk_param[rc], max_year=max_year)
+        for asset_id in risk_param:
+            display_name = asset_names.get(asset_id, asset_id) if asset_names else asset_id
+            result[asset_id] = Risk(
+                asset_id=asset_id,
+                name=display_name,
+                quantifications=risk_param[asset_id],
+                max_year=max_year,
+            )
         return result
     
 def init_distrib(distrib_info_list, max_year):
@@ -297,8 +304,8 @@ class Portfolio:
         return Portfolio(lines)
 
     @staticmethod
-    def create_100pct_cash(amount):
-        return Portfolio.create(amount=amount, composition={rc.MONEY_MARKET:1.0})
+    def create_liquidity_buffer(amount, liquidity_asset_id):
+        return Portfolio.create(amount=amount, composition={liquidity_asset_id: 1.0})
 
     @staticmethod
     def create_non_cash(amount, risk_mix):
@@ -380,13 +387,14 @@ class Portfolio:
             result[risk_class] = (f"{rcv:,.0f}", f"{rcv/tv:,.1%}")
         return result
     
-    def getCompoStr(self):
+    def getCompoStr(self, asset_names=None):
         result = ''
         fs = r"{:<15} {:>20} ({:>6})"
-        for k,v in self.getComposition().items():
-            result+= f"{fs.format(k.name, v[0],v[1])}\n"
-        result += "-"*len(fs.format('',"","100.0%")) + '\n'
-        result += fs.format("total",f"{self.total_value():,.0f}", "100.0%") + "\n"
+        for k, v in self.getComposition().items():
+            label = asset_names.get(k, k) if asset_names else k
+            result += f"{fs.format(label, v[0], v[1])}\n"
+        result += "-" * len(fs.format('', "", "100.0%")) + '\n'
+        result += fs.format("total", f"{self.total_value():,.0f}", "100.0%") + "\n"
         return result
 
 class Observer(ABC):
@@ -422,21 +430,37 @@ class Projection(Observable):
     A class that projects a P&L over multiple years using specified assumptions
     '''
     
-    def __init__(self, initial_capital, withdrawals, cashBuffer, risk_mix, risk_distrib, nb_years, nb_projections, correlations=None):
+    def __init__(
+        self,
+        initial_capital,
+        withdrawals,
+        cashBuffer,
+        risk_mix,
+        risk_distrib,
+        nb_years,
+        nb_projections,
+        asset_catalog,
+        correlations=None,
+    ):
         '''
         arguments:
             capital:        the initial amount of capital
             withdrawals:    the amount of money spent in each period
             cashBuffer:     the target amount of cash that needs to be held when possible
-            risk_mix:       the allocation of capital by risk class
-            risk_distrib:   the risk distributions
+            risk_mix:       the allocation of capital by asset id
+            risk_distrib:   the risk distributions keyed by asset id
             nb_years:       the number of years to run
             nb_projections: the number of projections to run
-            correlations:   optional dict of (rc, rc) pairs to correlation coefficients
+            asset_catalog:  asset definitions and role mapping
+            correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
 
         '''
 
         super().__init__()
+        self.asset_catalog = asset_catalog
+        self.liquidity_asset_id = asset_catalog.liquidity_id()
+        self.shortfall_asset_id = asset_catalog.shortfall_id()
+        self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
         self.withdrawals = cv(withdrawals)
         self.cashBuffer = cv(cashBuffer)
@@ -467,9 +491,9 @@ class Projection(Observable):
         # initiate period
         self.period = 0
 
-        # creata a portfolio made 100% of cash
+        # create a portfolio made 100% of the liquidity buffer asset
         cashAmount = self.cashBuffer
-        cash_ptf=Portfolio.create_100pct_cash(amount=cashAmount)
+        cash_ptf = Portfolio.create_liquidity_buffer(cashAmount, self.liquidity_asset_id)
 
         # create non cash portfolio
         nonCashAmount = self.initial_capital - cashAmount
@@ -494,16 +518,18 @@ class Projection(Observable):
         self.ptf_bop = self.ptf_eop.dup()
 
         # determine how much cash is available
-        self.availableCash=self.ptf_bop.lines[rc.MONEY_MARKET]
-        self.cashDepletion = min(self.withdrawals,self.availableCash)
-        self.availableCash-=self.cashDepletion
+        self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
+        self.cashDepletion = min(self.withdrawals, self.availableCash)
+        self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
         
         self.ptf1 = self.ptf_bop.dup()
         self.shortfall = self.withdrawals - self.cashDepletion
-        self.ptf1.lines[rc.MONEY_MARKET] -= self.cashDepletion
-        self.ptf1.lines[rc.BOND] -= self.shortfall
+        self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
+        if self.shortfall_asset_id not in self.ptf1.lines:
+            self.ptf1.lines[self.shortfall_asset_id] = 0.0
+        self.ptf1.lines[self.shortfall_asset_id] -= self.shortfall
 
         # rebalance portfolio
         self.ptf2 = self.ptf1.dup()
@@ -523,10 +549,17 @@ class Projection(Observable):
 
         # determine if replenishment of cash is needed
         if self.financialGainLoss>0:
-            self.cashReplenishment = min(self.cashBuffer-self.ptf3.lines[rc.MONEY_MARKET], v2-v1)
+            liquidity_balance = self.ptf3.lines.get(self.liquidity_asset_id, 0.0)
+            self.cashReplenishment = min(self.cashBuffer - liquidity_balance, v2 - v1)
             self.ptf4 = self.ptf3.dup()
-            self.ptf4.growByPeriodMovement({rc.MONEY_MARKET :+self.cashReplenishment,
-                                      rc.BOND         :-self.cashReplenishment})
+            if self.replenishment_asset_id not in self.ptf4.lines:
+                self.ptf4.lines[self.replenishment_asset_id] = 0.0
+            if self.liquidity_asset_id not in self.ptf4.lines:
+                self.ptf4.lines[self.liquidity_asset_id] = 0.0
+            self.ptf4.growByPeriodMovement({
+                self.liquidity_asset_id: +self.cashReplenishment,
+                self.replenishment_asset_id: -self.cashReplenishment,
+            })
             self.ptf5 = self.ptf4.dup()
             self.ptf5.rebalance(self.risk_mix)
         else:
@@ -636,13 +669,13 @@ class AuditObserver(Observer):
         if step == ps.START:
             
             print(header(f"Period 0 ( simulation {id:0>5})",pattern="#")+"\n", file = out)
-            print(observed.ptf_eop.getCompoStr(), file=out)
+            print(observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()), file=out)
             print(file=out)
 
         elif step == ps.BOP:
             print(header(f"Period {period: >2}", pattern="*")+"\n", file = out)
         elif step == ps.EOP:
-            print(observed.ptf_eop.getCompoStr(), file=out)
+            print(observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()), file=out)
         elif step == ps.WRAPUP:
             print("\n"*2, file=out)
         else:
@@ -671,17 +704,19 @@ class CSV_Observer(Observer):
         def newLine(variable, risk, value):
             self._addLine([f"{observed.id}", f"{observed.period}", variable, risk, f"{value}"])
 
+        asset_names = observed.asset_catalog.name_map()
+
         # write portfolios
         for item in self.ptfs:
             lines = observed.__dict__[item].lines
             for line in lines:
-                value=lines[line]
-                newLine(item, line.name, value)
+                value = lines[line]
+                newLine(item, asset_names.get(line, line), value)
 
         # write returns
         for line in observed.returns:
             value = observed.returns[line]
-            newLine('returns', line.name, value)
+            newLine('returns', asset_names.get(line, line), value)
 
         # write withdrawals and other quantities
         for var in self.vars:
