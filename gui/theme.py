@@ -70,6 +70,12 @@ THEME: dict[str, str] = {
     # Main content spacing
     "block_gap": "0.75rem",
     "main_padding_top": "1rem",
+    # Summary statistics table
+    "summary_table_font_size": "0.875rem",
+    "summary_table_header_background": "#f9fafb",
+    "summary_table_header_color": "#374151",
+    "summary_table_border": "1px solid #e5e7eb",
+    "summary_table_cell_padding": "0.5rem 0.75rem",
 }
 
 
@@ -232,6 +238,30 @@ section.main h3,
 }}
 [data-testid="stMain"] .block-container {{
     padding-top: {t["main_padding_top"]};
+}}
+
+/* Summary statistics table */
+.fp-summary-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: {t["summary_table_font_size"]};
+    margin-bottom: 0.75rem;
+}}
+.fp-summary-table th,
+.fp-summary-table td {{
+    padding: {t["summary_table_cell_padding"]};
+    border-bottom: {t["summary_table_border"]};
+    vertical-align: middle;
+}}
+.fp-summary-table th {{
+    font-weight: 600;
+    color: {t["summary_table_header_color"]};
+    background: {t["summary_table_header_background"]};
+    text-align: left;
+}}
+.fp-summary-table th.fp-summary-num,
+.fp-summary-table td.fp-summary-num {{
+    text-align: center;
 }}
 
 /* Markdown body text in main area */

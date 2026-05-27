@@ -22,7 +22,9 @@ sys.path.insert(0, str(PROJECT_ROOT / 'code'))
 
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
+from inv_proj import cv  # noqa: E402
 from theme import inject_theme  # noqa: E402
+from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
@@ -108,6 +110,80 @@ PORTFOLIO_FIELD_DEFAULTS = {
     'nb_projections': 2000,
 }
 
+PORTFOLIO_FIELD_HELP = {
+    'initial_capital': (
+        'Total portfolio value at the start of each simulation path. '
+        'The cash buffer is set aside first; the rest is invested per your allocation. '
+        'Supports shorthand such as 1M, 40k, or 2.5B.'
+    ),
+    'withdrawals': (
+        'Amount withdrawn from the portfolio every year. '
+        'Withdrawals are taken from the cash buffer first; any shortfall is covered by selling bonds. '
+        'Supports shorthand such as 40k or 50k.'
+    ),
+    'cash_buffer': (
+        'Target cash reserve held in the liquidity asset (Cash). '
+        'Annual withdrawals are drawn from here before other assets are touched. '
+        'Must be less than initial capital. Supports shorthand such as 100k or 200k.'
+    ),
+    'max_year': (
+        'Number of years each Monte Carlo path runs. '
+        'Summary statistics and charts focus on net asset value at this horizon.'
+    ),
+    'nb_projections': (
+        'Number of independent simulation paths to run. '
+        'More paths produce smoother statistics but take longer. '
+        'Counts above 5,000 can take several minutes.'
+    ),
+}
+
+RETURN_ASSUMPTION_HELP = {
+    'mu': (
+        'Expected annual return for this asset, in percent. '
+        'Used as the mean (μ) of the normal return distribution in each simulation year.'
+    ),
+    'sigma': (
+        'Expected annual volatility (standard deviation of returns), in percent. '
+        'Must be zero or positive. Higher values produce a wider range of outcomes.'
+    ),
+}
+
+PORTFOLIO_AMOUNT_FIELDS = (
+    ('Initial capital', 'portfolio_edit_initial_capital'),
+    ('Annual withdrawals', 'portfolio_edit_withdrawals'),
+    ('Cash buffer', 'portfolio_edit_cash_buffer'),
+)
+
+
+def _validate_portfolio_amount_inputs() -> list[str]:
+    errors: list[str] = []
+    parsed: dict[str, float] = {}
+
+    for label, key in PORTFOLIO_AMOUNT_FIELDS:
+        raw = str(st.session_state.get(key, '')).strip()
+        if not raw:
+            errors.append(f'{label}: enter an amount (e.g. 1M or 40k).')
+            continue
+        try:
+            value = cv(raw)
+        except ValueError:
+            errors.append(
+                f"{label}: could not understand '{raw}' as an amount. "
+                'Use a number with optional k, M, or B suffix (e.g. 1M, 40k, 2.5B).'
+            )
+            continue
+        if value < 0:
+            errors.append(f'{label}: must be zero or positive.')
+            continue
+        parsed[label] = value
+
+    capital = parsed.get('Initial capital')
+    cash_buffer = parsed.get('Cash buffer')
+    if capital is not None and cash_buffer is not None and cash_buffer >= capital:
+        errors.append('Cash buffer must be less than initial capital.')
+
+    return errors
+
 
 def _init_portfolio_fields() -> None:
     if 'portfolio' not in st.session_state:
@@ -134,7 +210,8 @@ def _sync_edit_widgets_to_portfolio() -> None:
 
 def _read_portfolio_fields() -> dict:
     if st.session_state.get('portfolio_assumptions_editing'):
-        _sync_edit_widgets_to_portfolio()
+        if not _validate_portfolio_amount_inputs():
+            _sync_edit_widgets_to_portfolio()
     return st.session_state.portfolio
 
 
@@ -488,10 +565,6 @@ def _render_return_assumptions_edit_form(
     header_cols = st.columns([3, 1.5, 1.5])
     with header_cols[0]:
         st.markdown('**Asset**')
-    with header_cols[1]:
-        st.markdown('**μ (%)**')
-    with header_cols[2]:
-        st.markdown('**σ (%)**')
 
     for asset_id in return_model_asset_ids(catalog):
         cols = st.columns([3, 1.5, 1.5])
@@ -502,7 +575,7 @@ def _render_return_assumptions_edit_form(
                 'μ (%)',
                 format='%.2f',
                 key=f'return_edit_mu_{asset_id}',
-                label_visibility='collapsed',
+                help=RETURN_ASSUMPTION_HELP['mu'],
             )
         with cols[2]:
             st.number_input(
@@ -510,7 +583,7 @@ def _render_return_assumptions_edit_form(
                 min_value=0.0,
                 format='%.2f',
                 key=f'return_edit_sigma_{asset_id}',
-                label_visibility='collapsed',
+                help=RETURN_ASSUMPTION_HELP['sigma'],
             )
 
     st.subheader('Pairwise correlations')
@@ -743,15 +816,15 @@ def _render_summary(result: RunResult, max_year: int) -> None:
     for label, observer in result.nav_observers.items():
         rows.append({
             'Metric': label,
-            'Mean': observer.mean(),
-            'Std Dev': observer.std(),
-            'P10': observer.quantile(0.10),
-            'P50': observer.quantile(0.50),
-            'P90': observer.quantile(0.90),
-            'Min': observer.min(),
-            'Max': observer.max(),
+            'Mean': format_compact_amount(observer.mean()),
+            'Std Dev': format_compact_amount(observer.std()),
+            'P10': format_compact_amount(observer.quantile(0.10)),
+            'P50': format_compact_amount(observer.quantile(0.50)),
+            'P90': format_compact_amount(observer.quantile(0.90)),
+            'Min': format_compact_amount(observer.min()),
+            'Max': format_compact_amount(observer.max()),
         })
-    st.dataframe(rows, width='stretch', hide_index=True)
+    st.markdown(render_summary_statistics_table(rows), unsafe_allow_html=True)
 
     horizon_key = _nav_key(max_year)
     if horizon_key in result.nav_observers:
@@ -776,6 +849,8 @@ def _render_portfolio_assumptions_section() -> None:
         st.header('1. Portfolio assumptions')
         if editing:
             if st.button('✓', help='Done editing', key='portfolio_assumptions_done'):
+                if _validate_portfolio_amount_inputs():
+                    st.rerun()
                 _sync_edit_widgets_to_portfolio()
                 st.session_state.portfolio_assumptions_editing = False
                 st.rerun()
@@ -792,17 +867,26 @@ def _render_portfolio_assumptions_section() -> None:
             st.text_input(
                 'Initial capital',
                 key='portfolio_edit_initial_capital',
-                help='Supports shorthand such as 1M or 40k.',
+                help=PORTFOLIO_FIELD_HELP['initial_capital'],
             )
-            st.text_input('Annual withdrawals', key='portfolio_edit_withdrawals')
+            st.text_input(
+                'Annual withdrawals',
+                key='portfolio_edit_withdrawals',
+                help=PORTFOLIO_FIELD_HELP['withdrawals'],
+            )
         with col2:
-            st.text_input('Cash buffer', key='portfolio_edit_cash_buffer')
+            st.text_input(
+                'Cash buffer',
+                key='portfolio_edit_cash_buffer',
+                help=PORTFOLIO_FIELD_HELP['cash_buffer'],
+            )
             st.number_input(
                 'Horizon (years)',
                 min_value=1,
                 max_value=50,
                 step=1,
                 key='portfolio_edit_max_year',
+                help=PORTFOLIO_FIELD_HELP['max_year'],
             )
         with col3:
             st.number_input(
@@ -811,17 +895,40 @@ def _render_portfolio_assumptions_section() -> None:
                 max_value=20000,
                 step=10,
                 key='portfolio_edit_nb_projections',
+                help=PORTFOLIO_FIELD_HELP['nb_projections'],
             )
             if int(st.session_state.portfolio_edit_nb_projections) > 5000:
                 st.warning('Large projection counts can take several minutes.')
+        for message in _validate_portfolio_amount_inputs():
+            st.error(message)
     else:
         with st.container(border=True):
             summary_cols = st.columns(5)
-            summary_cols[0].metric('Initial capital', portfolio['initial_capital'])
-            summary_cols[1].metric('Annual withdrawals', portfolio['withdrawals'])
-            summary_cols[2].metric('Cash buffer', portfolio['cash_buffer'])
-            summary_cols[3].metric('Horizon', f"{int(portfolio['max_year'])} yrs")
-            summary_cols[4].metric('Projections', f"{int(portfolio['nb_projections']):,}")
+            summary_cols[0].metric(
+                'Initial capital',
+                portfolio['initial_capital'],
+                help=PORTFOLIO_FIELD_HELP['initial_capital'],
+            )
+            summary_cols[1].metric(
+                'Annual withdrawals',
+                portfolio['withdrawals'],
+                help=PORTFOLIO_FIELD_HELP['withdrawals'],
+            )
+            summary_cols[2].metric(
+                'Cash buffer',
+                portfolio['cash_buffer'],
+                help=PORTFOLIO_FIELD_HELP['cash_buffer'],
+            )
+            summary_cols[3].metric(
+                'Horizon',
+                f"{int(portfolio['max_year'])} yrs",
+                help=PORTFOLIO_FIELD_HELP['max_year'],
+            )
+            summary_cols[4].metric(
+                'Projections',
+                f"{int(portfolio['nb_projections']):,}",
+                help=PORTFOLIO_FIELD_HELP['nb_projections'],
+            )
 
 
 def _render_charts(result: RunResult, chart_year: int) -> None:
