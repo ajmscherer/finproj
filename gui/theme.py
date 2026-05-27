@@ -1,6 +1,9 @@
 # finproj - UI theme tokens and CSS injection for the Streamlit GUI
 # Copyright (C) 2025-2026 Alex Scherer
 #
+# Licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+# Commercial licensing is also available; see LICENSE and COMMERCIAL-LICENSE.md.
+#
 # Edit THEME below to control typography, colors, spacing, and borders in the browser.
 # Changes take effect after refreshing the Streamlit page.
 

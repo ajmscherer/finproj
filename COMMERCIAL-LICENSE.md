@@ -14,7 +14,7 @@ The author (Alex Scherer) offers commercial licenses for **finproj**.
 - Annual subscription
 - Per-user / per-server / revenue share (custom)
 
-Contact me at **aschererny@gmail.com** with details about your use case (internal tool, SaaS product, number of users, etc.) and I will provide a custom quote.
+Contact the author via **GitHub** (open a new Issue on this repository or send a direct message) with details about your use case (internal tool, SaaS product, number of users, etc.) and I will provide a custom quote.
 
 ---
 

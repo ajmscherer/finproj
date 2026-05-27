@@ -325,8 +325,12 @@ classDiagram
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0 (AGPLv3) for open-source and non-commercial use.
-For commercial use, closed-source integration, SaaS deployment, or enterprise licensing, please contact me.
+**finproj** is dual-licensed:
+
+- **Open Source**: [GNU AGPLv3](./LICENSE) — Free for open-source projects, personal use, research, and modifications (with source disclosure for network use).
+- **Commercial License**: Available for businesses that want to use the software without AGPL obligations (closed-source integration, SaaS, etc.). See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+For commercial licensing, pricing, or custom terms, please contact the author via **GitHub** ([open an Issue](https://github.com/ajmscherer/finproj/issues/new) or send a direct message).
 
 ## Editing credits
 

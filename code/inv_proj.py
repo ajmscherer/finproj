@@ -6,6 +6,9 @@
 # by the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
+# Alternative licensing under a commercial license is available; see LICENSE
+# and COMMERCIAL-LICENSE.md in the project root.
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
