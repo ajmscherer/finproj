@@ -133,7 +133,7 @@ The `output/finproj.xlsx` companion file contains the following visualizations, 
 - **Open Source**: [GNU AGPLv3](./LICENSE) — Free for open-source projects, personal use, research, and modifications (with source disclosure for network use).
 - **Commercial License**: Available for businesses that want to use the software without AGPL obligations (closed-source integration, SaaS, etc.).
 
-For commercial licensing, pricing, or custom terms, please contact **Alex Scherer** at aschererny@gmail.com.
+For commercial licensing, pricing, or custom terms, please contact the author via **GitHub** (open a new Issue or send a direct message).
 
 ## Editing credits
 Grok assisted Alex Scherer in editing this readme file...
