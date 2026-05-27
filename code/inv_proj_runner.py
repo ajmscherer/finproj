@@ -157,9 +157,19 @@ def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float
     return 100.0 * successes / len(observer.values)
 
 
+STANDARD_CHART_YEARS = (1, 5, 10, 15)
+
+
+def nav_observer_years(max_year: int) -> list[int]:
+    years = {year for year in STANDARD_CHART_YEARS if year <= max_year}
+    if max_year not in years:
+        years.add(max_year)
+    return sorted(years)
+
+
 def _define_observers(simulation: Projection, config: SimulationConfig) -> Dict[str, StatisticalObserver]:
     nav: Dict[str, StatisticalObserver] = {}
-    nav_years = sorted({1, 5, config.max_year})
+    nav_years = nav_observer_years(config.max_year)
 
     for year in nav_years:
         nav_observer = StatisticalObserver(

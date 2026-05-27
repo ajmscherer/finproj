@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import html
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
 from inv_proj import cv  # noqa: E402
 from theme import inject_theme  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
+from charts import build_nav_distribution_figure, build_nav_percentile_figure  # noqa: E402
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
@@ -40,12 +42,22 @@ from inv_proj_runner import (  # noqa: E402
     sync_config_with_catalog,
     validate_allocation,
     validate_correlation,
-    run_simulation,
 )
+import inv_proj_runner  # noqa: E402
 
 
 def _nav_key(year: int) -> str:
     return f'Net Asset Value @ year {year:>2}'
+
+
+STANDARD_CHART_YEARS = (1, 5, 10, 15)
+
+
+def _chart_year_options(max_year: int) -> list[int]:
+    years = {year for year in STANDARD_CHART_YEARS if year <= max_year}
+    if max_year not in years:
+        years.add(max_year)
+    return sorted(years)
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
@@ -828,10 +840,15 @@ def _render_summary(result: RunResult, max_year: int) -> None:
 
     horizon_key = _nav_key(max_year)
     if horizon_key in result.nav_observers:
-        rate = success_rate(result.nav_observers[horizon_key])
+        initial_capital = cv(st.session_state.portfolio['initial_capital'])
+        rate = success_rate(result.nav_observers[horizon_key], threshold=initial_capital)
         st.metric(
-            f'Paths with positive NAV at year {max_year}',
+            f'Probability final NAV greater than initial capital ({format_compact_amount(initial_capital)}) at year {max_year}',
             f'{rate:.1f}%',
+            help=(
+                f'Share of simulation paths where net asset value at year {max_year} '
+                f'exceeds initial capital ({format_compact_amount(initial_capital)}).'
+            ),
         )
 
 
@@ -942,33 +959,15 @@ def _render_charts(result: RunResult, chart_year: int) -> None:
         return
 
     col_hist, col_pct = st.columns(2)
-    observer = result.nav_observers[key]
-
     with col_hist:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.hist(values, bins=40, color='#4C78A8', edgecolor='white')
-        ax.set_title(f'NAV distribution at year {chart_year}')
-        ax.set_xlabel('Net asset value')
-        ax.set_ylabel('Number of paths')
-        ax.ticklabel_format(style='plain', axis='x')
-        st.pyplot(fig)
-        plt.close(fig)
-
+        hist_fig = build_nav_distribution_figure(values, chart_year)
+        st.pyplot(hist_fig)
+        plt.close(hist_fig)
     with col_pct:
-        percentiles = {
-            'P10': observer.quantile(0.10),
-            'P50': observer.quantile(0.50),
-            'P90': observer.quantile(0.90),
-        }
-        fig, ax = plt.subplots(figsize=(6, 4))
-        labels = list(percentiles.keys())
-        heights = list(percentiles.values())
-        ax.bar(labels, heights, color=['#F58518', '#54A24B', '#B279A2'])
-        ax.set_title(f'NAV percentiles at year {chart_year}')
-        ax.set_ylabel('Net asset value')
-        ax.ticklabel_format(style='plain', axis='y')
-        st.pyplot(fig)
-        plt.close(fig)
+        pct_fig = build_nav_percentile_figure(values, chart_year)
+        if pct_fig is not None:
+            st.pyplot(pct_fig)
+            plt.close(pct_fig)
 
 
 def main() -> None:
@@ -1014,8 +1013,11 @@ def main() -> None:
             def progress_callback(current: int, total: int) -> None:
                 progress.progress(current / total, text=f'Running projection {current:,} of {total:,}...')
 
-            with st.spinner('Running Monte Carlo simulation...'):
-                result = run_simulation(config, progress_callback=progress_callback)
+            importlib.reload(inv_proj_runner)
+            result = inv_proj_runner.run_simulation(
+                config,
+                progress_callback=progress_callback,
+            )
 
             progress.progress(1.0, text='Simulation complete.')
             status.success(
@@ -1034,10 +1036,13 @@ def main() -> None:
 
         _render_summary(result, result_year)
 
+        chart_year_options = _chart_year_options(result_year)
         chart_year = st.selectbox(
             'Chart year',
-            options=sorted({1, 5, result_year}),
-            index=sorted({1, 5, result_year}).index(result_year),
+            options=chart_year_options,
+            index=chart_year_options.index(result_year)
+            if result_year in chart_year_options
+            else len(chart_year_options) - 1,
         )
         _render_charts(result, chart_year)
 
