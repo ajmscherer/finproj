@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import copy
+import html
 import json
 import sys
 from pathlib import Path
@@ -54,6 +55,15 @@ def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
     return pairs
 
 
+def _investable_assets(catalog: AssetCatalog) -> list:
+    """Investable assets shown in section 2 (excludes Cash / liquidity buffer)."""
+    liquidity_id = catalog.liquidity_id()
+    return [
+        asset for asset in catalog.assets
+        if asset.id in investable_asset_ids(catalog) and asset.id != liquidity_id
+    ]
+
+
 def _correlation_from_inputs(values: dict[tuple[str, str], float]) -> dict[tuple[str, str], float]:
     correlations: dict[tuple[str, str], float] = {}
     for pair, rho in values.items():
@@ -64,9 +74,12 @@ def _correlation_from_inputs(values: dict[tuple[str, str], float]) -> dict[tuple
 
 def _default_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
     asset_order = return_model_asset_ids(catalog)
+    asset_ids = set(asset_order)
     values = {pair: 0.0 for pair in _correlation_pairs(catalog)}
     for pair, rho in DEFAULT_RISK_CORRELATION.items():
         left, right = pair
+        if left not in asset_ids or right not in asset_ids:
+            continue
         canonical = normalize_correlation_pair(left, right, asset_order)
         if canonical in values:
             values[canonical] = rho
@@ -139,6 +152,7 @@ def _init_session_state() -> None:
     if 'asset_allocation_editing' not in st.session_state:
         st.session_state.asset_allocation_editing = st.session_state.pop('asset_classes_editing', False)
     st.session_state.setdefault('asset_allocation_editing', False)
+    st.session_state.setdefault('return_assumptions_editing', False)
     if 'correlation_values' not in st.session_state:
         st.session_state.correlation_values = _default_correlation_values(st.session_state.asset_catalog)
     _init_mu_sigma_keys(st.session_state.asset_catalog)
@@ -146,6 +160,8 @@ def _init_session_state() -> None:
 
 
 def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
+    if st.session_state.get('return_assumptions_editing'):
+        _sync_edit_widgets_to_return_assumptions(catalog)
     mu_sigma: dict[str, tuple[float, float]] = {}
     for asset_id in return_model_asset_ids(catalog):
         mu_sigma[asset_id] = (
@@ -156,6 +172,8 @@ def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
 
 
 def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
+    if st.session_state.get('return_assumptions_editing'):
+        _sync_edit_widgets_to_return_assumptions(catalog)
     asset_order = return_model_asset_ids(catalog)
     values: dict[tuple[str, str], float] = {}
     for left, right in _correlation_pairs(catalog):
@@ -219,6 +237,7 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.result = None
     st.session_state.portfolio_assumptions_editing = False
     st.session_state.asset_allocation_editing = False
+    st.session_state.return_assumptions_editing = False
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f'asset_name_{asset.id}'] = asset.name
@@ -344,14 +363,14 @@ def _render_assumptions_file_controls() -> None:
 
 
 def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
-    for asset in catalog.assets:
+    for asset in _investable_assets(catalog):
         st.session_state[f'asset_name_{asset.id}'] = asset.name
     st.session_state.setdefault('asset_classes_edit_new_name', '')
 
 
 def _sync_edit_widgets_to_catalog() -> None:
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
-    for asset in list(catalog.assets):
+    for asset in _investable_assets(catalog):
         name_key = f'asset_name_{asset.id}'
         if name_key in st.session_state:
             new_name = str(st.session_state[name_key]).strip()
@@ -391,26 +410,194 @@ def _show_allocation_total(allocation: dict[str, float]) -> None:
         st.success(f'Allocation total: {alloc_total:.1f}%')
 
 
-def _render_asset_allocation_readonly(catalog: AssetCatalog, allocation: dict[str, float]) -> None:
-    investable_ids = set(investable_asset_ids(catalog))
+def _sync_return_assumptions_to_edit_widgets(catalog: AssetCatalog) -> None:
+    for asset_id in return_model_asset_ids(catalog):
+        st.session_state[f'return_edit_mu_{asset_id}'] = float(st.session_state[f'mu_{asset_id}'])
+        st.session_state[f'return_edit_sigma_{asset_id}'] = float(st.session_state[f'sigma_{asset_id}'])
+    asset_order = return_model_asset_ids(catalog)
+    for left, right in _correlation_pairs(catalog):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        edit_key = f'return_edit_corr_{canonical[0]}_{canonical[1]}'
+        st.session_state[edit_key] = float(st.session_state.correlation_values.get(canonical, 0.0))
+
+
+def _sync_edit_widgets_to_return_assumptions(catalog: AssetCatalog) -> None:
+    for asset_id in return_model_asset_ids(catalog):
+        mu_key = f'return_edit_mu_{asset_id}'
+        sigma_key = f'return_edit_sigma_{asset_id}'
+        if mu_key in st.session_state:
+            st.session_state[f'mu_{asset_id}'] = float(st.session_state[mu_key])
+        if sigma_key in st.session_state:
+            st.session_state[f'sigma_{asset_id}'] = float(st.session_state[sigma_key])
+
+    asset_order = return_model_asset_ids(catalog)
+    values: dict[tuple[str, str], float] = {}
+    for left, right in _correlation_pairs(catalog):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        edit_key = f'return_edit_corr_{canonical[0]}_{canonical[1]}'
+        rho = float(st.session_state.get(edit_key, 0.0))
+        values[canonical] = rho
+        st.session_state[f'corr_{canonical[0]}_{canonical[1]}'] = rho
+    st.session_state.correlation_values = values
+
+
+def _format_correlation_summary(
+    catalog: AssetCatalog,
+    correlation_values: dict[tuple[str, str], float],
+) -> str:
+    asset_order = return_model_asset_ids(catalog)
+    pairs = []
+    for left, right in _correlation_pairs(catalog):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        rho = correlation_values.get(canonical, 0.0)
+        if abs(rho) > 1e-12:
+            pairs.append(f'{catalog.name(left)}/{catalog.name(right)} {rho:.2f}')
+    if not pairs:
+        return 'Correlations: none set'
+    return 'Correlations: ' + ', '.join(pairs)
+
+
+def _render_return_assumptions_readonly(
+    catalog: AssetCatalog,
+    mu_sigma: dict[str, tuple[float, float]],
+    correlation_values: dict[tuple[str, str], float],
+) -> None:
+    return_ids = return_model_asset_ids(catalog)
     with st.container(border=True):
-        summary_cols = st.columns(max(len(catalog.assets), 1))
-        for idx, asset in enumerate(catalog.assets):
+        summary_cols = st.columns(max(len(return_ids), 1))
+        for idx, asset_id in enumerate(return_ids):
+            mu, sigma = mu_sigma[asset_id]
             with summary_cols[idx]:
-                if asset.id in investable_ids:
-                    weight = allocation.get(asset.id, 0.0)
-                    st.metric(asset.name, f'{weight:.0f}%')
-                else:
-                    st.metric(asset.name, '—')
+                name = html.escape(catalog.name(asset_id))
+                st.markdown(
+                    f'<div class="fp-return-metric-stack">'
+                    f'<div class="fp-return-metric-label">{name}</div>'
+                    f'<div class="fp-return-metric-value">μ {mu:.1f}%</div>'
+                    f'<div class="fp-return-metric-value">σ {sigma:.1f}%</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+        st.caption(_format_correlation_summary(catalog, correlation_values))
+
+
+def _render_return_assumptions_edit_form(
+    catalog: AssetCatalog,
+) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
+    st.caption('Expected return (mu) and volatility (sigma) in percent.')
+
+    header_cols = st.columns([3, 1.5, 1.5])
+    with header_cols[0]:
+        st.markdown('**Asset**')
+    with header_cols[1]:
+        st.markdown('**μ (%)**')
+    with header_cols[2]:
+        st.markdown('**σ (%)**')
+
+    for asset_id in return_model_asset_ids(catalog):
+        cols = st.columns([3, 1.5, 1.5])
+        with cols[0]:
+            st.markdown(catalog.name(asset_id))
+        with cols[1]:
+            st.number_input(
+                'μ (%)',
+                format='%.2f',
+                key=f'return_edit_mu_{asset_id}',
+                label_visibility='collapsed',
+            )
+        with cols[2]:
+            st.number_input(
+                'σ (%)',
+                min_value=0.0,
+                format='%.2f',
+                key=f'return_edit_sigma_{asset_id}',
+                label_visibility='collapsed',
+            )
+
+    st.subheader('Pairwise correlations')
+    asset_order = return_model_asset_ids(catalog)
+    if st.button('Reset correlations to defaults', key='return_assumptions_reset_corr'):
+        st.session_state.correlation_values = _default_correlation_values(catalog)
+        for left, right in _correlation_pairs(catalog):
+            canonical = normalize_correlation_pair(left, right, asset_order)
+            edit_key = f'return_edit_corr_{canonical[0]}_{canonical[1]}'
+            st.session_state[edit_key] = float(st.session_state.correlation_values.get(canonical, 0.0))
+        st.rerun()
+
+    corr_cols = st.columns(2)
+    for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
+        label = f'{catalog.name(left)} / {catalog.name(right)}'
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        edit_key = f'return_edit_corr_{canonical[0]}_{canonical[1]}'
+        st.session_state.setdefault(
+            edit_key,
+            float(st.session_state.correlation_values.get(canonical, 0.0)),
+        )
+        with corr_cols[idx % 2]:
+            st.number_input(
+                label,
+                min_value=-1.0,
+                max_value=1.0,
+                step=0.05,
+                format='%.2f',
+                key=edit_key,
+            )
+
+    _sync_edit_widgets_to_return_assumptions(catalog)
+    return _read_mu_sigma(catalog), _read_correlation_values(catalog)
+
+
+def _render_return_assumptions_section(
+    catalog: AssetCatalog,
+) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
+    editing = st.session_state.return_assumptions_editing
+    return_ids = return_model_asset_ids(catalog)
+
+    with st.container(
+        horizontal=True,
+        width='content',
+        gap='small',
+        vertical_alignment='center',
+        key='return_assumptions_section_header',
+    ):
+        st.header('3. Return assumptions')
+        if editing:
+            if st.button('✓', help='Done editing', key='return_assumptions_done'):
+                _sync_edit_widgets_to_return_assumptions(catalog)
+                st.session_state.return_assumptions_editing = False
+                st.rerun()
+        elif st.button('✎', help='Edit return assumptions', key='return_assumptions_edit'):
+            _sync_return_assumptions_to_edit_widgets(catalog)
+            st.session_state.return_assumptions_editing = True
+            st.rerun()
+
+    if editing:
+        if return_ids and f'return_edit_mu_{return_ids[0]}' not in st.session_state:
+            _sync_return_assumptions_to_edit_widgets(catalog)
+        return _render_return_assumptions_edit_form(catalog)
+
+    mu_sigma = _read_mu_sigma(catalog)
+    correlation_values = _read_correlation_values(catalog)
+    _render_return_assumptions_readonly(catalog, mu_sigma, correlation_values)
+    return mu_sigma, correlation_values
+
+
+def _render_asset_allocation_readonly(catalog: AssetCatalog, allocation: dict[str, float]) -> None:
+    assets = _investable_assets(catalog)
+    with st.container(border=True):
+        summary_cols = st.columns(max(len(assets), 1))
+        for idx, asset in enumerate(assets):
+            weight = allocation.get(asset.id, 0.0)
+            with summary_cols[idx]:
+                st.metric(asset.name, f'{weight:.0f}%')
 
 
 def _render_asset_allocation_edit_form() -> AssetCatalog:
+
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
-    investable_ids = set(investable_asset_ids(catalog))
 
     st.caption(
-        'Required assets: Cash (liquidity buffer), Money Market, Bonds, and Stocks. '
-        'You can rename them, add optional classes, or remove optional classes.'
+        'Set weights for investable assets. '
+        'Required: Money Market, Bonds, and Stocks. Optional classes can be added or removed.'
     )
 
     reset_col, preset_col, load_col = st.columns([1.4, 2, 1.2])
@@ -444,7 +631,7 @@ def _render_asset_allocation_edit_form() -> AssetCatalog:
         st.markdown('**Weight %**')
 
     allocation: dict[str, float] = {}
-    for asset in catalog.assets:
+    for asset in _investable_assets(catalog):
         cols = st.columns([4, 1.5, 0.5])
         with cols[0]:
             name_key = f'asset_name_{asset.id}'
@@ -457,22 +644,19 @@ def _render_asset_allocation_edit_form() -> AssetCatalog:
             if new_name.strip() and new_name.strip() != asset.name:
                 catalog.rename(asset.id, new_name)
         with cols[1]:
-            if asset.id in investable_ids:
-                alloc_key = f'alloc_{asset.id}'
-                st.session_state.setdefault(
-                    alloc_key,
-                    float(st.session_state.allocation.get(asset.id, 0.0)),
-                )
-                allocation[asset.id] = st.number_input(
-                    'Weight %',
-                    min_value=0.0,
-                    max_value=100.0,
-                    step=1.0,
-                    key=alloc_key,
-                    label_visibility='collapsed',
-                )
-            else:
-                st.write('—')
+            alloc_key = f'alloc_{asset.id}'
+            st.session_state.setdefault(
+                alloc_key,
+                float(st.session_state.allocation.get(asset.id, 0.0)),
+            )
+            allocation[asset.id] = st.number_input(
+                'Weight %',
+                min_value=0.0,
+                max_value=100.0,
+                step=1.0,
+                key=alloc_key,
+                label_visibility='collapsed',
+            )
         with cols[2]:
             if not asset.required:
                 if st.button('×', help='Remove asset', key=f'delete_{asset.id}'):
@@ -529,20 +713,21 @@ def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
         vertical_alignment='center',
         key='asset_allocation_section_header',
     ):
-        st.header('2. Asset allocation')
+        st.header('2. Investable asset allocation')
         if editing:
             if st.button('✓', help='Done editing', key='asset_allocation_done'):
                 _sync_edit_widgets_to_catalog()
                 st.session_state.asset_allocation_editing = False
                 st.rerun()
-        elif st.button('✎', help='Edit asset allocation', key='asset_allocation_edit'):
+        elif st.button('✎', help='Edit investable asset allocation', key='asset_allocation_edit'):
             _sync_catalog_to_edit_widgets(catalog)
             _sync_allocation_to_edit_widgets(investable_ids)
             st.session_state.asset_allocation_editing = True
             st.rerun()
 
     if editing:
-        if catalog.assets and f'asset_name_{catalog.assets[0].id}' not in st.session_state:
+        investable = _investable_assets(catalog)
+        if investable and f'asset_name_{investable[0].id}' not in st.session_state:
             _sync_catalog_to_edit_widgets(catalog)
             _sync_allocation_to_edit_widgets(investable_ids)
         catalog = _render_asset_allocation_edit_form()
@@ -705,41 +890,7 @@ def main() -> None:
 
     catalog, allocation = _render_asset_allocation_section()
 
-    st.header('3. Return assumptions')
-    st.caption('Expected return (mu) and volatility (sigma) in percent.')
-    mu_sigma = _read_mu_sigma(catalog)
-    return_ids = return_model_asset_ids(catalog)
-    return_cols = st.columns(max(len(return_ids), 1))
-    for idx, asset_id in enumerate(return_ids):
-        with return_cols[idx]:
-            st.markdown(f'**{catalog.name(asset_id)}**')
-            st.number_input('mu (%)', format='%.2f', key=f'mu_{asset_id}')
-            st.number_input('sigma (%)', min_value=0.0, format='%.2f', key=f'sigma_{asset_id}')
-    mu_sigma = _read_mu_sigma(catalog)
-
-    with st.expander('Pairwise correlations', expanded=False):
-        asset_order = return_model_asset_ids(catalog)
-        if st.button('Reset correlations to defaults'):
-            st.session_state.correlation_values = _default_correlation_values(catalog)
-            _init_correlation_keys(catalog)
-            st.rerun()
-
-        corr_cols = st.columns(2)
-        for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
-            label = f'{catalog.name(left)} / {catalog.name(right)}'
-            canonical = normalize_correlation_pair(left, right, asset_order)
-            corr_key = f'corr_{canonical[0]}_{canonical[1]}'
-            st.session_state.setdefault(corr_key, float(st.session_state.correlation_values.get(canonical, 0.0)))
-            with corr_cols[idx % 2]:
-                st.number_input(
-                    label,
-                    min_value=-1.0,
-                    max_value=1.0,
-                    step=0.05,
-                    format='%.2f',
-                    key=corr_key,
-                )
-    correlation_values = _read_correlation_values(catalog)
+    mu_sigma, correlation_values = _render_return_assumptions_section(catalog)
 
     st.header('4. Run and results')
     run_clicked = st.button('Run simulation', type='primary')

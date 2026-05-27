@@ -57,6 +57,7 @@ THEME: dict[str, str] = {
     "metric_label_color": "#6b7280",
     "metric_value_size": "1.25rem",
     "metric_value_color": "#111827",
+    "return_metric_line_gap": "0.35rem",
     # Sidebar
     "sidebar_background": "#f3f4f6",
     "sidebar_header_size": "1.1rem",
@@ -108,22 +109,26 @@ section.main h2,
 
 /* Section title with inline action icon (edit/done) */
 .st-key-portfolio_section_header,
-.st-key-asset_allocation_section_header {{
+.st-key-asset_allocation_section_header,
+.st-key-return_assumptions_section_header {{
     margin-top: {t["section_margin_top"]};
     margin-bottom: {t["section_margin_bottom"]};
 }}
 .st-key-portfolio_section_header h2,
-.st-key-asset_allocation_section_header h2 {{
+.st-key-asset_allocation_section_header h2,
+.st-key-return_assumptions_section_header h2 {{
     margin-top: 0 !important;
     margin-bottom: 0 !important;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"],
-.st-key-asset_allocation_section_header [data-testid="stButton"] {{
+.st-key-asset_allocation_section_header [data-testid="stButton"],
+.st-key-return_assumptions_section_header [data-testid="stButton"] {{
     margin: 0;
     padding: 0;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"] button,
-.st-key-asset_allocation_section_header [data-testid="stButton"] button {{
+.st-key-asset_allocation_section_header [data-testid="stButton"] button,
+.st-key-return_assumptions_section_header [data-testid="stButton"] button {{
     min-height: 1.5rem;
     padding: 0.05rem 0.35rem;
     line-height: 1;
@@ -163,6 +168,9 @@ section.main h3,
 }}
 
 /* Metrics */
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMetric"] {{
+    gap: {t["return_metric_line_gap"]};
+}}
 [data-testid="stMetricLabel"] {{
     font-size: {t["metric_label_size"]};
     color: {t["metric_label_color"]};
@@ -171,6 +179,28 @@ section.main h3,
     font-size: {t["metric_value_size"]};
     color: {t["metric_value_color"]};
     font-weight: 600;
+    line-height: 1.2;
+}}
+
+/* Return assumptions read-only: match section 1/2 metric typography */
+[data-testid="stVerticalBlockBorderWrapper"] .fp-return-metric-stack {{
+    display: flex;
+    flex-direction: column;
+    gap: {t["return_metric_line_gap"]};
+}}
+[data-testid="stVerticalBlockBorderWrapper"] .fp-return-metric-label {{
+    font-size: {t["metric_label_size"]} !important;
+    color: {t["metric_label_color"]} !important;
+    font-weight: 400 !important;
+    line-height: 1.2;
+    margin: 0;
+}}
+[data-testid="stVerticalBlockBorderWrapper"] .fp-return-metric-value {{
+    font-size: {t["metric_value_size"]} !important;
+    color: {t["metric_value_color"]} !important;
+    font-weight: 600 !important;
+    line-height: 1.2;
+    margin: 0;
 }}
 
 /* Sidebar */
