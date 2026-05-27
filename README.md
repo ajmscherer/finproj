@@ -126,151 +126,17 @@ The `output/finproj.xlsx` companion file contains the following visualizations, 
 <img src="screenshots/Screenshot 2.jpg" alt="Monte Carlo Results" width="800">
 </div>
 
-## For Those Who Want to Look Under the Hood
-
-### introduction
-
-The simulation is built around a clean **Observer pattern**, which keeps the core engine decoupled from how results are collected and stored.
-
-At the heart of the system is the `Projection` class. As it runs each Monte Carlo path year by year, it notifies a list of registered **observers** after every period. This design makes it easy to add new types of analysis without modifying the simulation logic itself.
-
-Currently, two main observers are implemented:
-
-- **`StatisticsObserver`**: Tracks key metrics such as Net Asset Value (NAV) at specific years (e.g., year 5, 10, and 15). It calculates summary statistics (mean, median, percentiles, success rates, etc.) across all simulation paths.
-
-- **`CSV_Observer`**: Writes the full raw data from every simulation path into `output/output.csv`. This detailed output powers the companion Excel visualizer, allowing users to create custom charts, histograms, and sensitivity tables.
-
-This observer-based architecture makes the code highly extensible. If you want to add new metrics (such as maximum drawdown, probability of ruin, or inflation-adjusted spending), you can simply create a new observer class that implements the required interface and register it in `code/inv_proj_run.py` — without touching the core simulation engine.
-
-The entire model is intentionally transparent and modular, so advanced users can inspect, modify, or extend any part of the stochastic projection process.
-
-### Main class diagram
-
-```mermaid
-classDiagram
-    class rc {
-      <<Enum>>
-      INFLATION
-      MONEY_MARKET
-      BOND
-      EQUITY
-      CRYPTO
-      PMETAL
-      REAL_ESTATE
-    }
-
-    class ps {
-      <<Enum>>
-      START
-      BOP
-      EOP
-      WRAPUP
-    }
-
-    class RV {
-      <<abstract>>
-      +draw()
-    }
-
-    class Norm {
-      +mu
-      +sigma
-      +draw()
-    }
-
-    class Risk {
-      +name
-      +rc
-      +distribution
-      +buildRisks(risk_param, max_year)
-    }
-
-    class Portfolio {
-      +lines
-      +create(amount, composition)
-      +create_100pct_cash(amount)
-      +create_non_cash(amount, risk_mix)
-      +dup()
-      +applyReturns(returns)
-      +growByPeriodMovement(movements)
-      +rebalance(targetMix)
-      +total_value()
-      +getComposition()
-    }
-
-    class Observer {
-      <<abstract>>
-      +processNotification(observed, **params)
-    }
-
-    class Observable {
-      +observers
-      +registerObserver(observer)
-      +notifyObservers(**params)
-    }
-
-    class Projection {
-      +initial_capital
-      +withdrawals
-      +cashBuffer
-      +risk_mix
-      +risk_distribution
-      +nb_years
-      +nb_projections
-      +run(id)
-      +start(id)
-      +processPeriod(period)
-      +wrapUp()
-    }
-
-    class StatisticalObserver {
-      +values
-      +mean()
-      +std()
-      +quantile(pct)
-      +getDetails()
-    }
-
-    class AuditObserver {
-      +out
-      +processNotification(observed, **params)
-    }
-
-    class CSV_Observer {
-      +file_name
-      +lines
-      +ptfs
-      +vars
-      +addHeader(observed)
-      +write_data(observed)
-      +save(observed)
-    }
-
-    RV <|-- Norm
-    Observer <|-- StatisticalObserver
-    Observer <|-- AuditObserver
-    Observer <|-- CSV_Observer
-    Observable <|-- Projection
-
-    Risk --> rc : classifies by
-    Risk --> RV : uses distributions
-    Projection --> Portfolio : creates and updates
-    Projection --> Risk : consumes distributions
-    Projection --> rc : uses asset classes
-    Projection --> ps : emits lifecycle steps
-    Observable o--> Observer : notifies
-    Portfolio --> rc : keyed by
-    StatisticalObserver --> Projection : observes
-    AuditObserver --> Projection : observes
-    CSV_Observer --> Projection : observes
-```
-
 ## License
-This project is licensed under the GNU Affero General Public License v3.0 (AGPLv3) for open-source and non-commercial use.
-For commercial use, closed-source integration, SaaS deployment, or enterprise licensing, please contact me.
+
+**finproj** is dual-licensed:
+
+- **Open Source**: [GNU AGPLv3](./LICENSE) — Free for open-source projects, personal use, research, and modifications (with source disclosure for network use).
+- **Commercial License**: Available for businesses that want to use the software without AGPL obligations (closed-source integration, SaaS, etc.).
+
+For commercial licensing, pricing, or custom terms, please contact **Alex Scherer** at aschererny@gmail.com.
 
 ## Editing credits
-Grok assisted Alex Scherer in editing this readme file, most significantly by proposing verbiage for the sections analyzing how the code works and proposing grammar and stylistic corrections. 
+Grok assisted Alex Scherer in editing this readme file...
 
 ## Disclaimer
 This tool is presented "as is", for educational and informational purposes only. It is not financial advice. Always consult a qualified financial advisor for actual investment decisions.
