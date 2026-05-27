@@ -18,10 +18,10 @@ THEME: dict[str, str] = {
     "title_font_size": "2.25rem",
     "title_font_weight": "600",
     "title_color": "#1f2937",
-    "title_margin_top": "0",
+    "title_margin_top": "0.25rem",
     "title_margin_bottom": "0.35rem",
-    "title_padding_top": "0.15rem",
-    "title_line_height": "1.25",
+    "title_padding_top": "0.35rem",
+    "title_line_height": "1.35",
     "title_letter_spacing": "-0.02em",
     # Section headers (st.header → h2, sidebar headers)
     "section_font_size": "1.2rem",
@@ -69,7 +69,7 @@ THEME: dict[str, str] = {
     "primary_button_color": "#ffffff",
     # Main content spacing
     "block_gap": "0.75rem",
-    "main_padding_top": "1rem",
+    "main_padding_top": "1.25rem",
     # Summary statistics table
     "summary_table_font_size": "0.875rem",
     "summary_table_header_background": "#f9fafb",
@@ -95,8 +95,12 @@ h1 {{
     letter-spacing: {t["title_letter_spacing"]};
     overflow: visible;
 }}
-[data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(h1),
 [data-testid="stMain"] [data-testid="stHeading"] {{
+    overflow: visible !important;
+    padding-top: 0.25rem;
+    padding-bottom: 0.15rem;
+}}
+[data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(h1) {{
     overflow: visible;
     line-height: {t["title_line_height"]};
 }}

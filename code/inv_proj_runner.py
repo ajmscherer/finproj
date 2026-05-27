@@ -157,6 +157,13 @@ def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float
     return 100.0 * successes / len(observer.values)
 
 
+def rate_below(observer: StatisticalObserver, threshold: float = 0.0) -> float:
+    if not observer.values:
+        return float('nan')
+    matches = sum(1 for value in observer.values if value < threshold)
+    return 100.0 * matches / len(observer.values)
+
+
 STANDARD_CHART_YEARS = (1, 5, 10, 15)
 
 

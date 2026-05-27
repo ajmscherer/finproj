@@ -52,6 +52,25 @@ def _nav_key(year: int) -> str:
 
 STANDARD_CHART_YEARS = (1, 5, 10, 15)
 
+PRODUCT_ABOUT_HELP = (
+    'finproj is a local Monte Carlo simulation tool for investment portfolios. '
+    'Configure your starting capital, annual withdrawals, cash buffer, asset allocation, '
+    'expected returns, volatility, and correlations — then run thousands of independent '
+    'simulation paths to explore how your net asset value might evolve. '
+    'Use the summary statistics and charts to compare strategies and assess risks, such as '
+    'paths ending with negative NAV or falling below your initial capital. '
+    'Everything runs on your machine; your financial assumptions never leave your computer.'
+)
+
+
+def _render_app_header() -> None:
+    st.title('finproj', help=PRODUCT_ABOUT_HELP)
+    st.caption(
+        'Stochastic financial projections — runs locally on your machine — '
+        '[Copyright © 2025–2026 Alex Scherer]'
+        '(https://github.com/ajmscherer/finproj/blob/main/README.md)'
+    )
+
 
 def _chart_year_options(max_year: int) -> list[int]:
     years = {year for year in STANDARD_CHART_YEARS if year <= max_year}
@@ -840,11 +859,28 @@ def _render_summary(result: RunResult, max_year: int) -> None:
 
     horizon_key = _nav_key(max_year)
     if horizon_key in result.nav_observers:
+        horizon_observer = result.nav_observers[horizon_key]
         initial_capital = cv(st.session_state.portfolio['initial_capital'])
-        rate = success_rate(result.nav_observers[horizon_key], threshold=initial_capital)
+
+        values = horizon_observer.values
+        negative_rate = (
+            100.0 * sum(1 for value in values if value < 0) / len(values)
+            if values
+            else float('nan')
+        )
         st.metric(
-            f'Probability final NAV greater than initial capital ({format_compact_amount(initial_capital)}) at year {max_year}',
-            f'{rate:.1f}%',
+            f'Probability final NAV at year {max_year} is negative',
+            f'{negative_rate:.1f}%',
+            help=(
+                f'Share of simulation paths where net asset value at year {max_year} '
+                f'is below zero. I.e. probability of portfolio failure.'
+            ),
+        )
+
+        above_initial_rate = success_rate(horizon_observer, threshold=initial_capital)
+        st.metric(
+            f'Probability final NAV at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})',
+            f'{above_initial_rate:.1f}%',
             help=(
                 f'Share of simulation paths where net asset value at year {max_year} '
                 f'exceeds initial capital ({format_compact_amount(initial_capital)}).'
@@ -976,8 +1012,7 @@ def main() -> None:
     _init_session_state()
     _process_pending_assumptions()
 
-    st.title('finproj')
-    st.caption('Stochastic financial projections — runs locally on your machine.')
+    _render_app_header()
 
     with st.sidebar:
         if st.session_state.get('_assumptions_load_message'):
