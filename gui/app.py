@@ -255,7 +255,6 @@ def _init_session_state() -> None:
     st.session_state.setdefault('output_dir', str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault('assumptions_name', 'Untitled')
     st.session_state.setdefault('assumptions_file', '')
-    st.session_state.setdefault('assumptions_save_as', 'my_scenario.json')
     st.session_state.setdefault('portfolio_assumptions_editing', False)
     if 'asset_allocation_editing' not in st.session_state:
         st.session_state.asset_allocation_editing = st.session_state.pop('asset_classes_editing', False)
@@ -404,7 +403,7 @@ def _render_assumptions_file_controls() -> None:
     if current_file:
         st.caption(f'Current file: `{current_file}`')
     else:
-        st.caption('No file saved yet — use **Save as** for the first save.')
+        st.caption('No file saved yet — use **Save** for the first save.')
 
     uploaded = st.file_uploader('Load from JSON file', type=['json'], key='assumptions_uploader')
     if st.button('Load', use_container_width=True):
@@ -418,38 +417,15 @@ def _render_assumptions_file_controls() -> None:
             except (ValueError, KeyError, json.JSONDecodeError) as exc:
                 st.error(f'Could not load file: {exc}')
 
-    save_col, save_as_col = st.columns(2)
-    with save_col:
-        if st.button('Save', use_container_width=True):
-            try:
-                assumptions = _collect_assumptions()
-                if st.session_state.assumptions_file:
-                    path = Path(st.session_state.assumptions_file)
-                else:
-                    path = DEFAULT_ASSUMPTIONS_DIR / assumptions.safe_filename()
-                    st.session_state.assumptions_file = str(path)
-                assumptions.save(path)
-                st.success(f'Saved to `{path}`.')
-            except (ValueError, OSError) as exc:
-                st.error(str(exc))
-
-    with save_as_col:
-        st.text_input(
-            'Save as filename',
-            key='assumptions_save_as',
-            label_visibility='collapsed',
-            placeholder='my_scenario.json',
-        )
-
-    if st.button('Save as', use_container_width=True):
+    if st.button('Save', use_container_width=True):
         try:
             assumptions = _collect_assumptions()
-            filename = st.session_state.assumptions_save_as.strip() or assumptions.safe_filename()
-            if not filename.endswith('.json'):
-                filename = f'{filename}.json'
-            path = DEFAULT_ASSUMPTIONS_DIR / filename
+            if st.session_state.assumptions_file:
+                path = Path(st.session_state.assumptions_file)
+            else:
+                path = DEFAULT_ASSUMPTIONS_DIR / assumptions.safe_filename()
+                st.session_state.assumptions_file = str(path)
             assumptions.save(path)
-            st.session_state.assumptions_file = str(path)
             st.success(f'Saved to `{path}`.')
         except (ValueError, OSError) as exc:
             st.error(str(exc))
