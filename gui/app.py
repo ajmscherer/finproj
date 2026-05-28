@@ -88,23 +88,21 @@ def _render_app_header() -> None:
     )
 
     if bandeau_path.is_file():
-        col_title, col_image = st.columns(
-            [2, 1],
-            vertical_alignment='top',
-            gap='medium',
-        )
+        with st.container(key='app_header_row'):
+            col_title, col_image = st.columns(
+                [3, 1],
+                vertical_alignment='top',
+                gap='medium',
+            )
+            with col_title:
+                st.title('finproj', help=PRODUCT_ABOUT_HELP)
+                st.caption(caption)
+            with col_image:
+                with st.container(key='app_header_band'):
+                    st.image(str(bandeau_path))
     else:
-        col_title = st.container()
-        col_image = None
-
-    with col_title:
         st.title('finproj', help=PRODUCT_ABOUT_HELP)
         st.caption(caption)
-
-    if col_image is not None:
-        with col_image:
-            with st.container(key='app_header_band'):
-                st.image(str(bandeau_path), width=500)
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:

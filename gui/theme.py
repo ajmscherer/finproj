@@ -74,7 +74,6 @@ THEME: dict[str, str] = {
     "block_gap": "0.75rem",
     "main_padding_top": "1.25rem",
     # Header bandeau (top-right illustration)
-    "header_bandeau_max_height": "5.5rem",
     "header_bandeau_border_radius": "0.375rem",
     # Summary statistics table
     "summary_table_font_size": "0.875rem",
@@ -250,21 +249,58 @@ section.main h3,
     padding-top: {t["main_padding_top"]};
 }}
 
-/* Header bandeau — top-right, aligned with app title */
+/* Header row — title block and bandeau share the same height */
+.st-key-app_header_row [data-testid="stHorizontalBlock"] {{
+    align-items: stretch !important;
+}}
+.st-key-app_header_row [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {{
+    display: flex !important;
+    flex-direction: column !important;
+}}
+.st-key-app_header_row [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
+> [data-testid="stVerticalBlock"] {{
+    flex: 1 1 auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}}
+.st-key-app_header_row [data-testid="stCaptionContainer"] {{
+    margin-bottom: 0;
+}}
+
+/* Header bandeau — fill title section height, preserve aspect ratio */
 .st-key-app_header_band {{
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
     display: flex;
     justify-content: flex-end;
-    align-items: flex-start;
-    padding-top: {t["title_padding_top"]};
+    align-items: stretch;
+    overflow: visible;
 }}
 .st-key-app_header_band [data-testid="stImage"] {{
-    text-align: right;
+    flex: 1 1 auto;
+    height: 100%;
+    display: flex !important;
+    justify-content: flex-end;
+    align-items: stretch;
+    overflow: visible;
+}}
+.st-key-app_header_band [data-testid="stImage"] > div {{
+    height: 100%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
 }}
 .st-key-app_header_band [data-testid="stImage"] img {{
     border-radius: {t["header_bandeau_border_radius"]};
-    max-height: {t["header_bandeau_max_height"]};
-    width: auto;
-    object-fit: cover;
+    height: 100% !important;
+    width: auto !important;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: right center;
+    display: block;
+    margin-left: auto;
 }}
 
 /* Summary statistics table */
