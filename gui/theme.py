@@ -73,6 +73,9 @@ THEME: dict[str, str] = {
     # Main content spacing
     "block_gap": "0.75rem",
     "main_padding_top": "1.25rem",
+    # Header bandeau (top-right illustration)
+    "header_bandeau_max_height": "5.5rem",
+    "header_bandeau_border_radius": "0.375rem",
     # Summary statistics table
     "summary_table_font_size": "0.875rem",
     "summary_table_header_background": "#f9fafb",
@@ -245,6 +248,23 @@ section.main h3,
 }}
 [data-testid="stMain"] .block-container {{
     padding-top: {t["main_padding_top"]};
+}}
+
+/* Header bandeau — top-right, aligned with app title */
+.st-key-app_header_band {{
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding-top: {t["title_padding_top"]};
+}}
+.st-key-app_header_band [data-testid="stImage"] {{
+    text-align: right;
+}}
+.st-key-app_header_band [data-testid="stImage"] img {{
+    border-radius: {t["header_bandeau_border_radius"]};
+    max-height: {t["header_bandeau_max_height"]};
+    width: auto;
+    object-fit: cover;
 }}
 
 /* Summary statistics table */

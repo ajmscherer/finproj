@@ -80,12 +80,31 @@ PRODUCT_ABOUT_HELP = (
 
 
 def _render_app_header() -> None:
-    st.title('finproj', help=PRODUCT_ABOUT_HELP)
-    st.caption(
+    bandeau_path = PROJECT_ROOT / 'screenshots' / 'bandeau_image.jpeg'
+    caption = (
         'Stochastic financial projections — runs locally on your machine — '
         '[Copyright © 2025–2026 Alex Scherer]'
         '(https://github.com/ajmscherer/finproj/blob/main/README.md)'
     )
+
+    if bandeau_path.is_file():
+        col_title, col_image = st.columns(
+            [2, 1],
+            vertical_alignment='top',
+            gap='medium',
+        )
+    else:
+        col_title = st.container()
+        col_image = None
+
+    with col_title:
+        st.title('finproj', help=PRODUCT_ABOUT_HELP)
+        st.caption(caption)
+
+    if col_image is not None:
+        with col_image:
+            with st.container(key='app_header_band'):
+                st.image(str(bandeau_path), width=500)
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
