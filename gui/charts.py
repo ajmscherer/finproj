@@ -85,6 +85,22 @@ def build_nav_percentile_figure(
     return fig
 
 
+def _nav_fan_density_bands(step: float = 0.025) -> list[tuple[float, float]]:
+    """Symmetric percentile pairs from wide (outer) to narrow (inner), in 2.5% steps."""
+    tails = [round(step * i, 4) for i in range(1, int(0.5 / step))]
+    return [(tail, round(1.0 - tail, 4)) for tail in tails]
+
+
+def _nav_fan_band_style(band_index: int, band_count: int) -> tuple[str, float]:
+    """Pale yellow outside, richer yellow toward the median."""
+    if band_count <= 1:
+        t = 1.0
+    else:
+        t = band_index / (band_count - 1)
+    alpha = 0.07 + 0.50 * t
+    return '#FACC15', alpha
+
+
 def build_nav_fan_figure(
     nav_fan,
     *,
@@ -95,31 +111,41 @@ def build_nav_fan_figure(
     if not years or not nav_fan.values_by_year.get(years[0]):
         return None
 
+    density_bands = _nav_fan_density_bands()
     p10 = nav_fan.quantile_curve(0.10)
-    mean = nav_fan.mean_curve()
-    std = nav_fan.std_curve()
+    p50 = nav_fan.quantile_curve(0.50)
     p90 = nav_fan.quantile_curve(0.90)
 
-    # Plot the mean curve
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(years, mean, linestyle='-', linewidth=2.5, color='#4C78A8', label='Mean', zorder=1)
 
-    # Plot the mean ± ½σ band
-    half_std_lower = [m - s / 2 for m, s in zip(mean, std)]
-    half_std_upper = [m + s / 2 for m, s in zip(mean, std)]
-    ax.fill_between(
+    band_count = len(density_bands)
+    for index, (lower_pct, upper_pct) in enumerate(density_bands):
+        lower = nav_fan.quantile_curve(lower_pct)
+        upper = nav_fan.quantile_curve(upper_pct)
+        color, alpha = _nav_fan_band_style(index, band_count)
+        label = 'Probability density (darker = more likely)' if index == band_count - 1 else None
+        ax.fill_between(
+            years,
+            lower,
+            upper,
+            color=color,
+            alpha=alpha,
+            label=label,
+            zorder=1,
+            linewidth=0,
+        )
+
+    ax.plot(years, p10, linestyle=':', linewidth=1.5, color='#F58518', label='P10', zorder=2)
+    ax.plot(years, p90, linestyle=':', linewidth=1.5, color='#54A24B', label='P90', zorder=2)
+    ax.plot(
         years,
-        half_std_lower,
-        half_std_upper,
-        color='#FDE047',
-        alpha=0.45,
-        label='Mean ± ½σ',
-        zorder=2,
+        p50,
+        linestyle='-',
+        linewidth=2.5,
+        color='#4C78A8',
+        label='Median (P50)',
+        zorder=3,
     )
-
-    # Plot the P10 and P90 curves
-    ax.plot(years, p10, linestyle=':', linewidth=1.5, color='#F58518', label='P10', zorder=3)
-    ax.plot(years, p90, linestyle=':', linewidth=1.5, color='#54A24B', label='P90', zorder=3)
 
     title = 'NAV fan chart'
     if paths_done is not None and paths_total is not None:
