@@ -260,6 +260,7 @@ def _init_session_state() -> None:
     st.session_state.setdefault('allocation', copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance']))
     st.session_state.setdefault('mix_preset', 'performance')
     st.session_state.setdefault('result', None)
+    st.session_state.setdefault('simulation_running', False)
     _init_portfolio_fields()
     st.session_state.setdefault('output_dir', str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault('assumptions_name', 'Untitled')
@@ -826,7 +827,44 @@ def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
     return catalog, dict(st.session_state.allocation)
 
 
-def _render_summary(result: RunResult, max_year: int) -> None:
+def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> None:
+    horizon_key = _nav_key(max_year)
+    if horizon_key not in result.nav_observers:
+        return
+
+    horizon_observer = result.nav_observers[horizon_key]
+    initial_capital = cv(st.session_state.portfolio['initial_capital'])
+    values = horizon_observer.values
+    negative_rate = (
+        100.0 * sum(1 for value in values if value < 0) / len(values)
+        if values
+        else float('nan')
+    )
+    above_initial_rate = success_rate(horizon_observer, threshold=initial_capital)
+
+    with st.container(border=True):
+        metric_cols = st.columns(2)
+        with metric_cols[0]:
+            st.metric(
+                f'Probability final NAV at year {max_year} is negative',
+                f'{negative_rate:.1f}%',
+                help=(
+                    f'Share of simulation paths where net asset value at year {max_year} '
+                    f'is below zero. I.e. probability of portfolio failure.'
+                ),
+            )
+        with metric_cols[1]:
+            st.metric(
+                f'Probability final NAV at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})',
+                f'{above_initial_rate:.1f}%',
+                help=(
+                    f'Share of simulation paths where net asset value at year {max_year} '
+                    f'exceeds initial capital ({format_compact_amount(initial_capital)}).'
+                ),
+            )
+
+
+def _render_summary(result: RunResult) -> None:
     st.subheader('Summary statistics')
     rows = []
     for label, observer in result.nav_observers.items():
@@ -841,36 +879,6 @@ def _render_summary(result: RunResult, max_year: int) -> None:
             'Max': format_compact_amount(observer.max()),
         })
     st.markdown(render_summary_statistics_table(rows), unsafe_allow_html=True)
-
-    horizon_key = _nav_key(max_year)
-    if horizon_key in result.nav_observers:
-        horizon_observer = result.nav_observers[horizon_key]
-        initial_capital = cv(st.session_state.portfolio['initial_capital'])
-
-        values = horizon_observer.values
-        negative_rate = (
-            100.0 * sum(1 for value in values if value < 0) / len(values)
-            if values
-            else float('nan')
-        )
-        st.metric(
-            f'Probability final NAV at year {max_year} is negative',
-            f'{negative_rate:.1f}%',
-            help=(
-                f'Share of simulation paths where net asset value at year {max_year} '
-                f'is below zero. I.e. probability of portfolio failure.'
-            ),
-        )
-
-        above_initial_rate = success_rate(horizon_observer, threshold=initial_capital)
-        st.metric(
-            f'Probability final NAV at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})',
-            f'{above_initial_rate:.1f}%',
-            help=(
-                f'Share of simulation paths where net asset value at year {max_year} '
-                f'exceeds initial capital ({format_compact_amount(initial_capital)}).'
-            ),
-        )
 
 
 def _render_portfolio_assumptions_section() -> None:
@@ -1077,10 +1085,22 @@ def main() -> None:
     mu_sigma, correlation_values = _render_return_assumptions_section(catalog)
 
     st.header('4. Run and results')
-    run_clicked = st.button('Run simulation', type='primary')
+    run_button_placeholder = st.empty()
+    has_result = st.session_state.result is not None
+    run_label = 'Refresh simulation' if has_result else 'Run simulation'
+    run_clicked = False
+    if not st.session_state.simulation_running:
+        run_clicked = run_button_placeholder.button(
+            run_label,
+            type='primary',
+            key='run_simulation_start',
+        )
+
     live_charts_placeholder = st.empty()
 
     if run_clicked:
+        run_button_placeholder.empty()
+        st.session_state.simulation_running = True
         live_charts_placeholder.empty()
         try:
             config = _build_config(catalog, allocation, mu_sigma, correlation_values)
@@ -1111,10 +1131,6 @@ def main() -> None:
                     )
                 ):
                     with live_charts_placeholder.container():
-                        st.caption(
-                            f'Charts update every {chart_update_interval:,} paths '
-                            f'(distribution at year {live_distribution_year}).'
-                        )
                         _render_live_charts(
                             nav_fan,
                             live_distribution_year,
@@ -1139,13 +1155,23 @@ def main() -> None:
             st.error(str(exc))
         except Exception as exc:
             st.error(f'Simulation failed: {exc}')
+        finally:
+            st.session_state.simulation_running = False
+
+        refresh_label = (
+            'Refresh simulation'
+            if st.session_state.result is not None
+            else 'Run simulation'
+        )
+        run_button_placeholder.button(refresh_label, type='primary', key='run_simulation_refresh')
 
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
         result_year = st.session_state.get('result_max_year', int(_read_portfolio_fields()['max_year']))
 
         _render_charts(result)
-        _render_summary(result, result_year)
+        _render_outcome_probability_metrics(result, result_year)
+        _render_summary(result)
 
         st.subheader('Export')
         if result.output_csv.exists():

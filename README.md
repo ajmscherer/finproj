@@ -4,17 +4,25 @@
 
 - A simple Monte Carlo simulation tool that projects future investment portfolio performance under various assumptions: portfolio composition, asset returns, and withdrawal needs.
 - It helps users evaluate different asset allocation strategies, and safety cash levels, under various market scenarios to make better-informed asset allocation and fund withdrawal decisions.
-- It runs locally on your machine and is accessible via a user friendly browswe interface, guaranteeing the privacy and confidentiality of the data used in your simulations.
+- It runs locally on your machine and is accessible via a user-friendly browser interface, guaranteeing the privacy and confidentiality of the data used in your simulations.
+
+<div align="center">
+<img src="screenshots/bandeau_image.jpeg" alt="Illustration of a couple walking on a beach" width="500">
+</div>
+
 
 ## Features
 
 - Stochastic modeling using Monte Carlo simulation
-- Local web GUI for editing assumptions, running simulations, and viewing summary chartsFlexible input assumptions (expected returns, volatility, inflation, contributions/withdrawals, etc.)
+- **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics
+- Flexible input assumptions: expected returns, volatility, initial capital, annual withdrawals, cash buffer, horizon, and projection count
 - **Customizable asset classes** — rename, add, or remove optional investable assets; four core classes are always present (Cash, Money Market, Bonds, Stocks)
-- Generates thousands of possible future scenarios
-- Companion Excel visualizer (`output/finproj.xlsx`) for easy analysis and charting
-- Simulations run privately on a local machine. No interaction with AI or other third party service. Important for a financial security standpoint!
-- Correlated asset-class returns via a Cholesky decomposition of a user-defined correlation matrix
+- **Save and load scenarios** as JSON files from the GUI sidebar
+- Correlated asset-class returns via Cholesky decomposition of a user-defined correlation matrix
+- Generates thousands of possible future scenarios (default: 2,000 paths over 15 years)
+- **Interactive results**: NAV fan chart (median with nested probability-density bands), horizon-year NAV distribution histogram, and key outcome probabilities
+- Companion Excel workbook (`output/finproj.xlsx`) for deeper analysis (scenario navigator, additional charts)
+- Runs entirely on your local machine — no cloud services or third-party APIs; suitable for sensitive financial data
 
 ## Quick Start
 
@@ -25,7 +33,7 @@
 
 ### 2. Run with the GUI (optional)
 
-Install GUI dependencies once:
+Install GUI dependencies once (the launcher scripts can also install them automatically if missing):
 
 ```bash
 pip install -r requirements-gui.txt
@@ -39,17 +47,24 @@ Then launch the local app from the project root:
 Alternatively:
 
 ```bash
-streamlit run gui/app.py
+python -m streamlit run gui/app.py
 ```
 
-The GUI runs on `localhost` only. Use it to:
+The GUI runs on `localhost` only. The main workflow has four sections:
 
-1. Edit portfolio assumptions (capital, withdrawals, cash buffer, horizon, projection count)
-2. **Customize the asset list** — rename any class; add optional classes (e.g. Commodities); delete optional classes; reset to defaults
-3. Set allocation weights, return assumptions (mu/sigma), and pairwise correlations
-4. Run the simulation with a progress bar, view NAV summary statistics and charts, and download `output.csv`
+1. **Portfolio assumptions** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo paths (with shorthand amounts such as `1M` or `40k`)
+2. **Investable asset allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
+3. **Return assumptions** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
+4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
+   - NAV fan chart (P10 / median / P90 with nested probability-density bands)
+   - NAV distribution at the horizon year
+   - Probability of negative final NAV and probability of exceeding initial capital
+   - Summary statistics table (mean, std dev, percentiles, min/max at years 1, 5, 10, and horizon)
+   - Download link for `output.csv`
 
-For deeper analysis (fan charts, scenario navigator), refresh `output/finproj.xlsx` in Excel as described below.
+Use the sidebar to name, save, load, or export assumption sets as JSON, and to set the output directory.
+
+For additional charts and the scenario navigator, refresh `output/finproj.xlsx` in Excel as described below.
 
 ### 3. Run the Monte Carlo Simulation (command line)
 
@@ -60,7 +75,11 @@ The simplest way to start the simulation is to use the launcher scripts from the
 
 These scripts activate the local `.venv` if present, then run the simulation for you.
 
-Alternatively, you can invoke Python directly:
+Alternatively, from the project root:
+
+```bash
+python code/inv_proj_run.py
+```
 
 Either approach will generate or update `output/output.csv` with the simulation results.
 
@@ -76,7 +95,7 @@ Either approach will generate or update `output/output.csv` with the simulation 
 
 ### 5. Change the Financial Assumptions
 
-**GUI (recommended):** use section **2. Investable asset classes** in the GUI to rename, add, or remove optional assets, then adjust allocation, returns, and correlations in the sections below it.
+**GUI (recommended):** use section **2. Investable asset allocation** in the GUI to rename, add, or remove optional assets, then adjust allocation, returns, and correlations in the sections below it. Scenarios can be saved and reloaded from the sidebar.
 
 **Command line / code:** defaults live in [code/inv_proj_runner.py](code/inv_proj_runner.py). [code/inv_proj_run.py](code/inv_proj_run.py) is a thin entry point that runs those defaults.
 
@@ -99,7 +118,7 @@ Every simulation uses an **asset catalog**. Four assets are always required and 
 | `stocks`       | Stocks       | Investable equity asset                                                                            |
 
 
-Optional defaults (Crypto, Precious Metals, Real Estate) can be renamed, removed, or supplemented with new investable classes. Display names are user-editable; stable **asset ids** (e.g. `bonds`, `real_estate`) are used internally in CSV output and configuration dictionaries.
+Optional defaults (Crypto, Precious Metals, Real Estate) can be renamed, removed, or supplemented with new investable classes. In the GUI, section 2 sets weights for **investable** assets only; Cash is configured separately as the liquidity buffer in section 1. Display names are user-editable; stable **asset ids** (e.g. `bonds`, `real_estate`) are used internally in CSV output and configuration dictionaries.
 
 The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so you can modify capital and withdrawal assumptions without converting everything to raw numbers first.
 
@@ -107,16 +126,23 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 
 - `code/inv_proj.py` — Core simulation logic and classes
 - `code/asset_classes.py` — Asset catalog: required/optional classes, roles, add/rename/remove
+- `code/assumptions.py` — Save/load scenario assumptions as JSON (used by the GUI)
 - `code/inv_proj_runner.py` — Shared simulation configuration and runner (used by CLI and GUI)
 - `code/inv_proj_run.py` — Command-line entry point
-- `gui/app.py` — Streamlit GUI for asset list, assumptions, runs, and summary charts
+- `gui/app.py` — Streamlit GUI for assumptions, runs, charts, and summary statistics
+- `gui/charts.py` — Matplotlib chart builders (NAV fan chart, distribution histogram)
+- `gui/formatting.py` — Compact number formatting and summary table HTML
 - `gui/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
 - `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
 - `requirements-gui.txt` — Optional GUI dependencies (Streamlit, matplotlib)
+- `assumptions/` — Default location for saved scenario JSON files
+- `screenshots/` — README illustration and example Excel output screenshots
 - `output/finproj.xlsx` — Companion Excel workbook for visualization and analysis
 - `output/output.csv` — Generated simulation results (created at runtime, not committed to Git)
+- `output/audit.txt` — Simulation audit log (created at runtime)
 - `tests/test_correlated_returns.py` — Statistical tests for correlated return sampling
 - `tests/test_asset_classes.py` — Tests for the asset catalog
+- `tests/test_assumptions.py` — Tests for assumptions save/load and config round-trip
 
 ## How It Works
 
@@ -131,7 +157,7 @@ Each Monte Carlo run (`Projection` class) starts with an initial capital, splits
 - Draws correlated random returns for each asset class,
 - Applies those returns and optionally replenishes the cash buffer from gains (typically from Bonds).
 
-`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: one collects statistics on Net Asset Value at key years, while `CSV_Observer` writes detailed data from every simulation path into `output/output.csv`. Asset display names appear in the CSV; ids are used internally.
+`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all paths for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation path into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
 
 The generated `output/output.csv` serves as the bridge to the companion Excel file (`output/finproj.xlsx`). After running the Python simulation, users simply refresh the spreadsheet to see updated charts, summary statistics, and visualizations of the thousands of possible portfolio outcomes.
 
@@ -142,52 +168,39 @@ This approach gives a transparent, probabilistic view of long-term portfolio beh
 ### 1. Structure of the output file
 
 The output file contains all the values observed during the computation across all simulations, all periods, and all asset classes.
-The following screenshot shows the structure of the `output/output.csv` generated by the Python program:
+Each row of `output/output.csv` has the following columns:
 
-
-
-++simulation++: the id of the run to which the data belongs
-
-++period++: the period in which the data is calculated
-
-++variable++: the observed quantity during the period: for example: 
-
-- ptf_bop = net asset value of the portfolio at the beginning of the period
-- ptf_eop = net asset value of the portfolio at the end of the period
-- withdrawals = amount of assets cashed and withdrawn from the portfolio during the period
-
-++risk++: the asset class (display name) to which the amount value corresponds
-
-++value++: the amount of that variable
+| Column | Description |
+| ------ | ----------- |
+| `simulation` | The id of the run to which the row belongs |
+| `period` | The year (period) in which the value applies |
+| `variable` | The observed quantity during the period (e.g. `ptf_bop` = portfolio NAV at beginning of period; `ptf_eop` = portfolio NAV at end of period; `withdrawals` = amount withdrawn during the period) |
+| `risk` | The asset class (display name) to which the amount value corresponds |
+| `value` | The numeric amount for that variable |
 
 ### 2. Companion visualization spreadsheet
 
-The `output/finproj.xlsx` companion file contains the following visualizations, helpful for humans:
+The `output/finproj.xlsx` companion file provides additional views of the same simulation data:
 
-#### Moments of the simulations
+- **Moments of the simulations** — summary statistics across paths
+- **Evolution of the Net Asset Value (NAV)** — time-series views of portfolio value
+- **Scenario navigator** — explore individual simulation paths
 
-
-
-#### evolution of the Net Asset Value (nav)
-
-
-
-#### Scenario navigator
-
-
-
+Example screenshots are in the `screenshots/` folder.
 ## For Those Who Want to Look Under the Hood
 
-### introduction
+### Introduction
 
 The simulation is built around a clean **Observer pattern**, which keeps the core engine decoupled from how results are collected and stored.
 
 At the heart of the system is the `Projection` class. As it runs each Monte Carlo path year by year, it notifies a list of registered **observers** after every period. This design makes it easy to add new types of analysis without modifying the simulation logic itself.
 
-Currently, two main observers are implemented:
+Currently, the main observers are:
 
-- `**StatisticsObserver`**: Tracks key metrics such as Net Asset Value (NAV) at specific years (e.g., year 5, 10, and 15). It calculates summary statistics (mean, median, percentiles, success rates, etc.) across all simulation paths.
-- `**CSV_Observer**`: Writes the full raw data from every simulation path into `output/output.csv`. This detailed output powers the companion Excel visualizer, allowing users to create custom charts, histograms, and sensitivity tables.
+- **`StatisticalObserver`**: Tracks Net Asset Value (NAV) at specific years (1, 5, 10, and the horizon by default). It calculates summary statistics (mean, std dev, percentiles, min/max) across all simulation paths.
+- **`NavFanObserver`**: Collects end-of-year NAV for every year and path, powering the GUI fan chart and horizon-year distribution histogram (including live updates during a run).
+- **`CSV_Observer`**: Writes the full raw data from every simulation path into `output/output.csv`. This detailed output powers the companion Excel visualizer.
+- **`AuditObserver`**: Writes a textual audit log of the run to `output/audit.txt`.
 
 This observer-based architecture makes the code highly extensible. If you want to add new metrics (such as maximum drawdown, probability of ruin, or inflation-adjusted spending), you can simply create a new observer class that implements the required interface and register it in `code/inv_proj_runner.py` — without touching the core simulation engine.
 
@@ -287,6 +300,13 @@ classDiagram
       +getDetails()
     }
 
+    class NavFanObserver {
+      +values_by_year
+      +mean_curve()
+      +std_curve()
+      +quantile_curve(pct)
+    }
+
     class AuditObserver {
       +out
       +processNotification(observed, **params)
@@ -304,6 +324,7 @@ classDiagram
 
     RV <|-- Norm
     Observer <|-- StatisticalObserver
+    Observer <|-- NavFanObserver
     Observer <|-- AuditObserver
     Observer <|-- CSV_Observer
     Observable <|-- Projection
@@ -317,6 +338,7 @@ classDiagram
     Observable o--> Observer : notifies
     Portfolio --> AssetClass : keyed by asset id
     StatisticalObserver --> Projection : observes
+    NavFanObserver --> Projection : observes
     AuditObserver --> Projection : observes
     CSV_Observer --> Projection : observes
 ```
