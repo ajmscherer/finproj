@@ -100,7 +100,11 @@ def build_nav_fan_figure(
     std = nav_fan.std_curve()
     p90 = nav_fan.quantile_curve(0.90)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    # Plot the mean curve
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(years, mean, linestyle='-', linewidth=2.5, color='#4C78A8', label='Mean', zorder=1)
+
+    # Plot the mean ± ½σ band
     half_std_lower = [m - s / 2 for m, s in zip(mean, std)]
     half_std_upper = [m + s / 2 for m, s in zip(mean, std)]
     ax.fill_between(
@@ -110,13 +114,14 @@ def build_nav_fan_figure(
         color='#FDE047',
         alpha=0.45,
         label='Mean ± ½σ',
-        zorder=1,
+        zorder=2,
     )
-    ax.plot(years, p10, linestyle=':', linewidth=1.5, color='#F58518', label='P10', zorder=2)
-    ax.plot(years, mean, linestyle='-', linewidth=2.5, color='#4C78A8', label='Mean', zorder=3)
-    ax.plot(years, p90, linestyle=':', linewidth=1.5, color='#54A24B', label='P90', zorder=2)
 
-    title = 'NAV fan chart (P10 / mean / P90)'
+    # Plot the P10 and P90 curves
+    ax.plot(years, p10, linestyle=':', linewidth=1.5, color='#F58518', label='P10', zorder=3)
+    ax.plot(years, p90, linestyle=':', linewidth=1.5, color='#54A24B', label='P90', zorder=3)
+
+    title = 'NAV fan chart'
     if paths_done is not None and paths_total is not None:
         title += f' ({paths_done:,} / {paths_total:,} paths)'
     ax.set_title(title)

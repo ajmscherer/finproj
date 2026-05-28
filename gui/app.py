@@ -65,9 +65,6 @@ def _nav_key(year: int) -> str:
     return f'Net Asset Value @ year {year:>2}'
 
 
-STANDARD_CHART_YEARS = (1, 5, 10, 15)
-
-
 def _chart_update_interval(nb_projections: int) -> int:
     return max(1, nb_projections // 200)
 
@@ -89,13 +86,6 @@ def _render_app_header() -> None:
         '[Copyright © 2025–2026 Alex Scherer]'
         '(https://github.com/ajmscherer/finproj/blob/main/README.md)'
     )
-
-
-def _chart_year_options(max_year: int) -> list[int]:
-    years = {year for year in STANDARD_CHART_YEARS if year <= max_year}
-    if max_year not in years:
-        years.add(max_year)
-    return sorted(years)
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
@@ -1014,17 +1004,17 @@ def _render_nav_fan_chart(
 
 def _render_charts(
     result: RunResult,
-    chart_year: int,
     *,
     paths_done: int | None = None,
     paths_total: int | None = None,
 ) -> None:
-    values = result.nav_fan.values_by_year.get(chart_year, [])
+    distribution_year = result.nav_fan.max_year
+    values = result.nav_fan.values_by_year.get(distribution_year, [])
     col_hist, col_fan = st.columns(2)
     with col_hist:
         _render_nav_distribution_chart(
             values,
-            chart_year,
+            distribution_year,
             paths_done=paths_done,
             paths_total=paths_total,
         )
@@ -1091,6 +1081,7 @@ def main() -> None:
     live_charts_placeholder = st.empty()
 
     if run_clicked:
+        live_charts_placeholder.empty()
         try:
             config = _build_config(catalog, allocation, mu_sigma, correlation_values)
             validate_allocation(config.risk_mix, config.asset_catalog)
@@ -1114,8 +1105,10 @@ def main() -> None:
                     return
                 if (
                     current == 1
-                    or current == total
-                    or current % chart_update_interval == 0
+                    or (
+                        current != total
+                        and current % chart_update_interval == 0
+                    )
                 ):
                     with live_charts_placeholder.container():
                         st.caption(
@@ -1151,17 +1144,8 @@ def main() -> None:
         result: RunResult = st.session_state.result
         result_year = st.session_state.get('result_max_year', int(_read_portfolio_fields()['max_year']))
 
+        _render_charts(result)
         _render_summary(result, result_year)
-
-        chart_year_options = _chart_year_options(result_year)
-        chart_year = st.selectbox(
-            'Chart year (distribution)',
-            options=chart_year_options,
-            index=chart_year_options.index(result_year)
-            if result_year in chart_year_options
-            else len(chart_year_options) - 1,
-        )
-        _render_charts(result, chart_year)
 
         st.subheader('Export')
         if result.output_csv.exists():
