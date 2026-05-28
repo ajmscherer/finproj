@@ -41,7 +41,6 @@ from formatting import format_compact_amount, render_summary_statistics_table  #
 from charts import (  # noqa: E402
     build_nav_distribution_figure,
     build_nav_fan_figure,
-    build_nav_percentile_figure,
 )
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
@@ -67,7 +66,10 @@ def _nav_key(year: int) -> str:
 
 
 STANDARD_CHART_YEARS = (1, 5, 10, 15)
-NAV_FAN_UPDATE_INTERVAL = 10
+
+
+def _chart_update_interval(nb_projections: int) -> int:
+    return max(1, nb_projections // 200)
 
 PRODUCT_ABOUT_HELP = (
     'finproj is a local Monte Carlo simulation tool for investment portfolios. '
@@ -977,6 +979,23 @@ def _render_portfolio_assumptions_section() -> None:
             )
 
 
+def _render_nav_distribution_chart(
+    values: list[float],
+    chart_year: int,
+    *,
+    paths_done: int | None = None,
+    paths_total: int | None = None,
+) -> None:
+    if not values:
+        return
+    suffix = ''
+    if paths_done is not None and paths_total is not None:
+        suffix = f'{paths_done:,} / {paths_total:,} paths'
+    hist_fig = build_nav_distribution_figure(values, chart_year, title_suffix=suffix)
+    st.pyplot(hist_fig)
+    plt.close(hist_fig)
+
+
 def _render_nav_fan_chart(
     nav_fan,
     *,
@@ -993,26 +1012,51 @@ def _render_nav_fan_chart(
         plt.close(fan_fig)
 
 
-def _render_charts(result: RunResult, chart_year: int) -> None:
-    key = _nav_key(chart_year)
-    if key not in result.nav_observers:
-        st.warning(f'No results available for year {chart_year}.')
-        return
-
-    values = result.nav_observers[key].values
-    if not values:
-        return
-
-    col_hist, col_pct = st.columns(2)
+def _render_charts(
+    result: RunResult,
+    chart_year: int,
+    *,
+    paths_done: int | None = None,
+    paths_total: int | None = None,
+) -> None:
+    values = result.nav_fan.values_by_year.get(chart_year, [])
+    col_hist, col_fan = st.columns(2)
     with col_hist:
-        hist_fig = build_nav_distribution_figure(values, chart_year)
-        st.pyplot(hist_fig)
-        plt.close(hist_fig)
-    with col_pct:
-        pct_fig = build_nav_percentile_figure(values, chart_year)
-        if pct_fig is not None:
-            st.pyplot(pct_fig)
-            plt.close(pct_fig)
+        _render_nav_distribution_chart(
+            values,
+            chart_year,
+            paths_done=paths_done,
+            paths_total=paths_total,
+        )
+    with col_fan:
+        _render_nav_fan_chart(
+            result.nav_fan,
+            paths_done=paths_done,
+            paths_total=paths_total,
+        )
+
+
+def _render_live_charts(
+    nav_fan,
+    distribution_year: int,
+    *,
+    paths_done: int,
+    paths_total: int,
+) -> None:
+    col_hist, col_fan = st.columns(2)
+    with col_hist:
+        _render_nav_distribution_chart(
+            nav_fan.values_by_year.get(distribution_year, []),
+            distribution_year,
+            paths_done=paths_done,
+            paths_total=paths_total,
+        )
+    with col_fan:
+        _render_nav_fan_chart(
+            nav_fan,
+            paths_done=paths_done,
+            paths_total=paths_total,
+        )
 
 
 def main() -> None:
@@ -1044,13 +1088,15 @@ def main() -> None:
 
     st.header('4. Run and results')
     run_clicked = st.button('Run simulation', type='primary')
-    live_fan_placeholder = st.empty()
+    live_charts_placeholder = st.empty()
 
     if run_clicked:
         try:
             config = _build_config(catalog, allocation, mu_sigma, correlation_values)
             validate_allocation(config.risk_mix, config.asset_catalog)
             validate_correlation(config.risk_param, config.risk_correlation)
+            live_distribution_year = config.max_year
+            chart_update_interval = _chart_update_interval(config.nb_projections)
 
             progress = st.progress(0.0, text='Starting simulation...')
             status = st.empty()
@@ -1069,14 +1115,16 @@ def main() -> None:
                 if (
                     current == 1
                     or current == total
-                    or current % NAV_FAN_UPDATE_INTERVAL == 0
+                    or current % chart_update_interval == 0
                 ):
-                    with live_fan_placeholder.container():
+                    with live_charts_placeholder.container():
                         st.caption(
-                            f'NAV fan chart updates every {NAV_FAN_UPDATE_INTERVAL} paths.'
+                            f'Charts update every {chart_update_interval:,} paths '
+                            f'(distribution at year {live_distribution_year}).'
                         )
-                        _render_nav_fan_chart(
+                        _render_live_charts(
                             nav_fan,
+                            live_distribution_year,
                             paths_done=current,
                             paths_total=total,
                         )
@@ -1087,7 +1135,7 @@ def main() -> None:
                 progress_callback=progress_callback,
             )
 
-            live_fan_placeholder.empty()
+            live_charts_placeholder.empty()
             progress.progress(1.0, text='Simulation complete.')
             status.success(
                 f'Finished {config.nb_projections:,} projections over {config.max_year} years.'
@@ -1103,14 +1151,11 @@ def main() -> None:
         result: RunResult = st.session_state.result
         result_year = st.session_state.get('result_max_year', int(_read_portfolio_fields()['max_year']))
 
-        st.subheader('NAV fan chart')
-        _render_nav_fan_chart(result.nav_fan)
-
         _render_summary(result, result_year)
 
         chart_year_options = _chart_year_options(result_year)
         chart_year = st.selectbox(
-            'Chart year',
+            'Chart year (distribution)',
             options=chart_year_options,
             index=chart_year_options.index(result_year)
             if result_year in chart_year_options
