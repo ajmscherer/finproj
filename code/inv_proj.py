@@ -695,6 +695,18 @@ class NavFanObserver(Observer):
             for year in self.years()
         ]
 
+    def std_curve(self) -> list[float]:
+        stds = []
+        for year in self.years():
+            values = self.values_by_year[year]
+            if len(values) < 2:
+                stds.append(0.0 if values else float('nan'))
+                continue
+            mean = sum(values) / len(values)
+            variance = sum(v * v for v in values) / len(values) - mean * mean
+            stds.append(math.sqrt(max(variance, 0.0)))
+        return stds
+
     def quantile_curve(self, pct: float) -> list[float]:
         return [self._quantile(self.values_by_year[year], pct) for year in self.years()]
 
