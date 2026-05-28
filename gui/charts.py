@@ -83,3 +83,36 @@ def build_nav_percentile_figure(
     apply_compact_amount_axis(ax, axis='y')
     fig.tight_layout()
     return fig
+
+
+def build_nav_fan_figure(
+    nav_fan,
+    *,
+    paths_done: int | None = None,
+    paths_total: int | None = None,
+) -> plt.Figure | None:
+    years = nav_fan.years()
+    if not years or not nav_fan.values_by_year.get(years[0]):
+        return None
+
+    p10 = nav_fan.quantile_curve(0.10)
+    mean = nav_fan.mean_curve()
+    p90 = nav_fan.quantile_curve(0.90)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(years, p10, linestyle=':', linewidth=1.5, color='#F58518', label='P10')
+    ax.plot(years, mean, linestyle='-', linewidth=2.5, color='#4C78A8', label='Mean')
+    ax.plot(years, p90, linestyle=':', linewidth=1.5, color='#54A24B', label='P90')
+
+    title = 'NAV fan chart (P10 / mean / P90)'
+    if paths_done is not None and paths_total is not None:
+        title += f' ({paths_done:,} / {paths_total:,} paths)'
+    ax.set_title(title)
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Net asset value')
+    ax.set_xticks(years)
+    apply_compact_amount_axis(ax, axis='y')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig

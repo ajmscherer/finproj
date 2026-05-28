@@ -28,6 +28,7 @@ from asset_classes import AssetCatalog, default_asset_catalog
 from inv_proj import (
     AuditObserver,
     CSV_Observer,
+    NavFanObserver,
     Projection,
     Risk,
     StatisticalObserver,
@@ -88,6 +89,7 @@ class SimulationConfig:
 @dataclass
 class RunResult:
     nav_observers: Dict[str, StatisticalObserver]
+    nav_fan: NavFanObserver
     output_csv: Path
     audit_path: Path
 
@@ -185,7 +187,10 @@ def nav_observer_years(max_year: int) -> list[int]:
     return sorted(years)
 
 
-def _define_observers(simulation: Projection, config: SimulationConfig) -> Dict[str, StatisticalObserver]:
+def _define_observers(
+    simulation: Projection,
+    config: SimulationConfig,
+) -> tuple[Dict[str, StatisticalObserver], NavFanObserver]:
     nav: Dict[str, StatisticalObserver] = {}
     nav_years = nav_observer_years(config.max_year)
 
@@ -197,6 +202,9 @@ def _define_observers(simulation: Projection, config: SimulationConfig) -> Dict[
         nav[f'Net Asset Value @ year {year:>2}'] = nav_observer
         simulation.registerObserver(nav_observer)
 
+    nav_fan = NavFanObserver(config.max_year)
+    simulation.registerObserver(nav_fan)
+
     audit_path = config.output_dir / 'audit.txt'
     audit_observer = AuditObserver(out=open(audit_path, mode='w'))
     simulation.registerObserver(audit_observer)
@@ -204,12 +212,26 @@ def _define_observers(simulation: Projection, config: SimulationConfig) -> Dict[
     csv_observer = CSV_Observer(str(config.output_dir / 'output.csv'))
     simulation.registerObserver(csv_observer)
 
-    return nav
+    return nav, nav_fan
+
+
+def _call_progress_callback(
+    callback: Callable[..., None] | None,
+    current: int,
+    total: int,
+    nav_fan: NavFanObserver,
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback(current, total, nav_fan)
+    except TypeError:
+        callback(current, total)
 
 
 def run_simulation(
     config: SimulationConfig,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
+    progress_callback: Optional[Callable[..., None]] = None,
 ) -> RunResult:
     sync_config_with_catalog(config)
     config.asset_catalog.validate()
@@ -236,15 +258,15 @@ def run_simulation(
         correlations=config.risk_correlation,
     )
 
-    nav = _define_observers(simulation, config)
+    nav, nav_fan = _define_observers(simulation, config)
 
     for i in range(config.nb_projections):
         simulation.run(i + 1)
-        if progress_callback is not None:
-            progress_callback(i + 1, config.nb_projections)
+        _call_progress_callback(progress_callback, i + 1, config.nb_projections, nav_fan)
 
     return RunResult(
         nav_observers=nav,
+        nav_fan=nav_fan,
         output_csv=config.output_dir / 'output.csv',
         audit_path=config.output_dir / 'audit.txt',
     )

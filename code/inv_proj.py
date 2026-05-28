@@ -657,6 +657,48 @@ class StatisticalObserver(Observer):
         return s
 
 
+class NavFanObserver(Observer):
+    '''Collect NAV at end-of-period for each year across all simulation paths.'''
+
+    def __init__(self, max_year: int):
+        self.max_year = max_year
+        self.values_by_year: dict[int, list[float]] = {
+            year: [] for year in range(1, max_year + 1)
+        }
+
+    def processNotification(self, observed, **params):
+        step = params.get('step')
+        period = observed.period
+        if step != ps.EOP or period < 1 or period > self.max_year:
+            return
+        nav = observed.ptf_eop.total_value()
+        if nav:
+            self.values_by_year[period].append(nav)
+
+    def years(self) -> list[int]:
+        return list(range(1, self.max_year + 1))
+
+    @staticmethod
+    def _quantile(values: list[float], pct: float) -> float:
+        if not values:
+            return float('nan')
+        ordered = sorted(values)
+        length = len(values)
+        index = round(length * pct * length / (length + 1))
+        return ordered[index]
+
+    def mean_curve(self) -> list[float]:
+        return [
+            sum(self.values_by_year[year]) / len(self.values_by_year[year])
+            if self.values_by_year[year]
+            else float('nan')
+            for year in self.years()
+        ]
+
+    def quantile_curve(self, pct: float) -> list[float]:
+        return [self._quantile(self.values_by_year[year], pct) for year in self.years()]
+
+
 class AuditObserver(Observer):
 
     def __init__(self, out=sys.stdout):

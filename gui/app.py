@@ -25,6 +25,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -37,7 +38,11 @@ from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
 from inv_proj import cv  # noqa: E402
 from theme import inject_theme  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
-from charts import build_nav_distribution_figure, build_nav_percentile_figure  # noqa: E402
+from charts import (  # noqa: E402
+    build_nav_distribution_figure,
+    build_nav_fan_figure,
+    build_nav_percentile_figure,
+)
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
@@ -62,6 +67,7 @@ def _nav_key(year: int) -> str:
 
 
 STANDARD_CHART_YEARS = (1, 5, 10, 15)
+NAV_FAN_UPDATE_INTERVAL = 10
 
 PRODUCT_ABOUT_HELP = (
     'finproj is a local Monte Carlo simulation tool for investment portfolios. '
@@ -971,6 +977,22 @@ def _render_portfolio_assumptions_section() -> None:
             )
 
 
+def _render_nav_fan_chart(
+    nav_fan,
+    *,
+    paths_done: int | None = None,
+    paths_total: int | None = None,
+) -> None:
+    fan_fig = build_nav_fan_figure(
+        nav_fan,
+        paths_done=paths_done,
+        paths_total=paths_total,
+    )
+    if fan_fig is not None:
+        st.pyplot(fan_fig)
+        plt.close(fan_fig)
+
+
 def _render_charts(result: RunResult, chart_year: int) -> None:
     key = _nav_key(chart_year)
     if key not in result.nav_observers:
@@ -1022,6 +1044,7 @@ def main() -> None:
 
     st.header('4. Run and results')
     run_clicked = st.button('Run simulation', type='primary')
+    live_fan_placeholder = st.empty()
 
     if run_clicked:
         try:
@@ -1032,8 +1055,31 @@ def main() -> None:
             progress = st.progress(0.0, text='Starting simulation...')
             status = st.empty()
 
-            def progress_callback(current: int, total: int) -> None:
-                progress.progress(current / total, text=f'Running projection {current:,} of {total:,}...')
+            def progress_callback(
+                current: int,
+                total: int,
+                nav_fan: Any | None = None,
+            ) -> None:
+                progress.progress(
+                    current / total,
+                    text=f'Running projection {current:,} of {total:,}...',
+                )
+                if nav_fan is None:
+                    return
+                if (
+                    current == 1
+                    or current == total
+                    or current % NAV_FAN_UPDATE_INTERVAL == 0
+                ):
+                    with live_fan_placeholder.container():
+                        st.caption(
+                            f'NAV fan chart updates every {NAV_FAN_UPDATE_INTERVAL} paths.'
+                        )
+                        _render_nav_fan_chart(
+                            nav_fan,
+                            paths_done=current,
+                            paths_total=total,
+                        )
 
             importlib.reload(inv_proj_runner)
             result = inv_proj_runner.run_simulation(
@@ -1041,6 +1087,7 @@ def main() -> None:
                 progress_callback=progress_callback,
             )
 
+            live_fan_placeholder.empty()
             progress.progress(1.0, text='Simulation complete.')
             status.success(
                 f'Finished {config.nb_projections:,} projections over {config.max_year} years.'
@@ -1055,6 +1102,9 @@ def main() -> None:
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
         result_year = st.session_state.get('result_max_year', int(_read_portfolio_fields()['max_year']))
+
+        st.subheader('NAV fan chart')
+        _render_nav_fan_chart(result.nav_fan)
 
         _render_summary(result, result_year)
 
