@@ -27,12 +27,11 @@
 
 ## Quick Start
 
-### 1. Prerequisites
+You have the option to run the program from the command line or from a web browser (graphic user interface).
 
-- Python 3.8+ for the command-line simulation
-- Python 3.10+ for the optional GUI (`requirements-gui.txt`)
+### 1. Run the programme from the command line (no graphic user interface)
 
-### 2. Run the Monte Carlo Simulation (command line - no graphic user interface)
+Python 3.8 or higher is required to run the program from the command line.
 
 The simplest way to start the simulation is to use the launcher scripts from the project root:
 
@@ -47,9 +46,11 @@ Alternatively, from the project root:
 python code/inv_proj_run.py
 ```
 
-Either approach will generate or update `output/output.csv` with the simulation results.
+Either approach will generate or update `output/output.csv` with the simulation results. See how to visualize the results in Excel below.
 
-### 3. Run within the graphic user interface
+### 2. Run as a web application (graphic user interface)
+
+Python 3.10 or higher is required to run the program from the web browser (graphic user interface).
 
 Install GUI dependencies once (the launcher scripts can also install them automatically if missing):
 

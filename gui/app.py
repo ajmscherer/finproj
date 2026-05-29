@@ -526,6 +526,35 @@ def _render_assumptions_file_controls() -> None:
         )
 
 
+def _ensure_sidebar_collapsed() -> None:
+    """Collapse the sidebar once per session (Streamlit may restore a prior expanded state)."""
+    if st.session_state.get("_sidebar_initial_collapsed"):
+        return
+    st.session_state._sidebar_initial_collapsed = True
+    components.html(
+        """
+        <script>
+        (function () {
+            const doc = window.parent.document;
+            function collapse() {
+                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar || sidebar.getAttribute('aria-expanded') === 'false') return;
+                const btn =
+                    doc.querySelector('[data-testid="stSidebarCollapseButton"]') ||
+                    doc.querySelector('[data-testid="stSidebar"] button[kind="header"]');
+                if (btn) btn.click();
+            }
+            collapse();
+            setTimeout(collapse, 100);
+            setTimeout(collapse, 400);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
     for asset in _investable_assets(catalog):
         st.session_state[f"asset_name_{asset.id}"] = asset.name
@@ -1220,8 +1249,13 @@ def _render_live_charts(
 
 
 def main() -> None:
-    st.set_page_config(page_title="finproj", layout="wide")
+    st.set_page_config(
+        page_title="finproj",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
     inject_theme()
+    _ensure_sidebar_collapsed()
     _init_session_state()
     _process_pending_assumptions()
 
