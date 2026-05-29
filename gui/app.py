@@ -27,6 +27,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import streamlit as st
 import streamlit.components.v1 as components

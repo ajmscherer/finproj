@@ -1,0 +1,4 @@
+# Streamlit Community Cloud reads this file by default.
+# Same dependencies as requirements-gui.txt.
+streamlit>=1.55.0,<2
+matplotlib>=3.10.0,<4
