@@ -171,15 +171,21 @@ section.main h2,
     margin-bottom: 0.35rem;
 }}
 
-/* Clickable read-only sections 1–3 (bordered panel; JS forwards clicks to edit button) */
-.st-key-portfolio_section,
-.st-key-asset_allocation_section,
-.st-key-return_assumptions_section {{
+/* Clickable sections 1–3 (bordered panel; JS forwards clicks to edit/done buttons) */
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit),
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit),
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit),
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_done),
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_done),
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_done) {{
     cursor: pointer;
 }}
-.st-key-portfolio_section:hover,
-.st-key-asset_allocation_section:hover,
-.st-key-return_assumptions_section:hover {{
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit):hover,
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit):hover,
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit):hover,
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_done):hover,
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_done):hover,
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_done):hover {{
     border-color: #cbd5e1 !important;
     background: #fafafa !important;
 }}

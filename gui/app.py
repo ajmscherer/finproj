@@ -658,38 +658,79 @@ def _format_correlation_summary(
 
 
 def _install_section_click_handlers() -> None:
-    """Forward clicks on read-only section panels to each section's edit button."""
-    components.html(
+    """Forward section panel clicks to enter or exit edit mode."""
+    # Re-bind on every rerun: Streamlit reruns replace DOM nodes and a one-shot
+    # iframe listener would otherwise stop firing after the first mode switch.
+    st.html(
         """
+        <div style="display:none" aria-hidden="true">
         <script>
         (function () {
-            const doc = window.parent.document;
+            const doc = document;
             const bindings = [
-                ['portfolio_section', 'portfolio_assumptions_edit'],
-                ['asset_allocation_section', 'asset_allocation_edit'],
-                ['return_assumptions_section', 'return_assumptions_edit'],
+                ['portfolio_section', 'portfolio_assumptions_edit', 'portfolio_assumptions_done'],
+                ['asset_allocation_section', 'asset_allocation_edit', 'asset_allocation_done'],
+                ['return_assumptions_section', 'return_assumptions_edit', 'return_assumptions_done'],
             ];
-            for (const [sectionKey, editKey] of bindings) {
-                const section =
-                    doc.querySelector(
-                        '.st-key-' + sectionKey + '[data-testid="stVerticalBlockBorderWrapper"]',
-                    ) || doc.querySelector('.st-key-' + sectionKey);
-                const editWrap = doc.querySelector('.st-key-' + editKey);
-                if (!section || !editWrap) continue;
-                section.style.cursor = 'pointer';
-                section.addEventListener('click', (event) => {
-                    if (editWrap.contains(event.target)) return;
-                    if (event.target.closest('[data-testid="stTooltipIcon"]')) return;
-                    if (event.target.closest('button')) return;
-                    const btn = editWrap.querySelector('button');
-                    if (btn) btn.click();
-                });
+
+            function isDataEntryTarget(target) {
+                if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+                    return true;
+                }
+                if (target.closest('[data-baseweb="select"], [data-baseweb="input"], [data-baseweb="textarea"]')) {
+                    return true;
+                }
+                if (target.closest('[data-baseweb="popover"], [role="listbox"], [role="option"]')) {
+                    return true;
+                }
+                if (target.closest('[data-testid="stNumberInput"] button')) {
+                    return true;
+                }
+                return false;
             }
+
+            function visibleActionButton(section, actionKey) {
+                const wrap = section.querySelector('.st-key-' + actionKey);
+                if (!wrap) return null;
+                const btn = wrap.querySelector('button');
+                if (!btn || btn.offsetParent === null) return null;
+                return btn;
+            }
+
+            function handler(event) {
+                if (event.target.closest('button')) return;
+                if (event.target.closest('[data-testid="stTooltipIcon"]')) return;
+                if (isDataEntryTarget(event.target)) return;
+
+                for (const [sectionKey, editKey, doneKey] of bindings) {
+                    const section = event.target.closest('.st-key-' + sectionKey);
+                    if (!section) continue;
+
+                    const doneBtn = visibleActionButton(section, doneKey);
+                    if (doneBtn && !doneBtn.contains(event.target)) {
+                        doneBtn.click();
+                        return;
+                    }
+
+                    const editBtn = visibleActionButton(section, editKey);
+                    if (editBtn && !editBtn.contains(event.target)) {
+                        editBtn.click();
+                        return;
+                    }
+                }
+            }
+
+            if (window.__fpSectionClickHandler) {
+                doc.removeEventListener('click', window.__fpSectionClickHandler);
+            }
+            window.__fpSectionClickHandler = handler;
+            doc.addEventListener('click', handler);
         })();
         </script>
+        </div>
         """,
-        height=0,
-        width=0,
+        unsafe_allow_javascript=True,
+        width=1,
     )
 
 
@@ -788,23 +829,24 @@ def _render_return_assumptions_section(
     return_ids = return_model_asset_ids(catalog)
 
     if editing:
-        with st.container(
-            horizontal=True,
-            width="content",
-            gap="small",
-            vertical_alignment="center",
-            key="return_assumptions_section_header",
-        ):
-            st.header("3. Return assumptions")
-            st.button(
-                "✓",
-                help="Done editing",
-                key="return_assumptions_done",
-                on_click=_finish_return_assumptions_edit,
-            )
-        if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
-            _sync_return_assumptions_to_edit_widgets(catalog)
-        return _render_return_assumptions_edit_form(catalog)
+        with st.container(border=True, key="return_assumptions_section"):
+            with st.container(
+                horizontal=True,
+                width="content",
+                gap="small",
+                vertical_alignment="center",
+                key="return_assumptions_section_header",
+            ):
+                st.header("3. Return assumptions")
+                st.button(
+                    "✓",
+                    help="Done editing",
+                    key="return_assumptions_done",
+                    on_click=_finish_return_assumptions_edit,
+                )
+            if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
+                _sync_return_assumptions_to_edit_widgets(catalog)
+            return _render_return_assumptions_edit_form(catalog)
 
     with st.container(border=True, key="return_assumptions_section"):
         with st.container(
@@ -964,25 +1006,26 @@ def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
     investable_ids = investable_asset_ids(catalog)
 
     if editing:
-        with st.container(
-            horizontal=True,
-            width="content",
-            gap="small",
-            vertical_alignment="center",
-            key="asset_allocation_section_header",
-        ):
-            st.header("2. Investable asset allocation")
-            st.button(
-                "✓",
-                help="Done editing",
-                key="asset_allocation_done",
-                on_click=_finish_asset_allocation_edit,
-            )
-        investable = _investable_assets(catalog)
-        if investable and f"asset_name_{investable[0].id}" not in st.session_state:
-            _sync_catalog_to_edit_widgets(catalog)
-            _sync_allocation_to_edit_widgets(investable_ids)
-        catalog = _render_asset_allocation_edit_form()
+        with st.container(border=True, key="asset_allocation_section"):
+            with st.container(
+                horizontal=True,
+                width="content",
+                gap="small",
+                vertical_alignment="center",
+                key="asset_allocation_section_header",
+            ):
+                st.header("2. Investable asset allocation")
+                st.button(
+                    "✓",
+                    help="Done editing",
+                    key="asset_allocation_done",
+                    on_click=_finish_asset_allocation_edit,
+                )
+            investable = _investable_assets(catalog)
+            if investable and f"asset_name_{investable[0].id}" not in st.session_state:
+                _sync_catalog_to_edit_widgets(catalog)
+                _sync_allocation_to_edit_widgets(investable_ids)
+            catalog = _render_asset_allocation_edit_form()
     else:
         with st.container(border=True, key="asset_allocation_section"):
             with st.container(
@@ -1065,61 +1108,62 @@ def _render_portfolio_assumptions_section() -> None:
     portfolio = st.session_state.portfolio
 
     if editing:
-        with st.container(
-            horizontal=True,
-            width="content",
-            gap="small",
-            vertical_alignment="center",
-            key="portfolio_section_header",
-        ):
-            st.header("1. Portfolio assumptions")
-            st.button(
-                "✓",
-                help="Done editing",
-                key="portfolio_assumptions_done",
-                on_click=_finish_portfolio_edit,
-            )
-        if "portfolio_edit_initial_capital" not in st.session_state:
-            _sync_portfolio_to_edit_widgets()
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.text_input(
-                "Initial capital",
-                key="portfolio_edit_initial_capital",
-                help=PORTFOLIO_FIELD_HELP["initial_capital"],
-            )
-            st.text_input(
-                "Annual withdrawals",
-                key="portfolio_edit_withdrawals",
-                help=PORTFOLIO_FIELD_HELP["withdrawals"],
-            )
-        with col2:
-            st.text_input(
-                "Cash buffer",
-                key="portfolio_edit_cash_buffer",
-                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-            )
-            st.number_input(
-                "Horizon (years)",
-                min_value=1,
-                max_value=50,
-                step=1,
-                key="portfolio_edit_max_year",
-                help=PORTFOLIO_FIELD_HELP["max_year"],
-            )
-        with col3:
-            st.number_input(
-                "Number of projections",
-                min_value=10,
-                max_value=20000,
-                step=10,
-                key="portfolio_edit_nb_projections",
-                help=PORTFOLIO_FIELD_HELP["nb_projections"],
-            )
-            if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-                st.warning("Large projection counts can take several minutes.")
-        for message in _validate_portfolio_amount_inputs():
-            st.error(message)
+        with st.container(border=True, key="portfolio_section"):
+            with st.container(
+                horizontal=True,
+                width="content",
+                gap="small",
+                vertical_alignment="center",
+                key="portfolio_section_header",
+            ):
+                st.header("1. Portfolio assumptions")
+                st.button(
+                    "✓",
+                    help="Done editing",
+                    key="portfolio_assumptions_done",
+                    on_click=_finish_portfolio_edit,
+                )
+            if "portfolio_edit_initial_capital" not in st.session_state:
+                _sync_portfolio_to_edit_widgets()
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.text_input(
+                    "Initial capital",
+                    key="portfolio_edit_initial_capital",
+                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
+                )
+                st.text_input(
+                    "Annual withdrawals",
+                    key="portfolio_edit_withdrawals",
+                    help=PORTFOLIO_FIELD_HELP["withdrawals"],
+                )
+            with col2:
+                st.text_input(
+                    "Cash buffer",
+                    key="portfolio_edit_cash_buffer",
+                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                )
+                st.number_input(
+                    "Horizon (years)",
+                    min_value=1,
+                    max_value=50,
+                    step=1,
+                    key="portfolio_edit_max_year",
+                    help=PORTFOLIO_FIELD_HELP["max_year"],
+                )
+            with col3:
+                st.number_input(
+                    "Number of projections",
+                    min_value=10,
+                    max_value=20000,
+                    step=10,
+                    key="portfolio_edit_nb_projections",
+                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
+                )
+                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                    st.warning("Large projection counts can take several minutes.")
+            for message in _validate_portfolio_amount_inputs():
+                st.error(message)
     else:
         with st.container(border=True, key="portfolio_section"):
             with st.container(
