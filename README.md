@@ -187,7 +187,6 @@ The `output/finproj.xlsx` companion file provides additional views of the same s
 - **Scenario navigator** — explore individual simulation paths
 
 Example screenshots are in the `screenshots/` folder.
-
 ## For Those Who Want to Look Under the Hood
 
 ### Introduction
@@ -344,6 +343,8 @@ classDiagram
     CSV_Observer --> Projection : observes
 ```
 
+
+
 ## License
 
 **finproj** is dual-licensed:
@@ -355,7 +356,7 @@ For commercial licensing, pricing, or custom terms, please contact the author vi
 
 ## Editing credits
 
-Grok assisted Alex Scherer in editing this readme file, most significantly by proposing verbiage for the sections analyzing how the code works and proposing grammar and stylistic corrections.
+Grok assisted Alex Scherer in editing this readme file, most significantly by proposing verbiage for the sections analyzing how the code works and proposing grammar and stylistic corrections. 
 
 ## Disclaimer
 
