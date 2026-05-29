@@ -30,4 +30,4 @@ if lsof -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   exit 1
 fi
 
-exec "$PYTHON" -m streamlit run gui/app.py --server.address localhost "$@"
+exec "$PYTHON" -m streamlit run gui/app.py --server.address localhost --server.headless false "$@"
