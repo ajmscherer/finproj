@@ -18,127 +18,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from pathlib import Path
+from inv_proj_runner import default_config, run_simulation
 
-from inv_proj import rc, Risk, Projection, StatisticalObserver, ps, AuditObserver, CSV_Observer
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / 'output'
-OUTPUT_DIR.mkdir(exist_ok=True)
-
-# ---------------------------------------------------------------------------------------
-#
-#            Portfolfio size and liquidity assumptions
-#
-# ---------------------------------------------------------------------------------------
-
-CAPITAL = '1M'
-WITHDRAWALS = '40k'
-CASH_BUFFER= '100k'
-MAXYEAR=15
-NB_PROJECTIONS = 2000
-
-
-# ---------------------------------------------------------------------------------------
-#
-#            Portfolfio Mix assumptions
-#
-# ---------------------------------------------------------------------------------------
-
-risk_mix = {
-    'safe': {rc.BOND:80, rc.EQUITY:20 , rc.PMETAL:1, rc.CRYPTO:0, rc.REAL_ESTATE:0},
-    'moderate': {rc.BOND:45, rc.EQUITY:45,rc.PMETAL:8, rc.CRYPTO:2, rc.REAL_ESTATE:0},
-    'performance': {rc.BOND:30, rc.EQUITY:40,rc.PMETAL:5, rc.CRYPTO:5, rc.REAL_ESTATE:20},
-}
-
-
-# ---------------------------------------------------------------------------------------
-#
-#            Financial performance assumptions (based on Grok prompted on 12/29/2025)
-#
-# ---------------------------------------------------------------------------------------
-
-risk_param = {
-    rc.MONEY_MARKET: [{'from_year':1, 'rv':'norm', 'mu':0.5, 'sigma': 4.0}],
-    rc.BOND: [{'from_year':1, 'rv':'norm', 'mu':2.0, 'sigma': 10.0},],
-    rc.EQUITY:[{'from_year':1, 'rv':'norm', 'mu':6.5, 'sigma': 20.0},],
-    rc.CRYPTO:[{'from_year':1, 'rv':'norm', 'mu':50.0, 'sigma':100.0},],
-    rc.PMETAL:[{'from_year':1, 'rv':'norm', 'mu':1.0, 'sigma':18},],
-    rc.REAL_ESTATE:[{'from_year':1, 'rv':'norm', 'mu':3.0, 'sigma':15.0},],
-}
-
-# Pairwise correlations between asset classes (symmetric; unspecified pairs default to 0).
-# The matrix must be positive definite or simulation startup will raise an error.
-risk_correlation = {
-    (rc.MONEY_MARKET, rc.BOND): 0.50,
-    (rc.EQUITY, rc.BOND): -0.20,
-    (rc.EQUITY, rc.REAL_ESTATE): 0.30,
-    (rc.BOND, rc.REAL_ESTATE): 0.10,
-    (rc.EQUITY, rc.PMETAL): 0.05,
-    (rc.EQUITY, rc.CRYPTO): 0.15,
-}
-
-
-# ---------------------------------------------------------------------------------------
-#
-#            Create observers to collect data when simulation is ran
-#
-# ---------------------------------------------------------------------------------------
-
-def define_observers(simulation):
-    # NAV observer at each EOP
-    nav = {}
-    for year in [1, 5, MAXYEAR]:
-        navObserver = StatisticalObserver(
-                    quantity=lambda projection, **param:projection.ptf_eop.total_value(), 
-                    condition=lambda projection, step, y=year,**params:(projection.period==y) & (step==ps.EOP))
-        nav[f'Net Asset Value @ year {year:>2}'] = navObserver
-        simulation.registerObserver(navObserver)
-
-    # audit observer
-    auditObserver = AuditObserver(out=open(OUTPUT_DIR / 'audit.txt', mode="w"))
-    simulation.registerObserver(auditObserver)
-
-    # csv file observer
-    csv = CSV_Observer(str(OUTPUT_DIR / 'output.csv'))
-    simulation.registerObserver(csv)
-
-    return nav
-
-
-# ---------------------------------------------------------------------------------------
-#
-#            Main procedure to run investment projection simulation
-#
-# ---------------------------------------------------------------------------------------
 
 def run():
     '''Main procedure to run investment projection simulation'''
+    result = run_simulation(default_config())
 
-    # create risk distribution
-    distributions = Risk.buildRisks(risk_param, max_year=MAXYEAR)
-
-    # create simulation
-    simulation = Projection(
-            initial_capital=CAPITAL, 
-            withdrawals=WITHDRAWALS,
-            cashBuffer=CASH_BUFFER,
-            risk_mix=risk_mix['performance'],
-            risk_distrib=distributions,
-            nb_years=MAXYEAR,
-            nb_projections=NB_PROJECTIONS,
-            correlations=risk_correlation)
-    
-    # create observers
-    nav = define_observers(simulation)
-
-    # run simulation
-    for i in range(NB_PROJECTIONS):
-        simulation.run(i+1)
-
-    # print moment of wealthObserver   
-    for period in nav:
-        print(f"{period:<20}: {nav[period]}")
+    for period in result.nav_observers:
+        print(f"{period:<20}: {result.nav_observers[period]}")
 
 
-run() 
+if __name__ == '__main__':
+    run()

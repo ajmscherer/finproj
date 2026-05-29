@@ -19,7 +19,6 @@ from inv_proj import (
     Risk,
     build_correlation_matrix,
     cholesky_decomposition,
-    rc,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -29,17 +28,17 @@ SAMPLES_CSV = OUTPUT_DIR / 'test_correlated_returns_samples.csv'
 
 # Assumed return parameters used throughout these tests (percent units).
 TEST_RISK_PARAM = {
-    rc.MONEY_MARKET: [{"from_year": 1, "rv": "norm", "mu": 0.5, "sigma": 4.0}],
-    rc.BOND: [{"from_year": 1, "rv": "norm", "mu": 2.0, "sigma": 10.0}],
-    rc.EQUITY: [{"from_year": 1, "rv": "norm", "mu": 6.5, "sigma": 20.0}],
-    rc.REAL_ESTATE: [{"from_year": 1, "rv": "norm", "mu": 3.0, "sigma": 15.0}],
+    'money_market': [{"from_year": 1, "rv": "norm", "mu": 0.5, "sigma": 4.0}],
+    'bonds': [{"from_year": 1, "rv": "norm", "mu": 2.0, "sigma": 10.0}],
+    'stocks': [{"from_year": 1, "rv": "norm", "mu": 6.5, "sigma": 20.0}],
+    'real_estate': [{"from_year": 1, "rv": "norm", "mu": 3.0, "sigma": 15.0}],
 }
 
 TEST_CORRELATIONS = {
-    (rc.MONEY_MARKET, rc.BOND): 0.50,
-    (rc.EQUITY, rc.BOND): -0.20,
-    (rc.EQUITY, rc.REAL_ESTATE): 0.30,
-    (rc.BOND, rc.REAL_ESTATE): 0.10,
+    ('money_market', 'bonds'): 0.50,
+    ('stocks', 'bonds'): -0.20,
+    ('stocks', 'real_estate'): 0.30,
+    ('bonds', 'real_estate'): 0.10,
 }
 
 # Large enough for stable Monte Carlo checks; 4-sigma tolerances below keep false failures rare.
@@ -82,12 +81,12 @@ def matrix_multiply_lower(lower, transpose_lower=True):
     return result
 
 
-def expected_mu(risk_distrib, risk_class, period):
-    return risk_distrib[risk_class].distribution[period].mu
+def expected_mu(risk_distrib, asset_id, period):
+    return risk_distrib[asset_id].distribution[period].mu
 
 
-def expected_sigma(risk_distrib, risk_class, period):
-    return risk_distrib[risk_class].distribution[period].sigma
+def expected_sigma(risk_distrib, asset_id, period):
+    return risk_distrib[asset_id].distribution[period].sigma
 
 
 def mean_tolerance(sigma, n_draws):
@@ -104,8 +103,8 @@ def correlation_tolerance(target_rho, n_draws):
 
 
 def save_samples_to_csv(samples, file_path):
-    risk_classes = list(samples.keys())
-    fieldnames = ['draw'] + [risk_class.name for risk_class in risk_classes]
+    asset_ids = list(samples.keys())
+    fieldnames = ['draw'] + asset_ids
     n_draws = len(next(iter(samples.values())))
 
     file_path.parent.mkdir(exist_ok=True)
@@ -114,8 +113,8 @@ def save_samples_to_csv(samples, file_path):
         writer.writeheader()
         for draw_index in range(n_draws):
             row = {'draw': draw_index + 1}
-            for risk_class in risk_classes:
-                row[risk_class.name] = samples[risk_class][draw_index]
+            for asset_id in asset_ids:
+                row[asset_id] = samples[asset_id][draw_index]
             writer.writerow(row)
 
 
@@ -128,33 +127,33 @@ class CorrelatedReturnsStatisticsTest(unittest.TestCase):
             correlations=TEST_CORRELATIONS,
         )
         cls.samples = {
-            risk_class: [] for risk_class in TEST_RISK_PARAM
+            asset_id: [] for asset_id in TEST_RISK_PARAM
         }
         for _ in range(N_DRAWS):
             draw = cls.correlated_returns.draw(PERIOD)
-            for risk_class, value in draw.items():
-                cls.samples[risk_class].append(value)
+            for asset_id, value in draw.items():
+                cls.samples[asset_id].append(value)
 
         save_samples_to_csv(cls.samples, SAMPLES_CSV)
 
     def test_sample_means_match_assumed_mu(self):
-        for risk_class, values in self.samples.items():
-            mu = expected_mu(self.risk_distrib, risk_class, PERIOD)
+        for asset_id, values in self.samples.items():
+            mu = expected_mu(self.risk_distrib, asset_id, PERIOD)
             observed_mean = sample_mean(values)
-            tolerance = mean_tolerance(expected_sigma(self.risk_distrib, risk_class, PERIOD), N_DRAWS)
+            tolerance = mean_tolerance(expected_sigma(self.risk_distrib, asset_id, PERIOD), N_DRAWS)
             self.assertAlmostEqual(
                 observed_mean,
                 mu,
                 delta=tolerance,
                 msg=(
-                    f"{risk_class.name}: mean {observed_mean:.4f} vs assumed mu {mu:.4f} "
+                    f"{asset_id}: mean {observed_mean:.4f} vs assumed mu {mu:.4f} "
                     f"(tolerance +/- {tolerance:.4f})"
                 ),
             )
 
     def test_sample_sigmas_match_assumed_sigma(self):
-        for risk_class, values in self.samples.items():
-            sigma = expected_sigma(self.risk_distrib, risk_class, PERIOD)
+        for asset_id, values in self.samples.items():
+            sigma = expected_sigma(self.risk_distrib, asset_id, PERIOD)
             observed_std = sample_std(values)
             tolerance = std_tolerance(sigma, N_DRAWS)
             self.assertAlmostEqual(
@@ -162,7 +161,7 @@ class CorrelatedReturnsStatisticsTest(unittest.TestCase):
                 sigma,
                 delta=tolerance,
                 msg=(
-                    f"{risk_class.name}: std {observed_std:.4f} vs assumed sigma {sigma:.4f} "
+                    f"{asset_id}: std {observed_std:.4f} vs assumed sigma {sigma:.4f} "
                     f"(tolerance +/- {tolerance:.4f})"
                 ),
             )
@@ -176,15 +175,15 @@ class CorrelatedReturnsStatisticsTest(unittest.TestCase):
                 target_rho,
                 delta=tolerance,
                 msg=(
-                    f"{risk_a.name}/{risk_b.name}: correlation {observed_rho:.4f} "
+                    f"{risk_a}/{risk_b}: correlation {observed_rho:.4f} "
                     f"vs assumed {target_rho:.4f} (tolerance +/- {tolerance:.4f})"
                 ),
             )
 
     def test_unspecified_pairs_are_approximately_uncorrelated(self):
         uncorrelated_pairs = [
-            (rc.MONEY_MARKET, rc.EQUITY),
-            (rc.MONEY_MARKET, rc.REAL_ESTATE),
+            ('money_market', 'stocks'),
+            ('money_market', 'real_estate'),
         ]
         for risk_a, risk_b in uncorrelated_pairs:
             observed_rho = sample_correlation(self.samples[risk_a], self.samples[risk_b])
@@ -194,7 +193,7 @@ class CorrelatedReturnsStatisticsTest(unittest.TestCase):
                 0.0,
                 delta=tolerance,
                 msg=(
-                    f"{risk_a.name}/{risk_b.name}: correlation {observed_rho:.4f} "
+                    f"{risk_a}/{risk_b}: correlation {observed_rho:.4f} "
                     f"vs assumed 0.0 (tolerance +/- {tolerance:.4f})"
                 ),
             )
@@ -234,5 +233,5 @@ class CorrelatedReturnsStructureTest(unittest.TestCase):
             cholesky_decomposition(bad_matrix)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
