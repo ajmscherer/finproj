@@ -73,8 +73,14 @@ THEME: dict[str, str] = {
     # Main content spacing
     "block_gap": "0.75rem",
     "main_padding_top": "1.25rem",
-    # Header bandeau (top-right illustration)
-    "header_bandeau_border_radius": "0.375rem",
+    # Title background bandeau (three lines; positions match SVG viewBox 0 0 10 1)
+    "header_band_height": "4rem",
+    "header_band_color": "green",
+    "header_band_opacity": "1",
+    "header_band_line_height_pct": "15%",
+    "header_band_line_1_top_pct": "40%",
+    "header_band_line_2_top_pct": "70%",
+    "header_band_line_3_top_pct": "100%",
     # Summary statistics table
     "summary_table_font_size": "0.875rem",
     "summary_table_header_background": "#f9fafb",
@@ -84,8 +90,23 @@ THEME: dict[str, str] = {
 }
 
 
+def _band_line_gradient(theme: Mapping[str, str]) -> str:
+    color = theme["header_band_color"]
+    opacity = theme["header_band_opacity"]
+    if color.startswith('#'):
+        hex_color = color.lstrip('#')
+        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+        return (
+            f"linear-gradient(to right, rgba({r}, {g}, {b}, 0) 0%, "
+            f"rgba({r}, {g}, {b}, {opacity}) 100%)"
+        )
+    return f"linear-gradient(to right, transparent 0%, {color} 100%)"
+
+
 def build_css(theme: Mapping[str, str] | None = None) -> str:
     t = {**THEME, **(theme or {})}
+    band_line = _band_line_gradient(t)
+    line_height = t["header_band_line_height_pct"]
     return f"""
 <style>
 /* App title */
@@ -249,58 +270,42 @@ section.main h3,
     padding-top: {t["main_padding_top"]};
 }}
 
-/* Header row — title block and bandeau share the same height */
-.st-key-app_header_row [data-testid="stHorizontalBlock"] {{
-    align-items: stretch !important;
+/* Title background bandeau — full-width SVG behind finproj */
+.st-key-app_header,
+.st-key-app_header_title {{
+    overflow: visible !important;
 }}
-.st-key-app_header_row [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {{
-    display: flex !important;
-    flex-direction: column !important;
+.st-key-app_header_title {{
+    position: relative;
 }}
-.st-key-app_header_row [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
-> [data-testid="stVerticalBlock"] {{
-    flex: 1 1 auto;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+.st-key-app_header_title [data-testid="stHeading"] {{
+    position: relative;
+    z-index: 1;
+    overflow: visible !important;
 }}
-.st-key-app_header_row [data-testid="stCaptionContainer"] {{
-    margin-bottom: 0;
+.st-key-app_header_title [data-testid="stHeading"]::before {{
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 50%;
+    width: 100vw;
+    margin-left: -50vw;
+    top: 50%;
+    transform: translateY(-50%);
+    height: {t["header_band_height"]};
+    pointer-events: none;
+    background-image: {band_line}, {band_line}, {band_line};
+    background-size: 100% {line_height};
+    background-repeat: no-repeat;
+    background-position:
+        0 {t["header_band_line_1_top_pct"]},
+        0 {t["header_band_line_2_top_pct"]},
+        0 {t["header_band_line_3_top_pct"]};
 }}
-
-/* Header bandeau — fill title section height, preserve aspect ratio */
-.st-key-app_header_band {{
-    flex: 1 1 auto;
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    justify-content: flex-end;
-    align-items: stretch;
-    overflow: visible;
-}}
-.st-key-app_header_band [data-testid="stImage"] {{
-    flex: 1 1 auto;
-    height: 100%;
-    display: flex !important;
-    justify-content: flex-end;
-    align-items: stretch;
-    overflow: visible;
-}}
-.st-key-app_header_band [data-testid="stImage"] > div {{
-    height: 100%;
-    display: flex;
-    justify-content: flex-end;
-    align-items: stretch;
-}}
-.st-key-app_header_band [data-testid="stImage"] img {{
-    border-radius: {t["header_bandeau_border_radius"]};
-    height: 100% !important;
-    width: auto !important;
-    max-width: 100%;
-    object-fit: contain;
-    object-position: right center;
-    display: block;
-    margin-left: auto;
+.st-key-app_header_title [data-testid="stHeading"] h1 {{
+    position: relative;
+    z-index: 1;
+    background: transparent;
 }}
 
 /* Summary statistics table */

@@ -14,7 +14,7 @@
 ## Features
 
 - Stochastic modeling using Monte Carlo simulation
-- **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics
+- **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics (the program can also run from the command line and be used as a library in other application, subject to licensing)
 - Flexible input assumptions: expected returns, volatility, initial capital, annual withdrawals, cash buffer, horizon, and projection count
 - **Customizable asset classes** — rename, add, or remove optional investable assets; four core classes are always present (Cash, Money Market, Bonds, Stocks)
 - **Save and load scenarios** as JSON files from the GUI sidebar
@@ -31,7 +31,24 @@
 - Python 3.8+ for the command-line simulation
 - Python 3.10+ for the optional GUI (`requirements-gui.txt`)
 
-### 2. Run with the GUI (optional)
+### 2. Run the Monte Carlo Simulation (command line - no graphic user interface)
+
+The simplest way to start the simulation is to use the launcher scripts from the project root:
+
+- **Mac / Linux:** `./run_simulation.sh`
+- **Windows:** double-click `run_simulation.bat`, or run it from Command Prompt
+
+These scripts activate the local `.venv` if present, then run the simulation for you.
+
+Alternatively, from the project root:
+
+```bash
+python code/inv_proj_run.py
+```
+
+Either approach will generate or update `output/output.csv` with the simulation results.
+
+### 3. Run within the graphic user interface
 
 Install GUI dependencies once (the launcher scripts can also install them automatically if missing):
 
@@ -66,23 +83,6 @@ Use the sidebar to name, save, load, or export assumption sets as JSON, and to s
 
 For additional charts and the scenario navigator, refresh `output/finproj.xlsx` in Excel as described below.
 
-### 3. Run the Monte Carlo Simulation (command line)
-
-The simplest way to start the simulation is to use the launcher scripts from the project root:
-
-- **Mac / Linux:** `./run_simulation.sh`
-- **Windows:** double-click `run_simulation.bat`, or run it from Command Prompt
-
-These scripts activate the local `.venv` if present, then run the simulation for you.
-
-Alternatively, from the project root:
-
-```bash
-python code/inv_proj_run.py
-```
-
-Either approach will generate or update `output/output.csv` with the simulation results.
-
 ### 4. Visualize Results in Excel
 
 - Open `output/finproj.xlsx`
@@ -95,7 +95,7 @@ Either approach will generate or update `output/output.csv` with the simulation 
 
 ### 5. Change the Financial Assumptions
 
-**GUI (recommended):** use section **2. Investable asset allocation** in the GUI to rename, add, or remove optional assets, then adjust allocation, returns, and correlations in the sections below it. Scenarios can be saved and reloaded from the sidebar.
+**GUI (recommended):** use the various sections in the GUI to change capital amount, liquidiy requirement, number of runs (section 1), rename, add, or remove optional assets, and adjust allocation (section 2), and change returns, and correlations (section 3). Assumptions can be saved and reloaded from the sidebar.
 
 **Command line / code:** defaults live in [code/inv_proj_runner.py](code/inv_proj_runner.py). [code/inv_proj_run.py](code/inv_proj_run.py) is a thin entry point that runs those defaults.
 

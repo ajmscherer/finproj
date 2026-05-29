@@ -80,28 +80,15 @@ PRODUCT_ABOUT_HELP = (
 
 
 def _render_app_header() -> None:
-    bandeau_path = PROJECT_ROOT / 'screenshots' / 'bandeau_image.jpeg'
     caption = (
         'Stochastic financial projections — runs locally on your machine — '
         '[Copyright © 2025–2026 Alex Scherer]'
         '(https://github.com/ajmscherer/finproj/blob/main/README.md)'
     )
 
-    if bandeau_path.is_file():
-        with st.container(key='app_header_row'):
-            col_title, col_image = st.columns(
-                [3, 1],
-                vertical_alignment='top',
-                gap='medium',
-            )
-            with col_title:
-                st.title('finproj', help=PRODUCT_ABOUT_HELP)
-                st.caption(caption)
-            with col_image:
-                with st.container(key='app_header_band'):
-                    st.image(str(bandeau_path))
-    else:
-        st.title('finproj', help=PRODUCT_ABOUT_HELP)
+    with st.container(key='app_header'):
+        with st.container(key='app_header_title'):
+            st.title('finproj', help=PRODUCT_ABOUT_HELP)
         st.caption(caption)
 
 
