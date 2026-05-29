@@ -171,6 +171,25 @@ section.main h2,
     margin-bottom: 0.35rem;
 }}
 
+/* Clickable read-only sections 1–3 (bordered panel; JS forwards clicks to edit button) */
+.st-key-portfolio_section,
+.st-key-asset_allocation_section,
+.st-key-return_assumptions_section {{
+    cursor: pointer;
+}}
+.st-key-portfolio_section:hover,
+.st-key-asset_allocation_section:hover,
+.st-key-return_assumptions_section:hover {{
+    border-color: #cbd5e1 !important;
+    background: #fafafa !important;
+}}
+.st-key-portfolio_section_header [data-testid="stButton"],
+.st-key-asset_allocation_section_header [data-testid="stButton"],
+.st-key-return_assumptions_section_header [data-testid="stButton"] {{
+    position: relative;
+    z-index: 2;
+}}
+
 /* Subsection headers */
 section.main h3,
 [data-testid="stMain"] h3 {{

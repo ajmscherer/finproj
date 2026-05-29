@@ -104,11 +104,22 @@ def _nav_fan_band_style(band_index: int, band_count: int) -> tuple[str, float]:
     return "#FACC15", alpha
 
 
+def extract_latest_path_curve(nav_fan) -> list[float]:
+    """End-of-year NAV for the most recently completed simulation path."""
+    years = nav_fan.years()
+    values_by_year = nav_fan.values_by_year
+    return [
+        values_by_year[year][-1] if values_by_year.get(year) else float("nan")
+        for year in years
+    ]
+
+
 def build_nav_fan_figure(
     nav_fan,
     *,
     paths_done: int | None = None,
     paths_total: int | None = None,
+    latest_path_curve: list[float] | None = None,
 ) -> plt.Figure | None:
     years = nav_fan.years()
     if not years or not nav_fan.values_by_year.get(years[0]):
@@ -168,6 +179,16 @@ def build_nav_fan_figure(
         label="Median (P50)",
         zorder=3,
     )
+
+    if latest_path_curve is not None:
+        ax.plot(
+            years,
+            latest_path_curve,
+            linestyle="-",
+            linewidth=1.5,
+            color="#DC2626",
+            zorder=5,
+        )
 
     title = "NAV fan chart"
     if paths_done is not None and paths_total is not None:

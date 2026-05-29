@@ -710,6 +710,13 @@ class NavFanObserver(Observer):
     def quantile_curve(self, pct: float) -> list[float]:
         return [self._quantile(self.values_by_year[year], pct) for year in self.years()]
 
+    def latest_path_curve(self) -> list[float]:
+        """End-of-year NAV for the most recently completed simulation path."""
+        return [
+            self.values_by_year[year][-1] if self.values_by_year[year] else float('nan')
+            for year in self.years()
+        ]
+
 
 class AuditObserver(Observer):
 

@@ -29,6 +29,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import streamlit as st
+import streamlit.components.v1 as components
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'code'))
@@ -41,6 +42,7 @@ from formatting import format_compact_amount, render_summary_statistics_table  #
 from charts import (  # noqa: E402
     build_nav_distribution_figure,
     build_nav_fan_figure,
+    extract_latest_path_curve,
 )
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
@@ -58,6 +60,7 @@ from inv_proj_runner import (  # noqa: E402
     validate_allocation,
     validate_correlation,
 )
+import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
 
 
@@ -252,6 +255,43 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio['nb_projections'] = int(st.session_state.portfolio_edit_nb_projections)
 
 
+def _enter_portfolio_edit() -> None:
+    _sync_portfolio_to_edit_widgets()
+    st.session_state.portfolio_assumptions_editing = True
+
+
+def _finish_portfolio_edit() -> None:
+    if _validate_portfolio_amount_inputs():
+        return
+    _sync_edit_widgets_to_portfolio()
+    st.session_state.portfolio_assumptions_editing = False
+
+
+def _enter_asset_allocation_edit() -> None:
+    catalog: AssetCatalog = st.session_state.asset_catalog
+    investable_ids = investable_asset_ids(catalog)
+    _sync_catalog_to_edit_widgets(catalog)
+    _sync_allocation_to_edit_widgets(investable_ids)
+    st.session_state.asset_allocation_editing = True
+
+
+def _finish_asset_allocation_edit() -> None:
+    _sync_edit_widgets_to_catalog()
+    st.session_state.asset_allocation_editing = False
+
+
+def _enter_return_assumptions_edit() -> None:
+    catalog: AssetCatalog = st.session_state.asset_catalog
+    _sync_return_assumptions_to_edit_widgets(catalog)
+    st.session_state.return_assumptions_editing = True
+
+
+def _finish_return_assumptions_edit() -> None:
+    catalog: AssetCatalog = st.session_state.asset_catalog
+    _sync_edit_widgets_to_return_assumptions(catalog)
+    st.session_state.return_assumptions_editing = False
+
+
 def _read_portfolio_fields() -> dict:
     if st.session_state.get('portfolio_assumptions_editing'):
         if not _validate_portfolio_amount_inputs():
@@ -264,7 +304,7 @@ def _init_session_state() -> None:
     st.session_state.setdefault('allocation', copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance']))
     st.session_state.setdefault('mix_preset', 'performance')
     st.session_state.setdefault('result', None)
-    st.session_state.setdefault('simulation_running', False)
+    st.session_state.pop('simulation_running', None)
     _init_portfolio_fields()
     st.session_state.setdefault('output_dir', str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault('assumptions_name', 'Untitled')
@@ -555,33 +595,68 @@ def _format_correlation_summary(
     return 'Correlations: ' + ', '.join(pairs)
 
 
+def _install_section_click_handlers() -> None:
+    """Forward clicks on read-only section panels to each section's edit button."""
+    components.html(
+        """
+        <script>
+        (function () {
+            const doc = window.parent.document;
+            const bindings = [
+                ['portfolio_section', 'portfolio_assumptions_edit'],
+                ['asset_allocation_section', 'asset_allocation_edit'],
+                ['return_assumptions_section', 'return_assumptions_edit'],
+            ];
+            for (const [sectionKey, editKey] of bindings) {
+                const section =
+                    doc.querySelector(
+                        '.st-key-' + sectionKey + '[data-testid="stVerticalBlockBorderWrapper"]',
+                    ) || doc.querySelector('.st-key-' + sectionKey);
+                const editWrap = doc.querySelector('.st-key-' + editKey);
+                if (!section || !editWrap) continue;
+                section.style.cursor = 'pointer';
+                section.addEventListener('click', (event) => {
+                    if (editWrap.contains(event.target)) return;
+                    if (event.target.closest('[data-testid="stTooltipIcon"]')) return;
+                    if (event.target.closest('button')) return;
+                    const btn = editWrap.querySelector('button');
+                    if (btn) btn.click();
+                });
+            }
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def _render_return_assumptions_readonly(
     catalog: AssetCatalog,
     mu_sigma: dict[str, tuple[float, float]],
     correlation_values: dict[tuple[str, str], float],
 ) -> None:
     return_ids = return_model_asset_ids(catalog)
-    with st.container(border=True):
-        summary_cols = st.columns(max(len(return_ids), 1))
-        for idx, asset_id in enumerate(return_ids):
-            mu, sigma = mu_sigma[asset_id]
-            with summary_cols[idx]:
-                name = html.escape(catalog.name(asset_id))
-                st.markdown(
-                    f'<div class="fp-return-metric-stack">'
-                    f'<div class="fp-return-metric-label">{name}</div>'
-                    f'<div class="fp-return-metric-value">μ {mu:.1f}%</div>'
-                    f'<div class="fp-return-metric-value">σ {sigma:.1f}%</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-        st.caption(_format_correlation_summary(catalog, correlation_values))
+    summary_cols = st.columns(max(len(return_ids), 1))
+    for idx, asset_id in enumerate(return_ids):
+        mu, sigma = mu_sigma[asset_id]
+        with summary_cols[idx]:
+            name = html.escape(catalog.name(asset_id))
+            st.markdown(
+                f'<div class="fp-return-metric-stack">'
+                f'<div class="fp-return-metric-label">{name}</div>'
+                f'<div class="fp-return-metric-value">μ {mu:.1f}%</div>'
+                f'<div class="fp-return-metric-value">σ {sigma:.1f}%</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    st.caption(_format_correlation_summary(catalog, correlation_values))
 
 
 def _render_return_assumptions_edit_form(
     catalog: AssetCatalog,
 ) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
-    st.caption('Expected return (mu) and volatility (sigma) in percent.')
+    st.caption('Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions. \n\n⚠️ It is the user sole responsibility to select appropriate values for each asset. For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."')
 
     header_cols = st.columns([3, 1.5, 1.5])
     with header_cols[0]:
@@ -646,43 +721,53 @@ def _render_return_assumptions_section(
     editing = st.session_state.return_assumptions_editing
     return_ids = return_model_asset_ids(catalog)
 
-    with st.container(
-        horizontal=True,
-        width='content',
-        gap='small',
-        vertical_alignment='center',
-        key='return_assumptions_section_header',
-    ):
-        st.header('3. Return assumptions')
-        if editing:
-            if st.button('✓', help='Done editing', key='return_assumptions_done'):
-                _sync_edit_widgets_to_return_assumptions(catalog)
-                st.session_state.return_assumptions_editing = False
-                st.rerun()
-        elif st.button('✎', help='Edit return assumptions', key='return_assumptions_edit'):
-            _sync_return_assumptions_to_edit_widgets(catalog)
-            st.session_state.return_assumptions_editing = True
-            st.rerun()
-
     if editing:
+        with st.container(
+            horizontal=True,
+            width='content',
+            gap='small',
+            vertical_alignment='center',
+            key='return_assumptions_section_header',
+        ):
+            st.header('3. Return assumptions')
+            st.button(
+                '✓',
+                help='Done editing',
+                key='return_assumptions_done',
+                on_click=_finish_return_assumptions_edit,
+            )
         if return_ids and f'return_edit_mu_{return_ids[0]}' not in st.session_state:
             _sync_return_assumptions_to_edit_widgets(catalog)
         return _render_return_assumptions_edit_form(catalog)
 
-    mu_sigma = _read_mu_sigma(catalog)
-    correlation_values = _read_correlation_values(catalog)
-    _render_return_assumptions_readonly(catalog, mu_sigma, correlation_values)
+    with st.container(border=True, key='return_assumptions_section'):
+        with st.container(
+            horizontal=True,
+            width='content',
+            gap='small',
+            vertical_alignment='center',
+            key='return_assumptions_section_header',
+        ):
+            st.header('3. Return assumptions')
+            st.button(
+                '✎',
+                help='Edit return assumptions',
+                key='return_assumptions_edit',
+                on_click=_enter_return_assumptions_edit,
+            )
+        mu_sigma = _read_mu_sigma(catalog)
+        correlation_values = _read_correlation_values(catalog)
+        _render_return_assumptions_readonly(catalog, mu_sigma, correlation_values)
     return mu_sigma, correlation_values
 
 
 def _render_asset_allocation_readonly(catalog: AssetCatalog, allocation: dict[str, float]) -> None:
     assets = _investable_assets(catalog)
-    with st.container(border=True):
-        summary_cols = st.columns(max(len(assets), 1))
-        for idx, asset in enumerate(assets):
-            weight = allocation.get(asset.id, 0.0)
-            with summary_cols[idx]:
-                st.metric(asset.name, f'{weight:.0f}%')
+    summary_cols = st.columns(max(len(assets), 1))
+    for idx, asset in enumerate(assets):
+        weight = allocation.get(asset.id, 0.0)
+        with summary_cols[idx]:
+            st.metric(asset.name, f'{weight:.0f}%')
 
 
 def _render_asset_allocation_edit_form() -> AssetCatalog:
@@ -800,33 +885,43 @@ def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
     catalog: AssetCatalog = st.session_state.asset_catalog
     investable_ids = investable_asset_ids(catalog)
 
-    with st.container(
-        horizontal=True,
-        width='content',
-        gap='small',
-        vertical_alignment='center',
-        key='asset_allocation_section_header',
-    ):
-        st.header('2. Investable asset allocation')
-        if editing:
-            if st.button('✓', help='Done editing', key='asset_allocation_done'):
-                _sync_edit_widgets_to_catalog()
-                st.session_state.asset_allocation_editing = False
-                st.rerun()
-        elif st.button('✎', help='Edit investable asset allocation', key='asset_allocation_edit'):
-            _sync_catalog_to_edit_widgets(catalog)
-            _sync_allocation_to_edit_widgets(investable_ids)
-            st.session_state.asset_allocation_editing = True
-            st.rerun()
-
     if editing:
+        with st.container(
+            horizontal=True,
+            width='content',
+            gap='small',
+            vertical_alignment='center',
+            key='asset_allocation_section_header',
+        ):
+            st.header('2. Investable asset allocation')
+            st.button(
+                '✓',
+                help='Done editing',
+                key='asset_allocation_done',
+                on_click=_finish_asset_allocation_edit,
+            )
         investable = _investable_assets(catalog)
         if investable and f'asset_name_{investable[0].id}' not in st.session_state:
             _sync_catalog_to_edit_widgets(catalog)
             _sync_allocation_to_edit_widgets(investable_ids)
         catalog = _render_asset_allocation_edit_form()
     else:
-        _render_asset_allocation_readonly(catalog, st.session_state.allocation)
+        with st.container(border=True, key='asset_allocation_section'):
+            with st.container(
+                horizontal=True,
+                width='content',
+                gap='small',
+                vertical_alignment='center',
+                key='asset_allocation_section_header',
+            ):
+                st.header('2. Investable asset allocation')
+                st.button(
+                    '✎',
+                    help='Edit investable asset allocation',
+                    key='asset_allocation_edit',
+                    on_click=_enter_asset_allocation_edit,
+                )
+            _render_asset_allocation_readonly(catalog, st.session_state.allocation)
 
     return catalog, dict(st.session_state.allocation)
 
@@ -850,7 +945,7 @@ def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> Non
         metric_cols = st.columns(2)
         with metric_cols[0]:
             st.metric(
-                f'Probability final NAV at year {max_year} is negative',
+                f'Probability final NAV\n\nat year {max_year} is negative',
                 f'{negative_rate:.1f}%',
                 help=(
                     f'Share of simulation paths where net asset value at year {max_year} '
@@ -859,7 +954,7 @@ def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> Non
             )
         with metric_cols[1]:
             st.metric(
-                f'Probability final NAV at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})',
+                f'Probability final NAV\n\n at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})',
                 f'{above_initial_rate:.1f}%',
                 help=(
                     f'Share of simulation paths where net asset value at year {max_year} '
@@ -889,27 +984,21 @@ def _render_portfolio_assumptions_section() -> None:
     editing = st.session_state.portfolio_assumptions_editing
     portfolio = st.session_state.portfolio
 
-    with st.container(
-        horizontal=True,
-        width='content',
-        gap='small',
-        vertical_alignment='center',
-        key='portfolio_section_header',
-    ):
-        st.header('1. Portfolio assumptions')
-        if editing:
-            if st.button('✓', help='Done editing', key='portfolio_assumptions_done'):
-                if _validate_portfolio_amount_inputs():
-                    st.rerun()
-                _sync_edit_widgets_to_portfolio()
-                st.session_state.portfolio_assumptions_editing = False
-                st.rerun()
-        elif st.button('✎', help='Edit portfolio assumptions', key='portfolio_assumptions_edit'):
-            _sync_portfolio_to_edit_widgets()
-            st.session_state.portfolio_assumptions_editing = True
-            st.rerun()
-
     if editing:
+        with st.container(
+            horizontal=True,
+            width='content',
+            gap='small',
+            vertical_alignment='center',
+            key='portfolio_section_header',
+        ):
+            st.header('1. Portfolio assumptions')
+            st.button(
+                '✓',
+                help='Done editing',
+                key='portfolio_assumptions_done',
+                on_click=_finish_portfolio_edit,
+            )
         if 'portfolio_edit_initial_capital' not in st.session_state:
             _sync_portfolio_to_edit_widgets()
         col1, col2, col3 = st.columns(3)
@@ -952,7 +1041,21 @@ def _render_portfolio_assumptions_section() -> None:
         for message in _validate_portfolio_amount_inputs():
             st.error(message)
     else:
-        with st.container(border=True):
+        with st.container(border=True, key='portfolio_section'):
+            with st.container(
+                horizontal=True,
+                width='content',
+                gap='small',
+                vertical_alignment='center',
+                key='portfolio_section_header',
+            ):
+                st.header('1. Portfolio assumptions')
+                st.button(
+                    '✎',
+                    help='Edit portfolio assumptions',
+                    key='portfolio_assumptions_edit',
+                    on_click=_enter_portfolio_edit,
+                )
             summary_cols = st.columns(5)
             summary_cols[0].metric(
                 'Initial capital',
@@ -1003,11 +1106,14 @@ def _render_nav_fan_chart(
     *,
     paths_done: int | None = None,
     paths_total: int | None = None,
+    show_latest_path: bool = False,
 ) -> None:
+    latest_path_curve = extract_latest_path_curve(nav_fan) if show_latest_path else None
     fan_fig = build_nav_fan_figure(
         nav_fan,
         paths_done=paths_done,
         paths_total=paths_total,
+        latest_path_curve=latest_path_curve,
     )
     if fan_fig is not None:
         st.pyplot(fan_fig)
@@ -1058,6 +1164,7 @@ def _render_live_charts(
             nav_fan,
             paths_done=paths_done,
             paths_total=paths_total,
+            show_latest_path=True,
         )
 
 
@@ -1087,24 +1194,16 @@ def main() -> None:
     catalog, allocation = _render_asset_allocation_section()
 
     mu_sigma, correlation_values = _render_return_assumptions_section(catalog)
+    _install_section_click_handlers()
 
     st.header('4. Run and results')
-    run_button_placeholder = st.empty()
     has_result = st.session_state.result is not None
     run_label = 'Refresh simulation' if has_result else 'Run simulation'
-    run_clicked = False
-    if not st.session_state.simulation_running:
-        run_clicked = run_button_placeholder.button(
-            run_label,
-            type='primary',
-            key='run_simulation_start',
-        )
+    run_clicked = st.button(run_label, type='primary', key='run_simulation')
 
     live_charts_placeholder = st.empty()
 
     if run_clicked:
-        run_button_placeholder.empty()
-        st.session_state.simulation_running = True
         live_charts_placeholder.empty()
         try:
             config = _build_config(catalog, allocation, mu_sigma, correlation_values)
@@ -1142,6 +1241,7 @@ def main() -> None:
                             paths_total=total,
                         )
 
+            importlib.reload(inv_proj)
             importlib.reload(inv_proj_runner)
             result = inv_proj_runner.run_simulation(
                 config,
@@ -1159,15 +1259,6 @@ def main() -> None:
             st.error(str(exc))
         except Exception as exc:
             st.error(f'Simulation failed: {exc}')
-        finally:
-            st.session_state.simulation_running = False
-
-        refresh_label = (
-            'Refresh simulation'
-            if st.session_state.result is not None
-            else 'Run simulation'
-        )
-        run_button_placeholder.button(refresh_label, type='primary', key='run_simulation_refresh')
 
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
