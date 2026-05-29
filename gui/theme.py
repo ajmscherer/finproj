@@ -49,10 +49,11 @@ THEME: dict[str, str] = {
     "label_color": "#374151",
     "body_font_size": "1rem",
     "body_color": "#111827",
-    # Bordered panels (e.g. portfolio read-only summary)
+    # Bordered panels (sections 1–3 and other bordered containers)
     "panel_border": "1px solid #d1d5db",
     "panel_border_radius": "0.5rem",
-    "panel_background": "#f9fafb",
+    "panel_background": "#f9fafb",  # read-only section background
+    "panel_background_edit": "#fffbeb",  # edit-mode section background
     "panel_padding": "0.75rem 1rem",
     "panel_margin_bottom": "0.5rem",
     # Metric cards inside panels
@@ -175,10 +176,20 @@ section.main h2,
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit),
 .st-key-asset_allocation_section:has(.st-key-asset_allocation_edit),
 .st-key-return_assumptions_section:has(.st-key-return_assumptions_edit),
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit) [data-testid="stVerticalBlockBorderWrapper"] {{
+    cursor: pointer;
+    background: {t["panel_background"]} !important;
+}}
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_done),
 .st-key-asset_allocation_section:has(.st-key-asset_allocation_done),
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_done) {{
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_done),
+.st-key-portfolio_section:has(.st-key-portfolio_assumptions_done) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-asset_allocation_section:has(.st-key-asset_allocation_done) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-return_assumptions_section:has(.st-key-return_assumptions_done) [data-testid="stVerticalBlockBorderWrapper"] {{
     cursor: pointer;
+    background: {t["panel_background_edit"]} !important;
 }}
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit):hover,
 .st-key-asset_allocation_section:has(.st-key-asset_allocation_edit):hover,
@@ -187,7 +198,6 @@ section.main h2,
 .st-key-asset_allocation_section:has(.st-key-asset_allocation_done):hover,
 .st-key-return_assumptions_section:has(.st-key-return_assumptions_done):hover {{
     border-color: #cbd5e1 !important;
-    background: #fafafa !important;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"],
 .st-key-asset_allocation_section_header [data-testid="stButton"],

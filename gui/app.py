@@ -267,19 +267,51 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
 
 
+def _exit_portfolio_edit(*, force: bool = False) -> None:
+    if not st.session_state.get("portfolio_assumptions_editing"):
+        return
+    if not _validate_portfolio_amount_inputs():
+        _sync_edit_widgets_to_portfolio()
+    elif not force:
+        return
+    st.session_state.portfolio_assumptions_editing = False
+
+
+def _exit_asset_allocation_edit() -> None:
+    if not st.session_state.get("asset_allocation_editing"):
+        return
+    _sync_edit_widgets_to_catalog()
+    st.session_state.asset_allocation_editing = False
+
+
+def _exit_return_assumptions_edit() -> None:
+    if not st.session_state.get("return_assumptions_editing"):
+        return
+    _sync_edit_widgets_to_return_assumptions(st.session_state.asset_catalog)
+    st.session_state.return_assumptions_editing = False
+
+
+def _exit_other_section_edits(active: str) -> None:
+    if active != "portfolio":
+        _exit_portfolio_edit(force=True)
+    if active != "asset_allocation":
+        _exit_asset_allocation_edit()
+    if active != "return_assumptions":
+        _exit_return_assumptions_edit()
+
+
 def _enter_portfolio_edit() -> None:
+    _exit_other_section_edits("portfolio")
     _sync_portfolio_to_edit_widgets()
     st.session_state.portfolio_assumptions_editing = True
 
 
 def _finish_portfolio_edit() -> None:
-    if _validate_portfolio_amount_inputs():
-        return
-    _sync_edit_widgets_to_portfolio()
-    st.session_state.portfolio_assumptions_editing = False
+    _exit_portfolio_edit(force=False)
 
 
 def _enter_asset_allocation_edit() -> None:
+    _exit_other_section_edits("asset_allocation")
     catalog: AssetCatalog = st.session_state.asset_catalog
     investable_ids = investable_asset_ids(catalog)
     _sync_catalog_to_edit_widgets(catalog)
@@ -288,20 +320,18 @@ def _enter_asset_allocation_edit() -> None:
 
 
 def _finish_asset_allocation_edit() -> None:
-    _sync_edit_widgets_to_catalog()
-    st.session_state.asset_allocation_editing = False
+    _exit_asset_allocation_edit()
 
 
 def _enter_return_assumptions_edit() -> None:
+    _exit_other_section_edits("return_assumptions")
     catalog: AssetCatalog = st.session_state.asset_catalog
     _sync_return_assumptions_to_edit_widgets(catalog)
     st.session_state.return_assumptions_editing = True
 
 
 def _finish_return_assumptions_edit() -> None:
-    catalog: AssetCatalog = st.session_state.asset_catalog
-    _sync_edit_widgets_to_return_assumptions(catalog)
-    st.session_state.return_assumptions_editing = False
+    _exit_return_assumptions_edit()
 
 
 def _read_portfolio_fields() -> dict:
