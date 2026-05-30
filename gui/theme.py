@@ -56,6 +56,8 @@ THEME: dict[str, str] = {
     "panel_background_edit": "#fffbeb",  # edit-mode section background
     "panel_padding": "0.75rem 1rem",
     "panel_margin_bottom": "0.5rem",
+    # Section edit/done icon buttons (hidden by default; click panel to toggle mode)
+    "section_mode_buttons_visible": "false",
     # Metric cards inside panels
     "metric_label_size": "0.8rem",
     "metric_label_color": "#6b7280",
@@ -94,9 +96,9 @@ THEME: dict[str, str] = {
 def _band_line_gradient(theme: Mapping[str, str]) -> str:
     color = theme["header_band_color"]
     opacity = theme["header_band_opacity"]
-    if color.startswith('#'):
-        hex_color = color.lstrip('#')
-        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    if color.startswith("#"):
+        hex_color = color.lstrip("#")
+        r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
         return (
             f"linear-gradient(to right, rgba({r}, {g}, {b}, 0) 0%, "
             f"rgba({r}, {g}, {b}, {opacity}) 100%)"
@@ -108,6 +110,20 @@ def build_css(theme: Mapping[str, str] | None = None) -> str:
     t = {**THEME, **(theme or {})}
     band_line = _band_line_gradient(t)
     line_height = t["header_band_line_height_pct"]
+    show_section_mode_buttons = t.get("section_mode_buttons_visible", "false") == "true"
+    section_mode_button_hide_css = ""
+    if not show_section_mode_buttons:
+        section_mode_button_hide_css = """
+/* Hidden section edit/done triggers (panel click toggles mode; set section_mode_buttons_visible=true to show) */
+.st-key-portfolio_assumptions_edit,
+.st-key-portfolio_assumptions_done,
+.st-key-asset_allocation_edit,
+.st-key-asset_allocation_done,
+.st-key-return_assumptions_edit,
+.st-key-return_assumptions_done {
+    display: none !important;
+}
+"""
     return f"""
 <style>
 /* App title */
@@ -146,26 +162,26 @@ section.main h2,
 
 /* Section title with inline action icon (edit/done) */
 .st-key-portfolio_section_header,
-.st-key-asset_allocation_section_header,
-.st-key-return_assumptions_section_header {{
+.st-key-portfolio_allocation_section_header,
+.st-key-assets_performance_and_vol_header {{
     margin-top: {t["section_margin_top"]};
     margin-bottom: {t["section_margin_bottom"]};
 }}
 .st-key-portfolio_section_header h2,
-.st-key-asset_allocation_section_header h2,
-.st-key-return_assumptions_section_header h2 {{
+.st-key-portfolio_allocation_section_header h2,
+.st-key-assets_performance_and_vol_header h2 {{
     margin-top: 0 !important;
     margin-bottom: 0 !important;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"],
-.st-key-asset_allocation_section_header [data-testid="stButton"],
-.st-key-return_assumptions_section_header [data-testid="stButton"] {{
+.st-key-portfolio_allocation_section_header [data-testid="stButton"],
+.st-key-assets_performance_and_vol_header [data-testid="stButton"] {{
     margin: 0;
     padding: 0;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"] button,
-.st-key-asset_allocation_section_header [data-testid="stButton"] button,
-.st-key-return_assumptions_section_header [data-testid="stButton"] button {{
+.st-key-portfolio_allocation_section_header [data-testid="stButton"] button,
+.st-key-assets_performance_and_vol_header [data-testid="stButton"] button {{
     min-height: 1.5rem;
     padding: 0.05rem 0.35rem;
     line-height: 1;
@@ -174,34 +190,34 @@ section.main h2,
 
 /* Clickable sections 1–3 (bordered panel; JS forwards clicks to edit/done buttons) */
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit),
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit),
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit),
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_edit),
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_edit),
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit) [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit) [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit) [data-testid="stVerticalBlockBorderWrapper"] {{
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_edit) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_edit) [data-testid="stVerticalBlockBorderWrapper"] {{
     cursor: pointer;
     background: {t["panel_background"]} !important;
 }}
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_done),
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_done),
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_done),
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_done),
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_done),
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_done) [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_done) [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_done) [data-testid="stVerticalBlockBorderWrapper"] {{
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_done) [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_done) [data-testid="stVerticalBlockBorderWrapper"] {{
     cursor: pointer;
     background: {t["panel_background_edit"]} !important;
 }}
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_edit):hover,
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_edit):hover,
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_edit):hover,
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_edit):hover,
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_edit):hover,
 .st-key-portfolio_section:has(.st-key-portfolio_assumptions_done):hover,
-.st-key-asset_allocation_section:has(.st-key-asset_allocation_done):hover,
-.st-key-return_assumptions_section:has(.st-key-return_assumptions_done):hover {{
+.st-key-portfolio_allocation_section:has(.st-key-asset_allocation_done):hover,
+.st-key-assets_performance_and_vol:has(.st-key-return_assumptions_done):hover {{
     border-color: #cbd5e1 !important;
 }}
 .st-key-portfolio_section_header [data-testid="stButton"],
-.st-key-asset_allocation_section_header [data-testid="stButton"],
-.st-key-return_assumptions_section_header [data-testid="stButton"] {{
+.st-key-portfolio_allocation_section_header [data-testid="stButton"],
+.st-key-assets_performance_and_vol_header [data-testid="stButton"] {{
     position: relative;
     z-index: 2;
 }}
@@ -373,6 +389,7 @@ section.main h3,
     font-size: {t["body_font_size"]};
     color: {t["body_color"]};
 }}
+{section_mode_button_hide_css}
 </style>
 """
 

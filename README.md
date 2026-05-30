@@ -71,9 +71,9 @@ python -m streamlit run gui/app.py
 
 The GUI runs on `localhost` only. The main workflow has four sections:
 
-1. **Portfolio assumptions** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo paths (with shorthand amounts such as `1M` or `40k`)
-2. **Investable asset allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
-3. **Return assumptions** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
+1. **Projection parameters** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo paths (with shorthand amounts such as `1M` or `40k`)
+2. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
+3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
 4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
    - NAV fan chart (P10 / median / P90 with nested probability-density bands)
    - NAV distribution at the horizon year

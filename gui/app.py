@@ -29,10 +29,9 @@ from typing import Any
 
 import matplotlib
 
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import streamlit as st
-import streamlit.components.v1 as components
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
@@ -561,7 +560,7 @@ def _ensure_sidebar_collapsed() -> None:
     if st.session_state.get("_sidebar_initial_collapsed"):
         return
     st.session_state._sidebar_initial_collapsed = True
-    components.html(
+    st.iframe(
         """
         <script>
         (function () {
@@ -580,8 +579,9 @@ def _ensure_sidebar_collapsed() -> None:
         })();
         </script>
         """,
-        height=0,
-        width=0,
+        width=1,
+        height=1,
+        tab_index=-1,
     )
 
 
@@ -687,6 +687,23 @@ def _format_correlation_summary(
     return "Correlations: " + ", ".join(pairs)
 
 
+def _render_section_mode_button(
+    *,
+    editing: bool,
+    edit_key: str,
+    done_key: str,
+    enter_edit,
+    finish_edit,
+    edit_help: str,
+    done_help: str,
+) -> None:
+    """Edit/done icon buttons for section mode (hidden via theme when not needed)."""
+    if editing:
+        st.button("✓", help=done_help, key=done_key, on_click=finish_edit)
+    else:
+        st.button("✎", help=edit_help, key=edit_key, on_click=enter_edit)
+
+
 def _install_section_click_handlers() -> None:
     """Forward section panel clicks to enter or exit edit mode."""
     # Re-bind on every rerun: Streamlit reruns replace DOM nodes and a one-shot
@@ -699,8 +716,8 @@ def _install_section_click_handlers() -> None:
             const doc = document;
             const bindings = [
                 ['portfolio_section', 'portfolio_assumptions_edit', 'portfolio_assumptions_done'],
-                ['asset_allocation_section', 'asset_allocation_edit', 'asset_allocation_done'],
-                ['return_assumptions_section', 'return_assumptions_edit', 'return_assumptions_done'],
+                ['portfolio_allocation_section', 'asset_allocation_edit', 'asset_allocation_done'],
+                ['assets_performance_and_vol', 'return_assumptions_edit', 'return_assumptions_done'],
             ];
 
             function isDataEntryTarget(target) {
@@ -719,12 +736,10 @@ def _install_section_click_handlers() -> None:
                 return false;
             }
 
-            function visibleActionButton(section, actionKey) {
+            function actionButton(section, actionKey) {
                 const wrap = section.querySelector('.st-key-' + actionKey);
                 if (!wrap) return null;
-                const btn = wrap.querySelector('button');
-                if (!btn || btn.offsetParent === null) return null;
-                return btn;
+                return wrap.querySelector('button');
             }
 
             function handler(event) {
@@ -736,13 +751,13 @@ def _install_section_click_handlers() -> None:
                     const section = event.target.closest('.st-key-' + sectionKey);
                     if (!section) continue;
 
-                    const doneBtn = visibleActionButton(section, doneKey);
+                    const doneBtn = actionButton(section, doneKey);
                     if (doneBtn && !doneBtn.contains(event.target)) {
                         doneBtn.click();
                         return;
                     }
 
-                    const editBtn = visibleActionButton(section, editKey);
+                    const editBtn = actionButton(section, editKey);
                     if (editBtn && !editBtn.contains(event.target)) {
                         editBtn.click();
                         return;
@@ -852,46 +867,54 @@ def _render_return_assumptions_edit_form(
     return _read_mu_sigma(catalog), _read_correlation_values(catalog)
 
 
-def _render_return_assumptions_section(
+def _render_assets_performance_and_vol(
     catalog: AssetCatalog,
 ) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
     editing = st.session_state.return_assumptions_editing
     return_ids = return_model_asset_ids(catalog)
 
+    section_title = "Assets performance and volatility"
+
     if editing:
-        with st.container(border=True, key="return_assumptions_section"):
+        with st.container(border=True, key="assets_performance_and_vol"):
             with st.container(
                 horizontal=True,
                 width="content",
                 gap="small",
                 vertical_alignment="center",
-                key="return_assumptions_section_header",
+                key="assets_performance_and_vol_header",
             ):
-                st.header("3. Return assumptions")
-                st.button(
-                    "✓",
-                    help="Done editing",
-                    key="return_assumptions_done",
-                    on_click=_finish_return_assumptions_edit,
+                st.header(section_title)
+                _render_section_mode_button(
+                    editing=True,
+                    edit_key="return_assumptions_edit",
+                    done_key="return_assumptions_done",
+                    enter_edit=_enter_return_assumptions_edit,
+                    finish_edit=_finish_return_assumptions_edit,
+                    edit_help="Edit return assumptions",
+                    done_help="Done editing",
                 )
             if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
                 _sync_return_assumptions_to_edit_widgets(catalog)
             return _render_return_assumptions_edit_form(catalog)
 
-    with st.container(border=True, key="return_assumptions_section"):
+    with st.container(border=True, key="assets_performance_and_vol"):
         with st.container(
             horizontal=True,
             width="content",
             gap="small",
             vertical_alignment="center",
-            key="return_assumptions_section_header",
+            key="assets_performance_and_vol_header",
         ):
-            st.header("3. Return assumptions")
-            st.button(
-                "✎",
-                help="Edit return assumptions",
-                key="return_assumptions_edit",
-                on_click=_enter_return_assumptions_edit,
+            st.header(section_title)
+            _render_section_mode_button(
+                editing=False,
+                edit_key="return_assumptions_edit",
+                done_key="return_assumptions_done",
+                enter_edit=_enter_return_assumptions_edit,
+                finish_edit=_finish_return_assumptions_edit,
+                edit_help="Edit return assumptions",
+                done_help="Done editing",
             )
         mu_sigma = _read_mu_sigma(catalog)
         correlation_values = _read_correlation_values(catalog)
@@ -1030,26 +1053,31 @@ def _render_asset_allocation_edit_form() -> AssetCatalog:
     return catalog
 
 
-def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
+def _render_portfolio_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
     editing = st.session_state.asset_allocation_editing
     catalog: AssetCatalog = st.session_state.asset_catalog
     investable_ids = investable_asset_ids(catalog)
 
+    section_title = "Portfolio allocation"
+
     if editing:
-        with st.container(border=True, key="asset_allocation_section"):
+        with st.container(border=True, key="portfolio_allocation_section"):
             with st.container(
                 horizontal=True,
                 width="content",
                 gap="small",
                 vertical_alignment="center",
-                key="asset_allocation_section_header",
+                key="portfolio_allocation_section_header",
             ):
-                st.header("2. Investable asset allocation")
-                st.button(
-                    "✓",
-                    help="Done editing",
-                    key="asset_allocation_done",
-                    on_click=_finish_asset_allocation_edit,
+                st.header(section_title)
+                _render_section_mode_button(
+                    editing=True,
+                    edit_key="asset_allocation_edit",
+                    done_key="asset_allocation_done",
+                    enter_edit=_enter_asset_allocation_edit,
+                    finish_edit=_finish_asset_allocation_edit,
+                    edit_help="Edit investable asset allocation",
+                    done_help="Done editing",
                 )
             investable = _investable_assets(catalog)
             if investable and f"asset_name_{investable[0].id}" not in st.session_state:
@@ -1057,20 +1085,23 @@ def _render_asset_allocation_section() -> tuple[AssetCatalog, dict[str, float]]:
                 _sync_allocation_to_edit_widgets(investable_ids)
             catalog = _render_asset_allocation_edit_form()
     else:
-        with st.container(border=True, key="asset_allocation_section"):
+        with st.container(border=True, key="portfolio_allocation_section"):
             with st.container(
                 horizontal=True,
                 width="content",
                 gap="small",
                 vertical_alignment="center",
-                key="asset_allocation_section_header",
+                key="portfolio_allocation_section_header",
             ):
-                st.header("2. Investable asset allocation")
-                st.button(
-                    "✎",
-                    help="Edit investable asset allocation",
-                    key="asset_allocation_edit",
-                    on_click=_enter_asset_allocation_edit,
+                st.header(section_title)
+                _render_section_mode_button(
+                    editing=False,
+                    edit_key="asset_allocation_edit",
+                    done_key="asset_allocation_done",
+                    enter_edit=_enter_asset_allocation_edit,
+                    finish_edit=_finish_asset_allocation_edit,
+                    edit_help="Edit investable asset allocation",
+                    done_help="Done editing",
                 )
             _render_asset_allocation_readonly(catalog, st.session_state.allocation)
 
@@ -1137,6 +1168,9 @@ def _render_portfolio_assumptions_section() -> None:
     editing = st.session_state.portfolio_assumptions_editing
     portfolio = st.session_state.portfolio
 
+    section_title = "Projection parameters"
+    edit_help="Edit parameters of the projection"
+
     if editing:
         with st.container(border=True, key="portfolio_section"):
             with st.container(
@@ -1146,12 +1180,17 @@ def _render_portfolio_assumptions_section() -> None:
                 vertical_alignment="center",
                 key="portfolio_section_header",
             ):
-                st.header("1. Portfolio assumptions")
-                st.button(
-                    "✓",
-                    help="Done editing",
-                    key="portfolio_assumptions_done",
-                    on_click=_finish_portfolio_edit,
+                st.header(section_title,
+                )
+                
+                _render_section_mode_button(
+                    editing=True,
+                    edit_key="portfolio_assumptions_edit",
+                    done_key="portfolio_assumptions_done",
+                    enter_edit=_enter_portfolio_edit,
+                    finish_edit=_finish_portfolio_edit,
+                    edit_help=edit_help,
+                    done_help="Done editing",
                 )
             if "portfolio_edit_initial_capital" not in st.session_state:
                 _sync_portfolio_to_edit_widgets()
@@ -1203,12 +1242,15 @@ def _render_portfolio_assumptions_section() -> None:
                 vertical_alignment="center",
                 key="portfolio_section_header",
             ):
-                st.header("1. Portfolio assumptions")
-                st.button(
-                    "✎",
-                    help="Edit portfolio assumptions",
-                    key="portfolio_assumptions_edit",
-                    on_click=_enter_portfolio_edit,
+                st.header(section_title)
+                _render_section_mode_button(
+                    editing=False,
+                    edit_key="portfolio_assumptions_edit",
+                    done_key="portfolio_assumptions_done",
+                    enter_edit=_enter_portfolio_edit,
+                    finish_edit=_finish_portfolio_edit,
+                    edit_help=edit_help,
+                    done_help="Done editing",
                 )
             summary_cols = st.columns(5)
             summary_cols[0].metric(
@@ -1352,9 +1394,9 @@ def main() -> None:
 
     _render_portfolio_assumptions_section()
 
-    catalog, allocation = _render_asset_allocation_section()
+    catalog, allocation = _render_portfolio_allocation_section()
 
-    mu_sigma, correlation_values = _render_return_assumptions_section(catalog)
+    mu_sigma, correlation_values = _render_assets_performance_and_vol(catalog)
     _install_section_click_handlers()
 
     st.header("4. Run and results")
