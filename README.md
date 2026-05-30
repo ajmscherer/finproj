@@ -18,9 +18,9 @@
 - **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics (the program can also run from the command line and be used as a library in other application, subject to licensing)
 - Flexible input assumptions: expected returns, volatility, initial capital, annual withdrawals, cash buffer, horizon, and projection count
 - **Customizable asset classes** — rename, add, or remove optional investable assets; four core classes are always present (Cash, Money Market, Bonds, Stocks)
-- **Save and load scenarios** as JSON files from the GUI sidebar
+- **Save and load assumptions** as JSON files from the GUI sidebar
 - Correlated asset-class returns via Cholesky decomposition of a user-defined correlation matrix
-- Generates thousands of possible future scenarios (default: 2,000 paths over 15 years)
+- Generates thousands of projections (default: 2,000 projections over 15 years)
 - **Interactive results**: NAV fan chart (median with nested probability-density bands), horizon-year NAV distribution histogram, and key outcome probabilities
 - Companion Excel workbook (`output/finproj.xlsx`) for deeper analysis (scenario navigator, additional charts)
 - Runs entirely on your local machine — no cloud services or third-party APIs; suitable for sensitive financial data
@@ -159,7 +159,7 @@ Each Monte Carlo run (`Projection` class) starts with an initial capital, splits
 - Draws correlated random returns for each asset class,
 - Applies those returns and optionally replenishes the cash buffer from gains (typically from Bonds).
 
-`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all paths for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation path into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
+`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all projections for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation path into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
 
 The generated `output/output.csv` serves as the bridge to the companion Excel file (`output/finproj.xlsx`). After running the Python simulation, users simply refresh the spreadsheet to see updated charts, summary statistics, and visualizations of the thousands of possible portfolio outcomes.
 
@@ -214,7 +214,7 @@ The `output/finproj.xlsx` companion file contains the following visualizations, 
 
 The simulation is built around a clean **Observer pattern**, which keeps the core engine decoupled from how results are collected and stored.
 
-At the heart of the system is the `Projection` class. As it runs each Monte Carlo path year by year, it notifies a list of registered **observers** after every period. This design makes it easy to add new types of analysis without modifying the simulation logic itself.
+At the heart of the system is the `Projection` class. As it runs each Monte Carlo projection year by year, it notifies a list of registered **observers** after every period. This design makes it easy to add new types of analysis without modifying the simulation logic itself.
 
 Currently, the main observers are:
 
