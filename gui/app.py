@@ -189,7 +189,7 @@ PORTFOLIO_FIELD_HELP = {
         "Summary statistics and charts focus on net asset value at this horizon."
     ),
     "nb_projections": (
-        "Number of independent simulation projections to run. "
+        "Number of simulation projections to run. "
         "More projections produce smoother statistics but take longer. "
         "Counts above 5,000 can take several minutes."
     ),
@@ -1164,12 +1164,12 @@ def _render_summary(result: RunResult) -> None:
     st.markdown(render_summary_statistics_table(rows), unsafe_allow_html=True)
 
 
-def _render_portfolio_assumptions_section() -> None:
+def _render_projection_assumptions_section() -> None:
     editing = st.session_state.portfolio_assumptions_editing
     portfolio = st.session_state.portfolio
 
     section_title = "Projection parameters"
-    edit_help="Edit parameters of the projection"
+    edit_help = "Edit parameters of the projection"
 
     if editing:
         with st.container(border=True, key="portfolio_section"):
@@ -1180,9 +1180,10 @@ def _render_portfolio_assumptions_section() -> None:
                 vertical_alignment="center",
                 key="portfolio_section_header",
             ):
-                st.header(section_title,
+                st.header(
+                    section_title,
                 )
-                
+
                 _render_section_mode_button(
                     editing=True,
                     edit_key="portfolio_assumptions_edit",
@@ -1304,7 +1305,9 @@ def _render_nav_fan_chart(
     projections_total: int | None = None,
     show_latest_projection: bool = False,
 ) -> None:
-    latest_projection_curve = extract_latest_projection_curve(nav_fan) if show_latest_projection else None
+    latest_projection_curve = (
+        extract_latest_projection_curve(nav_fan) if show_latest_projection else None
+    )
     fan_fig = build_nav_fan_figure(
         nav_fan,
         projections_done=projections_done,
@@ -1392,7 +1395,7 @@ def main() -> None:
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
 
-    _render_portfolio_assumptions_section()
+    _render_projection_assumptions_section()
 
     catalog, allocation = _render_portfolio_allocation_section()
 
