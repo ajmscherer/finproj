@@ -44,7 +44,7 @@ from formatting import format_compact_amount, render_summary_statistics_table  #
 from charts import (  # noqa: E402
     build_nav_distribution_figure,
     build_nav_fan_figure,
-    extract_latest_path_curve,
+    extract_latest_projection_curve,
 )
 from inv_proj_runner import (  # noqa: E402
     DEFAULT_NEW_ASSET_RISK,
@@ -78,9 +78,9 @@ PRODUCT_ABOUT_HELP = (
     "finproj is a local Monte Carlo simulation tool for investment portfolios. "
     "Configure your starting capital, annual withdrawals, cash buffer, asset allocation, "
     "expected returns, volatility, and correlations — then run thousands of independent "
-    "simulation paths to explore how your net asset value might evolve. "
+    "projections to explore how your net asset value might evolve. "
     "Use the summary statistics and charts to compare strategies and assess risks, such as "
-    "paths ending with negative NAV or falling below your initial capital. "
+    "projections ending with negative NAV or falling below your initial capital. "
     "Everything runs on your machine; your financial assumptions never leave your computer."
 )
 
@@ -170,7 +170,7 @@ PORTFOLIO_FIELD_DEFAULTS = {
 
 PORTFOLIO_FIELD_HELP = {
     "initial_capital": (
-        "Total portfolio value at the start of each simulation path. "
+        "Total portfolio value at the start of each simulation projection. "
         "The cash buffer is set aside first; the rest is invested per your allocation. "
         "Supports shorthand such as 1M, 40k, or 2.5B."
     ),
@@ -185,12 +185,12 @@ PORTFOLIO_FIELD_HELP = {
         "Must be less than initial capital. Supports shorthand such as 100k or 200k."
     ),
     "max_year": (
-        "Number of years each Monte Carlo path runs. "
+        "Number of years each Monte Carlo projection runs. "
         "Summary statistics and charts focus on net asset value at this horizon."
     ),
     "nb_projections": (
-        "Number of independent simulation paths to run. "
-        "More paths produce smoother statistics but take longer. "
+        "Number of independent simulation projections to run. "
+        "More projections produce smoother statistics but take longer. "
         "Counts above 5,000 can take several minutes."
     ),
 }
@@ -1130,7 +1130,7 @@ def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> Non
                 f"Probability final NAV\n\nat year {max_year} is negative",
                 f"{negative_rate:.1f}%",
                 help=(
-                    f"Share of simulation paths where net asset value at year {max_year} "
+                    f"Share of simulation projections where net asset value at year {max_year} "
                     f"is below zero. I.e. probability of portfolio failure."
                 ),
             )
@@ -1139,7 +1139,7 @@ def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> Non
                 f"Probability final NAV\n\n at year {max_year} is greater than initial capital ({format_compact_amount(initial_capital)})",
                 f"{above_initial_rate:.1f}%",
                 help=(
-                    f"Share of simulation paths where net asset value at year {max_year} "
+                    f"Share of simulation projections where net asset value at year {max_year} "
                     f"exceeds initial capital ({format_compact_amount(initial_capital)})."
                 ),
             )
@@ -1284,14 +1284,14 @@ def _render_nav_distribution_chart(
     values: list[float],
     chart_year: int,
     *,
-    paths_done: int | None = None,
-    paths_total: int | None = None,
+    projections_done: int | None = None,
+    projections_total: int | None = None,
 ) -> None:
     if not values:
         return
     suffix = ""
-    if paths_done is not None and paths_total is not None:
-        suffix = f"{paths_done:,} / {paths_total:,} paths"
+    if projections_done is not None and projections_total is not None:
+        suffix = f"{projections_done:,} / {projections_total:,} projections"
     hist_fig = build_nav_distribution_figure(values, chart_year, title_suffix=suffix)
     st.pyplot(hist_fig)
     plt.close(hist_fig)
@@ -1300,16 +1300,16 @@ def _render_nav_distribution_chart(
 def _render_nav_fan_chart(
     nav_fan,
     *,
-    paths_done: int | None = None,
-    paths_total: int | None = None,
-    show_latest_path: bool = False,
+    projections_done: int | None = None,
+    projections_total: int | None = None,
+    show_latest_projection: bool = False,
 ) -> None:
-    latest_path_curve = extract_latest_path_curve(nav_fan) if show_latest_path else None
+    latest_projection_curve = extract_latest_projection_curve(nav_fan) if show_latest_projection else None
     fan_fig = build_nav_fan_figure(
         nav_fan,
-        paths_done=paths_done,
-        paths_total=paths_total,
-        latest_path_curve=latest_path_curve,
+        projections_done=projections_done,
+        projections_total=projections_total,
+        latest_projection_curve=latest_projection_curve,
     )
     if fan_fig is not None:
         st.pyplot(fan_fig)
@@ -1319,8 +1319,8 @@ def _render_nav_fan_chart(
 def _render_charts(
     result: RunResult,
     *,
-    paths_done: int | None = None,
-    paths_total: int | None = None,
+    projections_done: int | None = None,
+    projections_total: int | None = None,
 ) -> None:
     distribution_year = result.nav_fan.max_year
     values = result.nav_fan.values_by_year.get(distribution_year, [])
@@ -1329,14 +1329,14 @@ def _render_charts(
         _render_nav_distribution_chart(
             values,
             distribution_year,
-            paths_done=paths_done,
-            paths_total=paths_total,
+            projections_done=projections_done,
+            projections_total=projections_total,
         )
     with col_fan:
         _render_nav_fan_chart(
             result.nav_fan,
-            paths_done=paths_done,
-            paths_total=paths_total,
+            projections_done=projections_done,
+            projections_total=projections_total,
         )
 
 
@@ -1344,23 +1344,23 @@ def _render_live_charts(
     nav_fan,
     distribution_year: int,
     *,
-    paths_done: int,
-    paths_total: int,
+    projections_done: int,
+    projections_total: int,
 ) -> None:
     col_hist, col_fan = st.columns(2)
     with col_hist:
         _render_nav_distribution_chart(
             nav_fan.values_by_year.get(distribution_year, []),
             distribution_year,
-            paths_done=paths_done,
-            paths_total=paths_total,
+            projections_done=projections_done,
+            projections_total=projections_total,
         )
     with col_fan:
         _render_nav_fan_chart(
             nav_fan,
-            paths_done=paths_done,
-            paths_total=paths_total,
-            show_latest_path=True,
+            projections_done=projections_done,
+            projections_total=projections_total,
+            show_latest_projection=True,
         )
 
 
@@ -1436,8 +1436,8 @@ def main() -> None:
                         _render_live_charts(
                             nav_fan,
                             live_distribution_year,
-                            paths_done=current,
-                            paths_total=total,
+                            projections_done=current,
+                            projections_total=total,
                         )
 
             importlib.reload(inv_proj)

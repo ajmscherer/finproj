@@ -71,7 +71,7 @@ python -m streamlit run gui/app.py
 
 The GUI runs on `localhost` only. The main workflow has four sections:
 
-1. **Projection parameters** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo paths (with shorthand amounts such as `1M` or `40k`)
+1. **Projection parameters** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo projections (with shorthand amounts such as `1M` or `40k`)
 2. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
 3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
 4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
@@ -159,7 +159,7 @@ Each Monte Carlo run (`Projection` class) starts with an initial capital, splits
 - Draws correlated random returns for each asset class,
 - Applies those returns and optionally replenishes the cash buffer from gains (typically from Bonds).
 
-`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all projections for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation path into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
+`code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all projections for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation projection into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
 
 The generated `output/output.csv` serves as the bridge to the companion Excel file (`output/finproj.xlsx`). After running the Python simulation, users simply refresh the spreadsheet to see updated charts, summary statistics, and visualizations of the thousands of possible portfolio outcomes.
 
@@ -218,9 +218,9 @@ At the heart of the system is the `Projection` class. As it runs each Monte Carl
 
 Currently, the main observers are:
 
-- **`StatisticalObserver`**: Tracks Net Asset Value (NAV) at specific years (1, 5, 10, and the horizon by default). It calculates summary statistics (mean, std dev, percentiles, min/max) across all simulation paths.
-- **`NavFanObserver`**: Collects end-of-year NAV for every year and path, powering the GUI fan chart and horizon-year distribution histogram (including live updates during a run).
-- **`CSV_Observer`**: Writes the full raw data from every simulation path into `output/output.csv`. This detailed output powers the companion Excel visualizer.
+- **`StatisticalObserver`**: Tracks Net Asset Value (NAV) at specific years (1, 5, 10, and the horizon by default). It calculates summary statistics (mean, std dev, percentiles, min/max) across all simulation projections.
+- **`NavFanObserver`**: Collects end-of-year NAV for every year and projection, powering the GUI fan chart and horizon-year distribution histogram (including live updates during a run).
+- **`CSV_Observer`**: Writes the full raw data from every simulation projection into `output/output.csv`. This detailed output powers the companion Excel visualizer.
 - **`AuditObserver`**: Writes a textual audit log of the run to `output/audit.txt`.
 
 This observer-based architecture makes the code highly extensible. If you want to add new metrics (such as maximum drawdown, probability of ruin, or inflation-adjusted spending), you can simply create a new observer class that implements the required interface and register it in `code/inv_proj_runner.py` — without touching the core simulation engine.

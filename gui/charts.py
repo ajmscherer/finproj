@@ -53,7 +53,7 @@ def build_nav_distribution_figure(
         title += f" ({title_suffix})"
     ax.set_title(title)
     ax.set_xlabel("Net asset value")
-    ax.set_ylabel("Number of paths")
+    ax.set_ylabel("Number of projections")
     apply_compact_amount_axis(ax, axis="x")
     fig.tight_layout()
     return fig
@@ -104,8 +104,8 @@ def _nav_fan_band_style(band_index: int, band_count: int) -> tuple[str, float]:
     return "#FACC15", alpha
 
 
-def extract_latest_path_curve(nav_fan) -> list[float]:
-    """End-of-year NAV for the most recently completed simulation path."""
+def extract_latest_projection_curve(nav_fan) -> list[float]:
+    """End-of-year NAV for the most recently completed simulation projection."""
     years = nav_fan.years()
     values_by_year = nav_fan.values_by_year
     return [
@@ -117,9 +117,9 @@ def extract_latest_path_curve(nav_fan) -> list[float]:
 def build_nav_fan_figure(
     nav_fan,
     *,
-    paths_done: int | None = None,
-    paths_total: int | None = None,
-    latest_path_curve: list[float] | None = None,
+    projections_done: int | None = None,
+    projections_total: int | None = None,
+    latest_projection_curve: list[float] | None = None,
 ) -> plt.Figure | None:
     years = nav_fan.years()
     if not years or not nav_fan.values_by_year.get(years[0]):
@@ -180,10 +180,10 @@ def build_nav_fan_figure(
         zorder=3,
     )
 
-    if latest_path_curve is not None:
+    if latest_projection_curve is not None:
         ax.plot(
             years,
-            latest_path_curve,
+            latest_projection_curve,
             linestyle="-",
             linewidth=1.5,
             color="#DC2626",
@@ -191,8 +191,8 @@ def build_nav_fan_figure(
         )
 
     title = "NAV fan chart"
-    if paths_done is not None and paths_total is not None:
-        title += f" ({paths_done:,} / {paths_total:,} paths)"
+    if projections_done is not None and projections_total is not None:
+        title += f" ({projections_done:,} / {projections_total:,} projections)"
     ax.set_title(title)
     ax.set_xlabel("Year")
     ax.set_ylabel("Net asset value")
