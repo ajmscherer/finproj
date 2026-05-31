@@ -53,30 +53,27 @@ class Section(ABC):
         self.on_click()
 
     def render(self) -> None:
-        self.frame = st.container(border=True, key=self._frame_key)
-        with self.frame:
-            self.left_column, self.right_column = st.columns(2)
+        with st.container(horizontal=True, gap="medium", vertical_alignment="center", key=self._frame_key):
 
-            with self.left_column:
+            with st.container(width=100, key=f"{self._slug}_title"):
                 st.write(self.title)
 
-            with self.right_column:
-                with st.container(border=True, key=self._panel_key):
-                    if self.editing:
-                        st.caption("Edit mode")
-                        self.render_edit_form()
-                    else:
-                        st.caption("Readonly mode")
-                        self.render_readonly_form()
+            with st.container(border=True, width="stretch", key=self._panel_key):
+                if self.editing:
+                    st.caption("Edit mode")
+                    self.render_edit_form()
+                else:
+                    st.caption("Readonly mode")
+                    self.render_readonly_form()
 
-                    ClickPanelRegistry.register_handler(
-                        self._handler_key,
-                        self._handle_panel_click,
-                    )
-                    click_panel(
-                        panel_key=self._panel_key,
-                        handler_key=self._handler_key,
-                    )
+                ClickPanelRegistry.register_handler(
+                    self._handler_key,
+                    self._handle_panel_click,
+                )
+                click_panel(
+                    panel_key=self._panel_key,
+                    handler_key=self._handler_key,
+                )
 
     @classmethod
     def install_click_handlers(cls) -> None:
@@ -94,7 +91,15 @@ class Section(ABC):
 class Section1(Section):
     title: str = "Step 1"
 
+    def render_readonly_form(self) -> None:
+        st.write("Click the panel to enter edit mode.")
 
+    def render_edit_form(self) -> None:
+        st.text_input("Enter something", key="step1_edit")
+        st.write("Click the panel to return to read-only mode.")
+
+class Section2(Section):
+    title: str = "Step 2"
 
     def render_readonly_form(self) -> None:
         st.write("Click the panel to enter edit mode.")

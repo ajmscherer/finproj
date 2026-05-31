@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 from typing import Any
 from click_panel import ClickPanelRegistry
-from section import Section, Section1
+from section import (Section, Section1, Section2)
 
 import matplotlib
 
@@ -555,37 +555,6 @@ def _render_assumptions_file_controls() -> None:
             mime="application/json",
             use_container_width=True,
         )
-
-
-def _ensure_sidebar_collapsed() -> None:
-    """Collapse the sidebar once per session (Streamlit may restore a prior expanded state)."""
-    if st.session_state.get("_sidebar_initial_collapsed"):
-        return
-    st.session_state._sidebar_initial_collapsed = True
-    st.iframe(
-        """
-        <script>
-        (function () {
-            const doc = window.parent.document;
-            function collapse() {
-                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-                if (!sidebar || sidebar.getAttribute('aria-expanded') === 'false') return;
-                const btn =
-                    doc.querySelector('[data-testid="stSidebarCollapseButton"]') ||
-                    doc.querySelector('[data-testid="stSidebar"] button[kind="header"]');
-                if (btn) btn.click();
-            }
-            collapse();
-            setTimeout(collapse, 100);
-            setTimeout(collapse, 400);
-        })();
-        </script>
-        """,
-        width=1,
-        height=1,
-        tab_index=-1,
-    )
-
 
 def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
     for asset in _investable_assets(catalog):
@@ -1370,7 +1339,7 @@ def _render_live_charts(
 
 
 section1 = Section1(title="Section 1")
-
+section2 = Section2(title="Section 2")
 
 def main() -> None:
     st.set_page_config(
@@ -1379,14 +1348,12 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     inject_theme()
-    _ensure_sidebar_collapsed()
     _init_session_state()
     _process_pending_assumptions()
 
 
     _render_app_header()
-
-    st.write("Hello")
+    
     with st.sidebar:
         if st.session_state.get("_assumptions_load_message"):
             st.success(st.session_state.pop("_assumptions_load_message"))
@@ -1401,10 +1368,12 @@ def main() -> None:
         st.caption(
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
+    
 
     # ClickPanelRegistry.reset()
-    # section1.render()
-
+    section1.render()
+    section2.render()
+    
     # Render the projection assumptions section
     _render_projection_assumptions_section()
 
