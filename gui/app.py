@@ -26,7 +26,8 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-from section import Section1
+from click_panel import ClickPanelRegistry
+from section import Section, Section1
 
 import matplotlib
 
@@ -1382,8 +1383,10 @@ def main() -> None:
     _init_session_state()
     _process_pending_assumptions()
 
+
     _render_app_header()
 
+    st.write("Hello")
     with st.sidebar:
         if st.session_state.get("_assumptions_load_message"):
             st.success(st.session_state.pop("_assumptions_load_message"))
@@ -1399,7 +1402,8 @@ def main() -> None:
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
 
-    section1.render()
+    # ClickPanelRegistry.reset()
+    # section1.render()
 
     # Render the projection assumptions section
     _render_projection_assumptions_section()
@@ -1409,6 +1413,8 @@ def main() -> None:
 
     # Render the assets performance and vol section
     mu_sigma, correlation_values = _render_assets_performance_and_vol(catalog)
+
+    Section.install_click_handlers()
 
     # Install the section click handlers
     _install_section_click_handlers()
