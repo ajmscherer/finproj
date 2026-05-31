@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from formatting import format_compact_amount
@@ -43,7 +44,7 @@ def build_nav_distribution_figure(
     chart_year: int,
     *,
     title_suffix: str = "",
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.hist(
         values, bins=histogram_bins(len(values)), color="#4C78A8", edgecolor="white"
@@ -64,7 +65,7 @@ def build_nav_percentile_figure(
     chart_year: int,
     *,
     title_suffix: str = "",
-) -> plt.Figure | None:
+) -> Figure | None:
     if not values:
         return None
 
@@ -120,7 +121,7 @@ def build_nav_fan_figure(
     projections_done: int | None = None,
     projections_total: int | None = None,
     latest_projection_curve: list[float] | None = None,
-) -> plt.Figure | None:
+) -> Figure | None:
     years = nav_fan.years()
     if not years or not nav_fan.values_by_year.get(years[0]):
         return None
@@ -200,5 +201,34 @@ def build_nav_fan_figure(
     apply_compact_amount_axis(ax, axis="y")
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+
+
+def build_pie_chart(
+    allocation: dict[str, float],
+    labels_by_id: dict[str, str],
+    *,
+    title: str = "Allocation",
+) -> Figure | None:
+    labels: list[str] = []
+    values: list[float] = []
+    for asset_id, weight in allocation.items():
+        if weight <= 0:
+            continue
+        labels.append(labels_by_id.get(asset_id, asset_id))
+        values.append(weight)
+    if not values:
+        return None
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+    ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%",
+        startangle=90,
+        counterclock=False,
+    )
+    ax.set_title(title)
     fig.tight_layout()
     return fig

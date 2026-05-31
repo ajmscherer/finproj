@@ -111,8 +111,6 @@ class Section(ABC):
         )
 
         if self.editing:
-            with hc:
-                st.subheader(f"{self.title}")
             self.edit_form()
             st.button("Done", key=f"{self._slug}_done", on_click=self.on_click)
         else:
