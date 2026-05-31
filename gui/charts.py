@@ -222,6 +222,8 @@ def build_pie_chart(
         return None
 
     fig, ax = plt.subplots(figsize=(4, 4))
+    fig.patch.set_facecolor("none")
+    ax.set_facecolor("none")
     ax.pie(
         values,
         labels=labels,

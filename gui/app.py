@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from pandas.core.reshape.concat import new_axes
+
 # from click_panel import ClickPanelRegistry
 from section import Section
 
@@ -40,7 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
 
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
-from asset_classes import AssetCatalog, default_asset_catalog  # noqa: E402
+from asset_classes import AssetCatalog, default_asset_catalog, slugify  # noqa: E402
 from inv_proj import cv  # noqa: E402
 from theme import inject_theme  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
@@ -1101,7 +1103,7 @@ def _render_step_2_edit() -> None:
             "Note: The total allocation percentage must sum to 100% for investable assets."
         )
 
-        left_part, right_part = st.columns([4,1])
+        left_part, center_part, right_part = st.columns([3,1,2])
         with left_part:
             col_size = [1, 1, 1]
             
@@ -1122,7 +1124,7 @@ def _render_step_2_edit() -> None:
                     new_name = st.text_input(
                         "Asset",
                         key=name_key,
-                        label_visibility="collapsed",
+                        label_visibility="collapsed", width="stretch",
                     )
                     if new_name.strip() and new_name.strip() != asset.name:
                         catalog.rename(asset.id, new_name)
@@ -1156,7 +1158,7 @@ def _render_step_2_edit() -> None:
                                 st.error(str(exc))
             
             # render table with headers and assets
-            nbcols= 2
+            nbcols= 1
             table=st.columns(nbcols, gap="medium")
             for c in range(nbcols):
                 with table[c]:
@@ -1165,31 +1167,13 @@ def _render_step_2_edit() -> None:
                 with table[k % nbcols]:
                         render_asset_line(asset)
             
-        with right_part:
-            # render here a pie chart of the allocation
-            pie_fig = build_pie_chart(
-                allocation,
-                {asset.id: asset.name for asset in _investable_assets(catalog)},
-            )
-            if pie_fig is not None:
-                with st.container(border=False, key="portfolio_allocation_section_inner_pie", height="stretch"):
-                    st.pyplot(pie_fig)
-        # render total allocation
-        _show_allocation_total(allocation)
-
-        # render add asset form for new assets
-        add_cols = st.columns([4, 1.5, 0.5])
-        with add_cols[0]:
-            new_asset_name = st.text_input(
-                "New asset name",
-                placeholder="e.g. Commodities",
-                key="asset_classes_edit_new_name",
-            )
-        with add_cols[2]:
-            st.write("")
+        with center_part:
             if st.button("Add asset"):
-                if not new_asset_name.strip():
-                    st.error("Enter a name for the new asset.")
+                new_asset_name = "new asset"
+                k=0
+                while slugify(new_asset_name) in st.session_state.asset_catalog.ids:
+                    k+=1
+                    new_asset_name = f"new asset {k+1}"
                 else:
                     try:
                         added = catalog.add(new_asset_name)
@@ -1203,6 +1187,19 @@ def _render_step_2_edit() -> None:
                         st.rerun()
                     except ValueError as exc:
                         st.error(str(exc))
+        with right_part:
+            # render here a pie chart of the allocation
+            pie_fig = build_pie_chart(
+                allocation,
+                {asset.id: asset.name for asset in _investable_assets(catalog)},
+            )
+            if pie_fig is not None:
+                with st.container(border=False, key="portfolio_allocation_section_inner_pie", height="stretch", vertical_alignment="center", horizontal_alignment="center"):
+                    st.pyplot(pie_fig, transparent=True)
+        # render total allocation
+        _show_allocation_total(allocation)
+
+        
 
     # update session state
     st.session_state.asset_catalog = catalog

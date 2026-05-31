@@ -104,16 +104,15 @@ class Section(ABC):
 
     def _render_inside_panel(self) -> None:
         hc = st.container(
-            horizontal=True,
+            horizontal=not self.editing,
             vertical_alignment="center",
-            gap="medium",
+            gap="small", horizontal_alignment="right",
             key=f"{self._slug}_header",
         )
-
-        if self.editing:
-            self.edit_form()
-            st.button("Done", key=f"{self._slug}_done", on_click=self.on_click)
-        else:
-            with hc:
+        with hc:
+            if self.editing:
+                self.edit_form()
+                st.button("Done", key=f"{self._slug}_done", on_click=self.on_click)
+            else:
                 self.readonly_form()
                 st.button("Edit", key=f"{self._slug}_edit", on_click=self.on_click)
