@@ -1410,7 +1410,7 @@ def main() -> None:
     section2.render()
     section3.render()
     # Render the projection assumptions section
-    _render_projection_assumptions_section()
+    # _render_projection_assumptions_section()
 
     # Render the portfolio allocation section
     catalog, _ = _render_portfolio_allocation_section()
