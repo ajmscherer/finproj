@@ -54,6 +54,8 @@ THEME: dict[str, str] = {
     # Section component bordered panel (readonly vs edit mode)
     "section_panel_background": "#f9fafb",  # readonly mode
     "section_panel_background_edit": "#fffbeb",  # edit mode
+    "section_panel_padding": "0.35rem 0.75rem",
+    "section_panel_block_gap": "0.35rem",
     # Tagline and captions
     "caption_font_size": "0.9rem",
     "caption_color": "#6b7280",
@@ -282,7 +284,7 @@ section.main h3,
     margin-bottom: {t["panel_margin_bottom"]} !important;
 }}
 
-/* Section component bordered panel — mode-dependent background (after global panel rule) */
+/* Section component bordered panel — mode background + tighter padding/gap */
 [class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-readonly),
 [class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-readonly) [data-testid="stVerticalBlockBorderWrapper"] {{
     background: {t["section_panel_background"]} !important;
@@ -290,6 +292,19 @@ section.main h3,
 [class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-edit),
 [class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-edit) [data-testid="stVerticalBlockBorderWrapper"] {{
     background: {t["section_panel_background_edit"]} !important;
+}}
+[class*="st-key-section_"] [class*="_panel"] [data-testid="stVerticalBlockBorderWrapper"] {{
+    padding: {t["section_panel_padding"]} !important;
+}}
+[class*="st-key-section_"] [class*="_panel"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {{
+    gap: {t["section_panel_block_gap"]} !important;
+}}
+[class*="st-key-section_"] [class*="_panel"] .fp-section-panel-readonly,
+[class*="st-key-section_"] [class*="_panel"] .fp-section-panel-edit {{
+    display: none !important;
+}}
+[class*="st-key-section_"] [class*="_panel"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] p {{
+    margin-top: 0;
 }}
 
 /* Metrics */

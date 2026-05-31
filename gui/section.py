@@ -54,27 +54,35 @@ class Section(ABC):
         self.on_click()
 
     def render(self) -> None:
-        with st.container(horizontal=True, gap="medium", vertical_alignment="top", key=self._frame_key):
-
+        with st.container(
+            horizontal=True, gap="medium", vertical_alignment="top", key=self._frame_key
+        ):
             with st.container(width=100, key=f"{self._slug}_title"):
                 st.markdown(
                     f'<p class="fp-section-title">{html.escape(self.title)}</p>',
                     unsafe_allow_html=True,
                 )
 
-            with st.container(border=True, width="stretch", key=self._panel_key):
+            with st.container(
+                border=True,
+                width="stretch",
+                key=self._panel_key,
+                gap=None,
+            ):
                 mode_class = (
-                    "fp-section-panel-edit" if self.editing else "fp-section-panel-readonly"
+                    "fp-section-panel-edit"
+                    if self.editing
+                    else "fp-section-panel-readonly"
                 )
                 st.markdown(
                     f'<span class="{mode_class}" aria-hidden="true"></span>',
                     unsafe_allow_html=True,
                 )
                 if self.editing:
-                    st.caption("Edit mode")
+                    st.write("Edit mode")
                     self.render_edit_form()
                 else:
-                    st.caption("Readonly mode")
+                    st.write("Readonly mode")
                     self.render_readonly_form()
 
                 ClickPanelRegistry.register_handler(
@@ -100,7 +108,6 @@ class Section(ABC):
 
 
 class Section1(Section):
-
     def render_readonly_form(self) -> None:
         st.write("Click the panel to enter edit mode.")
 
@@ -108,8 +115,8 @@ class Section1(Section):
         st.text_input("Enter something", key="step1_edit")
         st.write("Click the panel to return to read-only mode.")
 
-class Section2(Section):
 
+class Section2(Section):
     def render_readonly_form(self) -> None:
         st.write("Click the panel to enter edit mode.")
 
