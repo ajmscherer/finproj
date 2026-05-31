@@ -26,8 +26,9 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-from click_panel import ClickPanelRegistry
-from section import (Section, Section1, Section2)
+
+# from click_panel import ClickPanelRegistry
+from section import Section
 
 import matplotlib
 
@@ -507,6 +508,7 @@ def _render_assumptions_file_controls() -> None:
             mime="application/json",
             use_container_width=True,
         )
+
 
 def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
     for asset in _investable_assets(catalog):
@@ -1290,8 +1292,91 @@ def _render_live_charts(
         )
 
 
-section1 = Section1(title="Step 1")
-section2 = Section2(title="Step 2")
+def _render_step_1_readonly() -> None:
+    portfolio = st.session_state.portfolio
+    with st.container(border=False, key="portfolio_section2"):
+       
+        summary_cols = st.columns(5)
+        summary_cols[0].metric(
+            "Initial capital",
+            portfolio["initial_capital"],
+            help=PORTFOLIO_FIELD_HELP["initial_capital"],
+        )
+        summary_cols[1].metric(
+            "Annual withdrawals",
+            portfolio["withdrawals"],
+            help=PORTFOLIO_FIELD_HELP["withdrawals"],
+        )
+        summary_cols[2].metric(
+            "Cash buffer",
+            portfolio["cash_buffer"],
+            help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+        )
+        summary_cols[3].metric(
+            "Horizon",
+            f"{int(portfolio['max_year'])} yrs",
+            help=PORTFOLIO_FIELD_HELP["max_year"],
+        )
+        summary_cols[4].metric(
+            "Projections",
+            f"{int(portfolio['nb_projections']):,}",
+            help=PORTFOLIO_FIELD_HELP["nb_projections"],
+        )
+
+
+def _render_step_1_edit() -> None:
+    
+    with st.container(border=False, key="portfolio_section2"):
+        
+        if "portfolio_edit_initial_capital" not in st.session_state:
+            _sync_portfolio_to_edit_widgets()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.text_input(
+                "Initial capital",
+                key="portfolio_edit_initial_capital",
+                help=PORTFOLIO_FIELD_HELP["initial_capital"],
+            )
+            st.text_input(
+                "Annual withdrawals",
+                key="portfolio_edit_withdrawals",
+                help=PORTFOLIO_FIELD_HELP["withdrawals"],
+            )
+        with col2:
+            st.text_input(
+                "Cash buffer",
+                key="portfolio_edit_cash_buffer",
+                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+            )
+            st.number_input(
+                "Horizon (years)",
+                min_value=1,
+                max_value=50,
+                step=1,
+                key="portfolio_edit_max_year",
+                help=PORTFOLIO_FIELD_HELP["max_year"],
+            )
+        with col3:
+            st.number_input(
+                "Number of projections",
+                min_value=10,
+                max_value=20000,
+                step=10,
+                key="portfolio_edit_nb_projections",
+                help=PORTFOLIO_FIELD_HELP["nb_projections"],
+            )
+            if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                st.warning("Large projection counts can take several minutes.")
+        for message in _validate_portfolio_amount_inputs():
+            st.error(message)
+
+
+section1 = Section(
+    name="Step 1", title="Projection Assumptions", edit_form=_render_step_1_edit, readonly_form=_render_step_1_readonly
+)
+section2 = Section(name="Step 2", title="Portfolio Allocation")
+section3 = Section(name="Step 3", title="Assets Performance and Vol")
+
 
 def main() -> None:
     st.set_page_config(
@@ -1303,9 +1388,8 @@ def main() -> None:
     _init_session_state()
     _process_pending_assumptions()
 
-
     _render_app_header()
-    
+
     with st.sidebar:
         if st.session_state.get("_assumptions_load_message"):
             st.success(st.session_state.pop("_assumptions_load_message"))
@@ -1320,12 +1404,11 @@ def main() -> None:
         st.caption(
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
-    
 
     # ClickPanelRegistry.reset()
     section1.render()
     section2.render()
-
+    section3.render()
     # Render the projection assumptions section
     _render_projection_assumptions_section()
 

@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 import html
-from abc import ABC, abstractmethod
+from abc import ABC
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import streamlit as st
@@ -15,13 +16,20 @@ import streamlit as st
 from click_panel import ClickPanelRegistry, click_panel
 
 
+def _need_to_be_implemented() -> None:
+    st.write("Need to be implemented")
+
+
 @dataclass
 class Section(ABC):
+    name: str
     title: str
+    edit_form: Callable[[], None] = _need_to_be_implemented
+    readonly_form: Callable[[], None] = _need_to_be_implemented
 
     @property
     def _slug(self) -> str:
-        return self.title.lower().replace(" ", "_")
+        return self.name.lower().replace(" ", "_")
 
     @property
     def _frame_key(self) -> str:
@@ -55,70 +63,59 @@ class Section(ABC):
 
     def render(self) -> None:
         with st.container(
-            horizontal=True, gap="medium", vertical_alignment="top", key=self._frame_key
+            horizontal=True, gap="medium", vertical_alignment="center", key=self._frame_key
         ):
-            with st.container(width=100, key=f"{self._slug}_title"):
-                st.markdown(
-                    f'<p class="fp-section-title">{html.escape(self.title)}</p>',
-                    unsafe_allow_html=True,
-                )
+            
+            st.markdown(
+                f'<p class="fp-section-title">{html.escape(self.name)}</p>',
+                unsafe_allow_html=True,
+            )
+            with st.container(width="stretch", key=f"{self._slug}_right_column"):
+                st.header(self.title)
+                with st.container(
+                    border=True,
+                    width="stretch",
+                    key=self._panel_key,
+                    gap=None,
+                ):
+                    mode_class = (
+                        "fp-section-panel-edit"
+                        if self.editing
+                        else "fp-section-panel-readonly"
+                    )
+                    st.markdown(
+                        f'<span class="{mode_class}" aria-hidden="true"></span>',
+                        unsafe_allow_html=True,
+                    )
+                    self._render_inside_panel()
 
-            with st.container(
-                border=True,
-                width="stretch",
-                key=self._panel_key,
-                gap=None,
-            ):
-                mode_class = (
-                    "fp-section-panel-edit"
-                    if self.editing
-                    else "fp-section-panel-readonly"
-                )
-                st.markdown(
-                    f'<span class="{mode_class}" aria-hidden="true"></span>',
-                    unsafe_allow_html=True,
-                )
-                if self.editing:
-                    st.write("Edit mode")
-                    self.render_edit_form()
-                else:
-                    st.write("Readonly mode")
-                    self.render_readonly_form()
-
-                ClickPanelRegistry.register_handler(
-                    self._handler_key,
-                    self._handle_panel_click,
-                )
-                click_panel(
-                    panel_key=self._panel_key,
-                    handler_key=self._handler_key,
-                )
+                    ClickPanelRegistry.register_handler(
+                        self._handler_key,
+                        self._handle_panel_click,
+                    )
+                    click_panel(
+                        panel_key=self._panel_key,
+                        handler_key=self._handler_key,
+                    )
 
     @classmethod
     def install_click_handlers(cls) -> None:
         ClickPanelRegistry.install_handlers()
 
-    @abstractmethod
-    def render_readonly_form(self) -> None:
-        pass
+    def _render_inside_panel(self) -> None:
+        hc = st.container(
+            horizontal=True,
+            vertical_alignment="center",
+            gap="medium",
+            key=f"{self._slug}_header",
+        )
 
-    @abstractmethod
-    def render_edit_form(self) -> None:
-        pass
-
-
-class Section1(Section):
-    def render_readonly_form(self) -> None:
-        st.write("Click the panel to enter edit mode.")
-
-    def render_edit_form(self) -> None:
-        st.text_input("Enter something", key="step1_edit")
-        st.write("Click the panel to return to read-only mode.")
-
-
-class Section2(Section):
-    def render_readonly_form(self) -> None:
-        st.write("Click the panel to enter edit mode.")
-
-    def render_edit_form(self) -> None:
-        st.write("Click the panel to return to read-only mode.")
+        if self.editing:
+            with hc:
+                st.subheader(f"{self.title}")
+            self.edit_form()
+            st.button("Done", key=f"{self._slug}_done", on_click=self.on_click)
+        else:
+            with hc:
+                self.readonly_form()
+                st.button("Edit", key=f"{self._slug}_edit", on_click=self.on_click)
