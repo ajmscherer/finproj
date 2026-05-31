@@ -55,12 +55,10 @@ from inv_proj_runner import (  # noqa: E402
     DEFAULT_RISK_MIX_PRESETS,
     DEFAULT_RISK_PARAM,
     RunResult,
-    SimulationConfig,
     investable_asset_ids,
     normalize_correlation_pair,
     return_model_asset_ids,
     success_rate,
-    sync_config_with_catalog,
     validate_allocation,
     validate_correlation,
 )
@@ -118,16 +116,6 @@ def _investable_assets(catalog: AssetCatalog) -> list:
         for asset in catalog.assets
         if asset.id in investable_asset_ids(catalog) and asset.id != liquidity_id
     ]
-
-
-def _correlation_from_inputs(
-    values: dict[tuple[str, str], float],
-) -> dict[tuple[str, str], float]:
-    correlations: dict[tuple[str, str], float] = {}
-    for pair, rho in values.items():
-        if abs(rho) > 1e-12:
-            correlations[pair] = rho
-    return correlations
 
 
 def _default_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
@@ -466,42 +454,6 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         left, right = key.split("|", 1)
         canonical = normalize_correlation_pair(left, right, asset_order)
         st.session_state[f"corr_{canonical[0]}_{canonical[1]}"] = float(rho)
-
-
-def _build_risk_param(
-    catalog: AssetCatalog, mu_sigma: dict[str, tuple[float, float]]
-) -> dict:
-    risk_param = {}
-    for asset_id in return_model_asset_ids(catalog):
-        defaults = DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]
-        mu, sigma = mu_sigma.get(asset_id, (defaults["mu"], defaults["sigma"]))
-        risk_param[asset_id] = [
-            {"from_year": 1, "rv": "norm", "mu": mu, "sigma": sigma}
-        ]
-    return risk_param
-
-
-def _build_config(
-    catalog: AssetCatalog,
-    allocation: dict[str, float],
-    mu_sigma: dict[str, tuple[float, float]],
-    correlation_values: dict[tuple[str, str], float],
-) -> SimulationConfig:
-    portfolio = _read_portfolio_fields()
-    config = SimulationConfig(
-        initial_capital=portfolio["initial_capital"],
-        withdrawals=portfolio["withdrawals"],
-        cash_buffer=portfolio["cash_buffer"],
-        max_year=int(portfolio["max_year"]),
-        nb_projections=int(portfolio["nb_projections"]),
-        asset_catalog=catalog.copy(),
-        risk_mix=copy.deepcopy(allocation),
-        risk_param=_build_risk_param(catalog, mu_sigma),
-        risk_correlation=_correlation_from_inputs(correlation_values),
-        output_dir=Path(st.session_state.output_dir),
-    )
-    sync_config_with_catalog(config)
-    return config
 
 
 def _render_assumptions_file_controls() -> None:
@@ -1338,8 +1290,8 @@ def _render_live_charts(
         )
 
 
-section1 = Section1(title="Section 1")
-section2 = Section2(title="Section 2")
+section1 = Section1(title="Step 1")
+section2 = Section2(title="Step 2")
 
 def main() -> None:
     st.set_page_config(
@@ -1373,15 +1325,15 @@ def main() -> None:
     # ClickPanelRegistry.reset()
     section1.render()
     section2.render()
-    
+
     # Render the projection assumptions section
     _render_projection_assumptions_section()
 
     # Render the portfolio allocation section
-    catalog, allocation = _render_portfolio_allocation_section()
+    catalog, _ = _render_portfolio_allocation_section()
 
     # Render the assets performance and vol section
-    mu_sigma, correlation_values = _render_assets_performance_and_vol(catalog)
+    _render_assets_performance_and_vol(catalog)
 
     Section.install_click_handlers()
 
@@ -1398,7 +1350,7 @@ def main() -> None:
     if run_clicked:
         live_charts_placeholder.empty()
         try:
-            config = _build_config(catalog, allocation, mu_sigma, correlation_values)
+            config = _collect_assumptions().to_simulation_config()
             validate_allocation(config.risk_mix, config.asset_catalog)
             validate_correlation(config.risk_param, config.risk_correlation)
             live_distribution_year = config.max_year

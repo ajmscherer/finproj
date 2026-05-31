@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import html
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -53,12 +54,22 @@ class Section(ABC):
         self.on_click()
 
     def render(self) -> None:
-        with st.container(horizontal=True, gap="medium", vertical_alignment="center", key=self._frame_key):
+        with st.container(horizontal=True, gap="medium", vertical_alignment="top", key=self._frame_key):
 
             with st.container(width=100, key=f"{self._slug}_title"):
-                st.write(self.title)
+                st.markdown(
+                    f'<p class="fp-section-title">{html.escape(self.title)}</p>',
+                    unsafe_allow_html=True,
+                )
 
             with st.container(border=True, width="stretch", key=self._panel_key):
+                mode_class = (
+                    "fp-section-panel-edit" if self.editing else "fp-section-panel-readonly"
+                )
+                st.markdown(
+                    f'<span class="{mode_class}" aria-hidden="true"></span>',
+                    unsafe_allow_html=True,
+                )
                 if self.editing:
                     st.caption("Edit mode")
                     self.render_edit_form()
@@ -89,7 +100,6 @@ class Section(ABC):
 
 
 class Section1(Section):
-    title: str = "Step 1"
 
     def render_readonly_form(self) -> None:
         st.write("Click the panel to enter edit mode.")
@@ -99,7 +109,6 @@ class Section1(Section):
         st.write("Click the panel to return to read-only mode.")
 
 class Section2(Section):
-    title: str = "Step 2"
 
     def render_readonly_form(self) -> None:
         st.write("Click the panel to enter edit mode.")

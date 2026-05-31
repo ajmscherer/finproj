@@ -40,6 +40,20 @@ THEME: dict[str, str] = {
     "subsection_color": "#374151",
     "subsection_margin_top": "0.25rem",
     "subsection_margin_bottom": "0.5rem",
+    # Section column labels (left title beside bordered panels in Section component)
+    "section_label_font_family": "inherit",
+    "section_label_font_size": "1.5rem",
+    "section_label_font_weight": "600",
+    "section_label_font_style": "normal",
+    "section_label_text_transform": "none",
+    "section_label_color": "#374151",
+    "section_label_line_height": "1.3",
+    "section_label_letter_spacing": "0",
+    "section_label_margin_top": "0",
+    "section_label_margin_bottom": "0",
+    # Section component bordered panel (readonly vs edit mode)
+    "section_panel_background": "#f9fafb",  # readonly mode
+    "section_panel_background_edit": "#fffbeb",  # edit mode
     # Tagline and captions
     "caption_font_size": "0.9rem",
     "caption_color": "#6b7280",
@@ -232,6 +246,20 @@ section.main h3,
     margin-bottom: {t["subsection_margin_bottom"]};
 }}
 
+/* Section column labels (Section component title column) */
+[class*="st-key-section_"] [class*="_title"] .fp-section-title {{
+    font-family: {t["section_label_font_family"]};
+    font-size: {t["section_label_font_size"]};
+    font-weight: {t["section_label_font_weight"]};
+    font-style: {t["section_label_font_style"]};
+    text-transform: {t["section_label_text_transform"]};
+    color: {t["section_label_color"]};
+    line-height: {t["section_label_line_height"]};
+    letter-spacing: {t["section_label_letter_spacing"]};
+    margin-top: {t["section_label_margin_top"]};
+    margin-bottom: {t["section_label_margin_bottom"]};
+}}
+
 /* Captions and helper text */
 [data-testid="stCaptionContainer"] {{
     font-size: {t["caption_font_size"]};
@@ -252,6 +280,16 @@ section.main h3,
     background: {t["panel_background"]} !important;
     padding: {t["panel_padding"]} !important;
     margin-bottom: {t["panel_margin_bottom"]} !important;
+}}
+
+/* Section component bordered panel — mode-dependent background (after global panel rule) */
+[class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-readonly),
+[class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-readonly) [data-testid="stVerticalBlockBorderWrapper"] {{
+    background: {t["section_panel_background"]} !important;
+}}
+[class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-edit),
+[class*="st-key-section_"] [class*="_panel"]:has(.fp-section-panel-edit) [data-testid="stVerticalBlockBorderWrapper"] {{
+    background: {t["section_panel_background_edit"]} !important;
 }}
 
 /* Metrics */
