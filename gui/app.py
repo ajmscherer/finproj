@@ -26,6 +26,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from section import Section1
 
 import matplotlib
 
@@ -1367,6 +1368,9 @@ def _render_live_charts(
         )
 
 
+section1 = Section1(title="Section 1")
+
+
 def main() -> None:
     st.set_page_config(
         page_title="finproj",
@@ -1395,11 +1399,18 @@ def main() -> None:
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
 
+    section1.render()
+
+    # Render the projection assumptions section
     _render_projection_assumptions_section()
 
+    # Render the portfolio allocation section
     catalog, allocation = _render_portfolio_allocation_section()
 
+    # Render the assets performance and vol section
     mu_sigma, correlation_values = _render_assets_performance_and_vol(catalog)
+
+    # Install the section click handlers
     _install_section_click_handlers()
 
     st.header("4. Run and results")
