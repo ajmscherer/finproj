@@ -78,10 +78,6 @@ def _chart_update_interval(nb_projections: int) -> int:
     return max(20, nb_projections // 100)
 
 
-# Set to False to restore the legacy "Run and results" block at the bottom of main().
-STEP4_CONTROLS_SIMULATION = True
-
-
 PRODUCT_ABOUT_HELP = (
     "finproj is a local Monte Carlo simulation tool for investment portfolios. "
     "Configure your starting capital, annual withdrawals, cash buffer, asset allocation, "
@@ -1425,18 +1421,7 @@ section4 = Section(
 )
 
 
-def main() -> None:
-    st.set_page_config(
-        page_title="finproj",
-        layout="wide",
-        initial_sidebar_state="collapsed",
-    )
-    inject_theme()
-    _init_session_state()
-    _process_pending_assumptions()
-
-    _render_app_header()
-
+def _render_sidebar() -> None:
     with st.sidebar:
         if st.session_state.get("_assumptions_load_message"):
             st.success(st.session_state.pop("_assumptions_load_message"))
@@ -1452,53 +1437,44 @@ def main() -> None:
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
 
-    # Render the step 1 section
+
+def _process_pending_simulation_run() -> None:
+    """Run simulation queued by Step 4 (after that section has rendered)."""
+    if not st.session_state.pop("run_simulation_requested", False):
+        return
+    charts_placeholder = st.session_state.get("_step_4_live_charts_placeholder")
+    if charts_placeholder is None:
+        _set_simulation_running(False)
+        return
+    try:
+        if _execute_simulation_run(charts_placeholder):
+            st.rerun()
+    finally:
+        _set_simulation_running(False)
+
+
+def _render_workflow_sections() -> None:
     section1.render()
-
-    # Render the step 2 section
     section2.render()
-
-    # Render the step 3 section
     section3.render()
-
     section4.render()
-
-    if STEP4_CONTROLS_SIMULATION:
-        if st.session_state.pop("run_simulation_requested", False):
-            charts_placeholder = st.session_state.get("_step_4_live_charts_placeholder")
-            if charts_placeholder is not None:
-                try:
-                    if _execute_simulation_run(charts_placeholder):
-                        st.rerun()
-                finally:
-                    _set_simulation_running(False)
-            else:
-                _set_simulation_running(False)
-
+    _process_pending_simulation_run()
     SectionContentEditable.install_click_handlers()
 
-    if not STEP4_CONTROLS_SIMULATION:
-        st.header("Run and results")
-        has_result = st.session_state.result is not None
-        run_label = "Refresh simulation" if has_result else "Run simulation"
-        run_clicked = st.button(run_label, type="primary", key="run_simulation_legacy")
 
-        live_charts_placeholder = st.empty()
+def main() -> None:
+    st.set_page_config(
+        page_title="finproj",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    inject_theme()
+    _init_session_state()
+    _process_pending_assumptions()
 
-        if run_clicked:
-            _set_simulation_running(True)
-            try:
-                if _execute_simulation_run(live_charts_placeholder):
-                    st.rerun()
-            finally:
-                _set_simulation_running(False)
-
-        if st.session_state.result is not None:
-            result = st.session_state.result
-            result_year = st.session_state.get(
-                "result_max_year", int(_read_portfolio_fields()["max_year"])
-            )
-            _render_step_4_results(result, int(result_year))
+    _render_app_header()
+    _render_sidebar()
+    _render_workflow_sections()
 
 
 if __name__ == "__main__":
