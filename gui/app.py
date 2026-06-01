@@ -46,6 +46,7 @@ from inv_proj import cv  # noqa: E402
 from theme import inject_theme  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
 from charts import (  # noqa: E402
+    build_mu_sigma_range_figure,
     build_nav_distribution_figure,
     build_nav_fan_figure,
     build_pie_chart,
@@ -522,10 +523,10 @@ def _request_allocation_widget_sync() -> None:
     st.session_state["_pending_allocation_widget_sync"] = True
 
 
-def _request_return_assumptions_widget_sync() -> None:
-    st.session_state["_pending_return_assumptions_widget_sync"] = True
-
-
+def _reset_correlation_assumptions_to_defaults() -> None:
+    catalog = st.session_state.asset_catalog
+    st.session_state.correlation_values = _default_correlation_values(catalog)
+    _sync_return_assumptions_to_edit_widgets(catalog)
 
 
 def _sync_return_assumptions_to_edit_widgets(catalog: AssetCatalog) -> None:
@@ -728,15 +729,11 @@ def _render_return_assumptions_edit_form(
 
     st.subheader("Pairwise correlations")
     asset_order = return_model_asset_ids(catalog)
-    if st.button("Reset correlations to defaults", key="return_assumptions_reset_corr"):
-        st.session_state.correlation_values = _default_correlation_values(catalog)
-        for left, right in _correlation_pairs(catalog):
-            canonical = normalize_correlation_pair(left, right, asset_order)
-            edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
-            st.session_state[edit_key] = float(
-                st.session_state.correlation_values.get(canonical, 0.0)
-            )
-        st.rerun()
+    st.button(
+        "Reset correlations to defaults",
+        key="return_assumptions_reset_corr_old",
+        on_click=_reset_correlation_assumptions_to_defaults,
+    )
 
     corr_cols = st.columns(2)
     for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
@@ -759,61 +756,6 @@ def _render_return_assumptions_edit_form(
 
     _sync_edit_widgets_to_return_assumptions(catalog)
     return _read_mu_sigma(catalog), _read_correlation_values(catalog)
-
-
-def _render_assets_performance_and_vol_old(
-    catalog: AssetCatalog,
-) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
-    editing = st.session_state.return_assumptions_editing
-    return_ids = return_model_asset_ids(catalog)
-
-    section_title = "Assets performance and volatility"
-
-    if editing:
-        with st.container(border=True, key="assets_performance_and_vol_old"):
-            with st.container(
-                horizontal=True,
-                width="content",
-                gap="small",
-                vertical_alignment="center",
-                key="assets_performance_and_vol_header_old",
-            ):
-                st.header(section_title)
-                _render_section_mode_button(
-                    editing=True,
-                    edit_key="return_assumptions_edit_old",
-                    done_key="return_assumptions_done_old",
-                    enter_edit=_enter_return_assumptions_edit,
-                    finish_edit=_finish_return_assumptions_edit,
-                    edit_help="Edit return assumptions",
-                    done_help="Done editing",
-                )
-            if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
-                _sync_return_assumptions_to_edit_widgets(catalog)
-            return _render_return_assumptions_edit_form(catalog)
-
-    with st.container(border=True, key="assets_performance_and_vol_old"):
-        with st.container(
-            horizontal=True,
-            width="content",
-            gap="small",
-            vertical_alignment="center",
-            key="assets_performance_and_vol_header_old",
-        ):
-            st.header(section_title)
-            _render_section_mode_button(
-                editing=False,
-                edit_key="return_assumptions_edit_old",
-                done_key="return_assumptions_done_old",
-                enter_edit=_enter_return_assumptions_edit,
-                finish_edit=_finish_return_assumptions_edit,
-                edit_help="Edit return assumptions",
-                done_help="Done editing",
-            )
-        mu_sigma = _read_mu_sigma(catalog)
-        correlation_values = _read_correlation_values(catalog)
-        _render_return_assumptions_readonly(catalog, mu_sigma, correlation_values)
-    return mu_sigma, correlation_values
 
 
 def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> None:
@@ -1200,8 +1142,7 @@ def _render_step_2_edit() -> None:
                 if st.button(
                     "Normalize",
                     width="stretch",
-                    help="Modify the allocation percentages proportionally to sum to 100%",
-                ):
+                    help="Modify the allocation percentages proportionally to sum to 100%"):
                     total = sum(allocation.values())
                     if total > 0:
                         st.session_state.allocation = {
@@ -1210,7 +1151,15 @@ def _render_step_2_edit() -> None:
                         }
                         _request_allocation_widget_sync()
                         st.rerun()
-
+                if st.button(
+                    "Reset",
+                    width="stretch",
+                    help="Reset the allocation percentages to the defaults",
+                ):
+                    st.session_state.allocation = {
+                        asset.id: asset.default_allocation for asset in _investable_assets(catalog)
+                    }
+                    _request_allocation_widget_sync()
         with right_part:
             # render here a pie chart of the allocation
             pie_fig = build_pie_chart(
@@ -1259,40 +1208,72 @@ def _render_step_3_edit() -> None:
     with st.container(border=False, key="assets_performance_and_vol"):
         catalog = st.session_state.asset_catalog
         return_ids = return_model_asset_ids(catalog)
-        if st.session_state.pop("_pending_return_assumptions_widget_sync", False):
-            _sync_return_assumptions_to_edit_widgets(catalog)
-        elif return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
+        if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
             _sync_return_assumptions_to_edit_widgets(catalog)
 
-        st.caption(
-            'Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions. \n\n⚠️ It is the user sole responsibility to select appropriate values for each asset. For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."'
-        )
+        with st.container(border=False):
+            st.markdown(
+                '⚠️<span style="color: red;">It is the user sole responsibility to select appropriate values for each asset.</span>', help='For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."',
+                unsafe_allow_html=True, 
+            )
+        
+        st.subheader("Returns", help='Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions.')
 
-        header_cols = st.columns([3, 1.5, 1.5])
-        with header_cols[0]:
-            st.markdown("**Asset**")
+        left_part, right_part = st.columns(2, gap="small")
+        
+        with left_part:
+            with st.container(border=True, height="stretch"):
+                colWidths = [3, 1.5, 1.5]
+                header_cols = st.columns(colWidths)
+                with header_cols[0]:
+                    st.markdown("**Asset**", help='Go to Portfolio Allocation section to add or remove assets.')
+                with header_cols[1]:
+                    st.markdown("**μ (%)**", help='Expected return in percent. Returns are understood to be net of any and all applicable expenses and deductions.')
+                with header_cols[2]:
+                    st.markdown("**σ (%)**", help='Volatility in percent. Volatility is a measure of the risk of the asset. It is calculated as the standard deviation of the asset\'s returns.')
 
-        for asset_id in return_model_asset_ids(catalog):
-            cols = st.columns([3, 1.5, 1.5])
-            with cols[0]:
-                st.markdown(catalog.name(asset_id))
-            with cols[1]:
-                st.number_input(
-                    "μ (%)",
-                    format="%.2f",
-                    key=f"return_edit_mu_{asset_id}",
-                    help=RETURN_ASSUMPTION_HELP["mu"],
+                for asset_id in return_model_asset_ids(catalog):
+                    cols = st.columns(colWidths)
+                    with cols[0]:
+                        st.markdown(catalog.name(asset_id))
+                    with cols[1]:
+                        st.number_input(
+                            "μ (%)",
+                            label_visibility="collapsed",
+                            format="%.1f",
+                            step=0.1,
+                            key=f"return_edit_mu_{asset_id}",
+                            help=RETURN_ASSUMPTION_HELP["mu"],
+                        )
+                    with cols[2]:
+                        st.number_input(
+                            "σ (%)",
+                            min_value=0.0,
+                            label_visibility="collapsed",
+                            format="%.1f",
+                            step=0.1,
+                            key=f"return_edit_sigma_{asset_id}",
+                            help=RETURN_ASSUMPTION_HELP["sigma"],
+                        )
+        with right_part:
+            return_ids = return_model_asset_ids(catalog)
+            mu_sigma_chart = {
+                asset_id: (
+                    float(st.session_state.get(f"return_edit_mu_{asset_id}", 0.0)),
+                    float(st.session_state.get(f"return_edit_sigma_{asset_id}", 0.0)),
                 )
-            with cols[2]:
-                st.number_input(
-                    "σ (%)",
-                    min_value=0.0,
-                    format="%.2f",
-                    key=f"return_edit_sigma_{asset_id}",
-                    help=RETURN_ASSUMPTION_HELP["sigma"],
-                )
+                for asset_id in return_ids
+            }
+            range_fig = build_mu_sigma_range_figure(
+                mu_sigma_chart,
+                {asset_id: catalog.name(asset_id) for asset_id in return_ids},
+                asset_order=return_ids,
+            )
+            with st.container(border=True, height="stretch"):
+                if range_fig is not None:
+                    st.pyplot(range_fig, transparent=True, width="content")
 
-        st.subheader("Pairwise correlations")
+        st.subheader("Pairwise correlations", help='Correlation between the returns of two assets. A value of 1 means the assets move perfectly together, a value of -1 means they move perfectly opposite, and a value of 0 means they are uncorrelated.')
         asset_order = return_model_asset_ids(catalog)
 
         ccor = st.container(border=True, horizontal=True)
@@ -1315,10 +1296,12 @@ def _render_step_3_edit() -> None:
                     width=130,
                 )
         with ccor:
-            if st.button("Reset correlations to defaults", key="return_assumptions_reset_corr", width=130):
-                st.session_state.correlation_values = _default_correlation_values(catalog)
-                _request_return_assumptions_widget_sync()
-                st.rerun()
+            st.button(
+                "Reset correlations to defaults",
+                key="return_assumptions_reset_corr",
+                width=130,
+                on_click=_reset_correlation_assumptions_to_defaults,
+            )
 
         _sync_edit_widgets_to_return_assumptions(catalog)
 
@@ -1367,22 +1350,25 @@ def main() -> None:
             "Mac: open the output folder in Finder. Windows: open in File Explorer."
         )
 
-    # ClickPanelRegistry.reset()
+    # Render the step 1 section
     section1.render()
+
+    # Render the step 2 section
     section2.render()
+
+    # Render the step 3 section
     section3.render()
 
 
 
-    # Render the assets performance and vol section
-    # _render_assets_performance_and_vol_old(_read_asset_catalog())
+    # Render the assets performance _vol_old(_read_asset_catalog())
 
     Section.install_click_handlers()
 
     # Install the section click handlers
     _install_section_click_handlers()
 
-    st.header("4. Run and results")
+    st.header("Run and results")
     has_result = st.session_state.result is not None
     run_label = "Refresh simulation" if has_result else "Run simulation"
     run_clicked = st.button(run_label, type="primary", key="run_simulation")

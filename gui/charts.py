@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import math
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, MaxNLocator
@@ -232,5 +234,88 @@ def build_pie_chart(
         counterclock=False,
     )
     ax.set_title(title)
+    fig.tight_layout()
+    return fig
+
+
+def _normal_pdf(x: float, mu: float, sigma: float) -> float:
+    if sigma <= 1e-9:
+        return 1.0 if abs(x - mu) <= 1e-9 else 0.0
+    z = (x - mu) / sigma
+    return math.exp(-0.5 * z * z) / (sigma * math.sqrt(2.0 * math.pi))
+
+
+def _linspace(start: float, stop: float, count: int) -> list[float]:
+    if count <= 1:
+        return [start]
+    step = (stop - start) / (count - 1)
+    return [start + index * step for index in range(count)]
+
+
+def build_mu_sigma_range_figure(
+    mu_sigma: dict[str, tuple[float, float]],
+    labels_by_id: dict[str, str],
+    *,
+    asset_order: list[str] | None = None,
+    title: str = "",
+    curve_points: int = 200,
+    sigma_span: float = 4.0,
+) -> Figure | None:
+    order = asset_order or list(mu_sigma.keys())
+    rows: list[tuple[str, float, float]] = []
+    for asset_id in order:
+        if asset_id not in mu_sigma:
+            continue
+        mu, sigma = mu_sigma[asset_id]
+        rows.append((labels_by_id.get(asset_id, asset_id), mu, max(sigma, 0.0)))
+
+    if not rows:
+        return None
+
+    fig_height = max(2.5, len(rows) * 0.65)
+    fig, ax = plt.subplots(figsize=(5, fig_height))
+    fig.patch.set_facecolor("none")
+    ax.set_facecolor("none")
+
+    x_min = min(mu - sigma_span * max(sigma, 1e-9) for _, mu, sigma in rows)
+    x_max = max(mu + sigma_span * max(sigma, 1e-9) for _, mu, sigma in rows)
+    if x_min == x_max:
+        x_min -= 1.0
+        x_max += 1.0
+
+    for index, (_, mu, sigma) in enumerate(rows):
+        if sigma <= 1e-9:
+            ax.plot([mu, mu], [index - 0.35, index + 0.35], color="#4C78A8", linewidth=2)
+            continue
+
+        xs = _linspace(mu - sigma_span * sigma, mu + sigma_span * sigma, curve_points)
+        pdf = [_normal_pdf(x, mu, sigma) for x in xs]
+        peak = max(pdf)
+        if peak <= 0:
+            continue
+        height = 0.45
+        scaled = [value / peak * height for value in pdf]
+        lower = [index - value for value in scaled]
+        upper = [max(lower)] * len(scaled) #[index + value for value in scaled]
+        ax.fill_between(xs, lower, upper, color="#4C78A8", alpha=0.35, linewidth=0)
+        ax.plot(xs, upper, color="#4C78A8", linewidth=1.5)
+        ax.plot(xs, lower, color="#4C78A8", linewidth=1.5)
+        ax.plot(
+            [mu, mu],
+            [index - height, index],
+            color="red",
+            linewidth=2.5,
+            solid_capstyle="butt",
+            zorder=4,
+        )
+        ax.grid(True,  axis="x")
+    ax.set_title("Return distribution")
+    ax.set_yticks(list(range(len(rows))))
+    ax.set_yticklabels([label for label, _, _ in rows])
+    ax.set_xlabel("Return (%)")
+    ax.set_xlim(x_min, x_max)
+    if title:
+        ax.set_title(title)
+    ax.invert_yaxis()
     fig.tight_layout()
     return fig
