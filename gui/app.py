@@ -27,7 +27,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from pandas.core.reshape.concat import new_axes
 
 # from click_panel import ClickPanelRegistry
 from section import Section
@@ -292,30 +291,6 @@ def _exit_other_section_edits(active: str) -> None:
     if active != "return_assumptions":
         _exit_return_assumptions_edit()
 
-
-def _enter_portfolio_edit() -> None:
-    _exit_other_section_edits("portfolio")
-    _sync_portfolio_to_edit_widgets()
-    st.session_state.portfolio_assumptions_editing = True
-
-
-def _finish_portfolio_edit() -> None:
-    _exit_portfolio_edit(force=False)
-
-
-def _enter_asset_allocation_edit() -> None:
-    _exit_other_section_edits("asset_allocation")
-    catalog: AssetCatalog = st.session_state.asset_catalog
-    investable_ids = investable_asset_ids(catalog)
-    _sync_catalog_to_edit_widgets(catalog)
-    _sync_allocation_to_edit_widgets(investable_ids)
-    st.session_state.asset_allocation_editing = True
-
-
-def _finish_asset_allocation_edit() -> None:
-    _exit_asset_allocation_edit()
-
-
 def _enter_return_assumptions_edit() -> None:
     _exit_other_section_edits("return_assumptions")
     catalog: AssetCatalog = st.session_state.asset_catalog
@@ -543,23 +518,14 @@ def _sync_allocation_to_edit_widgets(investable_ids: list[str]) -> None:
         )
 
 
-def _apply_mix_preset(catalog: AssetCatalog, mix_preset: str) -> None:
-    investable_ids = investable_asset_ids(catalog)
-    preset = copy.deepcopy(DEFAULT_RISK_MIX_PRESETS[mix_preset])
-    st.session_state.allocation = {
-        asset_id: preset.get(asset_id, 0.0) for asset_id in investable_ids
-    }
-    for asset_id, weight in st.session_state.allocation.items():
-        st.session_state[f"alloc_{asset_id}"] = float(weight)
-    st.session_state.mix_preset = mix_preset
+def _request_allocation_widget_sync() -> None:
+    st.session_state["_pending_allocation_widget_sync"] = True
 
 
-def _show_allocation_total(allocation: dict[str, float]) -> None:
-    alloc_total = sum(allocation.values())
-    if abs(alloc_total - 100.0) > 0.01:
-        st.error(f"Allocation must sum to 100%. Current total: {alloc_total:.1f}%")
-    else:
-        st.success(f"Allocation total: {alloc_total:.1f}%")
+def _request_return_assumptions_widget_sync() -> None:
+    st.session_state["_pending_return_assumptions_widget_sync"] = True
+
+
 
 
 def _sync_return_assumptions_to_edit_widgets(catalog: AssetCatalog) -> None:
@@ -795,7 +761,7 @@ def _render_return_assumptions_edit_form(
     return _read_mu_sigma(catalog), _read_correlation_values(catalog)
 
 
-def _render_assets_performance_and_vol(
+def _render_assets_performance_and_vol_old(
     catalog: AssetCatalog,
 ) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
     editing = st.session_state.return_assumptions_editing
@@ -804,19 +770,19 @@ def _render_assets_performance_and_vol(
     section_title = "Assets performance and volatility"
 
     if editing:
-        with st.container(border=True, key="assets_performance_and_vol"):
+        with st.container(border=True, key="assets_performance_and_vol_old"):
             with st.container(
                 horizontal=True,
                 width="content",
                 gap="small",
                 vertical_alignment="center",
-                key="assets_performance_and_vol_header",
+                key="assets_performance_and_vol_header_old",
             ):
                 st.header(section_title)
                 _render_section_mode_button(
                     editing=True,
-                    edit_key="return_assumptions_edit",
-                    done_key="return_assumptions_done",
+                    edit_key="return_assumptions_edit_old",
+                    done_key="return_assumptions_done_old",
                     enter_edit=_enter_return_assumptions_edit,
                     finish_edit=_finish_return_assumptions_edit,
                     edit_help="Edit return assumptions",
@@ -826,19 +792,19 @@ def _render_assets_performance_and_vol(
                 _sync_return_assumptions_to_edit_widgets(catalog)
             return _render_return_assumptions_edit_form(catalog)
 
-    with st.container(border=True, key="assets_performance_and_vol"):
+    with st.container(border=True, key="assets_performance_and_vol_old"):
         with st.container(
             horizontal=True,
             width="content",
             gap="small",
             vertical_alignment="center",
-            key="assets_performance_and_vol_header",
+            key="assets_performance_and_vol_header_old",
         ):
             st.header(section_title)
             _render_section_mode_button(
                 editing=False,
-                edit_key="return_assumptions_edit",
-                done_key="return_assumptions_done",
+                edit_key="return_assumptions_edit_old",
+                done_key="return_assumptions_done_old",
                 enter_edit=_enter_return_assumptions_edit,
                 finish_edit=_finish_return_assumptions_edit,
                 edit_help="Edit return assumptions",
@@ -848,8 +814,6 @@ def _render_assets_performance_and_vol(
         correlation_values = _read_correlation_values(catalog)
         _render_return_assumptions_readonly(catalog, mu_sigma, correlation_values)
     return mu_sigma, correlation_values
-
-
 
 
 def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> None:
@@ -1088,14 +1052,17 @@ def _render_step_2_edit() -> None:
     investable_ids = investable_asset_ids(catalog)
     investable = _investable_assets(catalog)
 
-    if investable and f"asset_name_{investable[0].id}" not in st.session_state:
+    if st.session_state.pop("_pending_allocation_widget_sync", False):
+        _sync_allocation_to_edit_widgets(investable_ids)
+    elif investable and f"asset_name_{investable[0].id}" not in st.session_state:
         _sync_catalog_to_edit_widgets(catalog)
         _sync_allocation_to_edit_widgets(investable_ids)
-    
+
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
 
-    with st.container(border=False, key="portfolio_allocation_section", gap="small"):
+    show_border = False # TODO: make this dynamic based on the section mode
 
+    with st.container(border=False, key="portfolio_allocation_section", gap="small"):
         st.caption(
             "Define types of investable assets used in the projection and set corresponding allocation percentages. "
             "Required: Money Market, Bonds, and Stocks. Optional classes can be added or removed."
@@ -1103,12 +1070,14 @@ def _render_step_2_edit() -> None:
             "Note: The total allocation percentage must sum to 100% for investable assets."
         )
 
-        left_part, center_part, right_part = st.columns([3,1,2])
+        left_part, center_part, right_part = st.columns([3, 1, 2], gap="small")
+
         with left_part:
-            col_size = [1, 1, 1]
-            
+
+            col_size = [5,3,1]
+
             def render_header():
-                header_cols = st.columns(col_size)
+                header_cols = st.columns(col_size, )
                 with header_cols[0]:
                     st.markdown("**Asset**")
                 with header_cols[1]:
@@ -1118,16 +1087,21 @@ def _render_step_2_edit() -> None:
 
             def render_asset_line(asset):
                 cols = st.columns(col_size)
+
                 with cols[0]:
                     name_key = f"asset_name_{asset.id}"
                     st.session_state.setdefault(name_key, asset.name)
+
                     new_name = st.text_input(
                         "Asset",
                         key=name_key,
-                        label_visibility="collapsed", width="stretch",
+                        label_visibility="collapsed",
+                        disabled=asset.required,
+                        width="stretch",
                     )
                     if new_name.strip() and new_name.strip() != asset.name:
                         catalog.rename(asset.id, new_name)
+
                 with cols[1]:
                     alloc_key = f"alloc_{asset.id}"
                     cp = st.session_state.allocation.get(asset.id, 0.0)
@@ -1136,14 +1110,16 @@ def _render_step_2_edit() -> None:
                         "Allocation %",
                         min_value=0.0,
                         max_value=100.0,
-                        step=1.0 if cp<10.0 else 5.0,
+                        step=1.0,
                         format="%.1f",
                         key=alloc_key,
                         label_visibility="collapsed",
                     )
                 with cols[2]:
                     if not asset.required:
-                        if st.button("×", help="Remove asset", key=f"delete_{asset.id}"):
+                        if st.button(
+                            "×", help="Remove asset", key=f"delete_{asset.id}"
+                        ):
                             try:
                                 catalog.remove(asset.id)
                                 st.session_state.asset_catalog = catalog
@@ -1156,37 +1132,85 @@ def _render_step_2_edit() -> None:
                                 st.rerun()
                             except ValueError as exc:
                                 st.error(str(exc))
-            
+
             # render table with headers and assets
-            nbcols= 1
-            table=st.columns(nbcols, gap="medium")
-            for c in range(nbcols):
-                with table[c]:
-                    render_header()
-            for k, asset in enumerate(_investable_assets(catalog)):
-                with table[k % nbcols]:
-                        render_asset_line(asset)
-            
-        with center_part:
-            if st.button("Add asset"):
-                new_asset_name = "new asset"
-                k=0
-                while slugify(new_asset_name) in st.session_state.asset_catalog.ids:
-                    k+=1
-                    new_asset_name = f"new asset {k+1}"
-                else:
-                    try:
-                        added = catalog.add(new_asset_name)
-                        st.session_state.asset_catalog = catalog
-                        st.session_state.allocation.setdefault(added.id, 0.0)
-                        st.session_state.correlation_values = _default_correlation_values(
-                            catalog
+            with st.container(
+                border=True,
+                key="portfolio_allocation_section_table",
+                vertical_alignment="center",
+                horizontal_alignment="center",
+                height="stretch",
+            ):
+                render_header()
+                for k, asset in enumerate(_investable_assets(catalog)):
+                    render_asset_line(asset)
+
+                c1, c2, _ = st.columns(col_size)
+
+
+                alloc_total = sum(allocation.values())
+                error = abs(alloc_total - 100.0) > 0.01
+                divider_style = "margin: 0.5rem 0; border: none; border-top: 1px solid #e5e7eb;" # TODO: make this dynamic
+                with c1:
+                    st.markdown(
+                        f'<hr style="{divider_style}" />',
+                        unsafe_allow_html=True,
                         )
-                        _init_mu_sigma_keys(catalog)
-                        _init_correlation_keys(catalog)
+                    if error:
+                        st.error("Allocation must sum to 100%")
+                    else:
+                        st.success("Total")
+                with c2:
+                    st.markdown(
+                        f'<hr style="{divider_style}" />',
+                        unsafe_allow_html=True,
+                    )
+                    if error:
+                        st.error(f"{alloc_total:.1f}%")
+                    else:
+                        st.success(f"{alloc_total:.1f}%")
+
+        with center_part:
+            with st.container(
+                border=show_border,
+                key="portfolio_allocation_section_center_part",
+                vertical_alignment="center",
+                horizontal_alignment="center",
+                height="stretch",
+            ):
+                if st.button("Add asset", width="stretch"):
+                    new_asset_name = "new asset"
+                    k = 0
+                    while slugify(new_asset_name) in st.session_state.asset_catalog.ids:
+                        k += 1
+                        new_asset_name = f"new asset {k + 1}"
+                    else:
+                        try:
+                            added = catalog.add(new_asset_name)
+                            st.session_state.asset_catalog = catalog
+                            st.session_state.allocation.setdefault(added.id, 0.0)
+                            st.session_state.correlation_values = (
+                                _default_correlation_values(catalog)
+                            )
+                            _init_mu_sigma_keys(catalog)
+                            _init_correlation_keys(catalog)
+                            st.rerun()
+                        except ValueError as exc:
+                            st.error(str(exc))
+                if st.button(
+                    "Normalize",
+                    width="stretch",
+                    help="Modify the allocation percentages proportionally to sum to 100%",
+                ):
+                    total = sum(allocation.values())
+                    if total > 0:
+                        st.session_state.allocation = {
+                            asset_id: weight / total * 100.0
+                            for asset_id, weight in allocation.items()
+                        }
+                        _request_allocation_widget_sync()
                         st.rerun()
-                    except ValueError as exc:
-                        st.error(str(exc))
+
         with right_part:
             # render here a pie chart of the allocation
             pie_fig = build_pie_chart(
@@ -1194,17 +1218,109 @@ def _render_step_2_edit() -> None:
                 {asset.id: asset.name for asset in _investable_assets(catalog)},
             )
             if pie_fig is not None:
-                with st.container(border=False, key="portfolio_allocation_section_inner_pie", height="stretch", vertical_alignment="center", horizontal_alignment="center"):
+                with st.container(
+                    border=show_border,
+                    key="portfolio_allocation_section_inner_pie",
+                    height="stretch",
+                    vertical_alignment="center",
+                    horizontal_alignment="center",
+                ):
                     st.pyplot(pie_fig, transparent=True)
-        # render total allocation
-        _show_allocation_total(allocation)
-
-        
 
     # update session state
     st.session_state.asset_catalog = catalog
     st.session_state.allocation = allocation
 
+
+def _render_step_3_readonly() -> None:
+    with st.container(border=False, key="assets_performance_and_vol", gap="small"):
+        
+        catalog = st.session_state.asset_catalog
+        mu_sigma = _read_mu_sigma(catalog)
+        correlation_values = _read_correlation_values(catalog)
+        return_ids = return_model_asset_ids(catalog)
+        summary_cols = st.columns(max(len(return_ids), 1))
+        for idx, asset_id in enumerate(return_ids):
+            mu, sigma = mu_sigma[asset_id]
+            with summary_cols[idx]:
+                name = html.escape(catalog.name(asset_id))
+                st.markdown(
+                    f'<div class="fp-return-metric-stack">'
+                    f'<div class="fp-return-metric-label">{name}</div>'
+                    f'<div class="fp-return-metric-value">μ {mu:.1f}%</div>'
+                    f'<div class="fp-return-metric-value">σ {sigma:.1f}%</div>',
+                    # f"</div>",
+                    unsafe_allow_html=True,
+                )
+        st.caption(_format_correlation_summary(catalog, correlation_values))
+
+
+def _render_step_3_edit() -> None:
+    with st.container(border=False, key="assets_performance_and_vol"):
+        catalog = st.session_state.asset_catalog
+        return_ids = return_model_asset_ids(catalog)
+        if st.session_state.pop("_pending_return_assumptions_widget_sync", False):
+            _sync_return_assumptions_to_edit_widgets(catalog)
+        elif return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
+            _sync_return_assumptions_to_edit_widgets(catalog)
+
+        st.caption(
+            'Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions. \n\n⚠️ It is the user sole responsibility to select appropriate values for each asset. For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."'
+        )
+
+        header_cols = st.columns([3, 1.5, 1.5])
+        with header_cols[0]:
+            st.markdown("**Asset**")
+
+        for asset_id in return_model_asset_ids(catalog):
+            cols = st.columns([3, 1.5, 1.5])
+            with cols[0]:
+                st.markdown(catalog.name(asset_id))
+            with cols[1]:
+                st.number_input(
+                    "μ (%)",
+                    format="%.2f",
+                    key=f"return_edit_mu_{asset_id}",
+                    help=RETURN_ASSUMPTION_HELP["mu"],
+                )
+            with cols[2]:
+                st.number_input(
+                    "σ (%)",
+                    min_value=0.0,
+                    format="%.2f",
+                    key=f"return_edit_sigma_{asset_id}",
+                    help=RETURN_ASSUMPTION_HELP["sigma"],
+                )
+
+        st.subheader("Pairwise correlations")
+        asset_order = return_model_asset_ids(catalog)
+
+        ccor = st.container(border=True, horizontal=True)
+        for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
+            label = f"{catalog.name(left)} \n\n {catalog.name(right)}"
+            canonical = normalize_correlation_pair(left, right, asset_order)
+            edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
+            st.session_state.setdefault(
+                edit_key,
+                float(st.session_state.correlation_values.get(canonical, 0.0)),
+            )
+            with ccor:
+                st.number_input(
+                    label,
+                    min_value=-1.0,
+                    max_value=1.0,
+                    step=0.05,
+                    format="%.2f",
+                    key=edit_key,
+                    width=130,
+                )
+        with ccor:
+            if st.button("Reset correlations to defaults", key="return_assumptions_reset_corr", width=130):
+                st.session_state.correlation_values = _default_correlation_values(catalog)
+                _request_return_assumptions_widget_sync()
+                st.rerun()
+
+        _sync_edit_widgets_to_return_assumptions(catalog)
 
 section1 = Section(
     name="Step 1",
@@ -1218,7 +1334,10 @@ section2 = Section(
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
 )
-section3 = Section(name="Step 3", title="Assets Performance and Vol")
+section3 = Section(name="Step 3", title="Assets Performance",
+    edit_form=_render_step_3_edit,
+    readonly_form=_render_step_3_readonly,
+)
 
 
 def main() -> None:
@@ -1251,15 +1370,12 @@ def main() -> None:
     # ClickPanelRegistry.reset()
     section1.render()
     section2.render()
-    # section3.render()
-    # Render the projection assumptions section
-    # _render_projection_assumptions_section()
+    section3.render()
 
-    # Render the portfolio allocation section
-    # catalog, _ = _render_portfolio_allocation_section_old()
+
 
     # Render the assets performance and vol section
-    _render_assets_performance_and_vol(_read_asset_catalog())
+    # _render_assets_performance_and_vol_old(_read_asset_catalog())
 
     Section.install_click_handlers()
 

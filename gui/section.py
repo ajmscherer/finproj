@@ -112,7 +112,7 @@ class Section(ABC):
         with hc:
             if self.editing:
                 self.edit_form()
-                st.button("Done", key=f"{self._slug}_done", on_click=self.on_click)
+                st.button("Close", key=f"{self._slug}_done", on_click=self.on_click, help="Done editing this section")
             else:
                 self.readonly_form()
-                st.button("Edit", key=f"{self._slug}_edit", on_click=self.on_click)
+                st.button("Edit", key=f"{self._slug}_edit", on_click=self.on_click, help="Edit the content of this section")
