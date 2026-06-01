@@ -399,7 +399,7 @@ class Portfolio:
             label = asset_names.get(k, k) if asset_names else k
             result += f"{fs.format(label, v[0], v[1])}\n"
         result += "-" * len(fs.format('', "", "100.0%")) + '\n'
-        result += fs.format("total", f"{self.total_value():,.0f}", "100.0%") + "\n"
+        result += fs.format("total NAV", f"{self.total_value():,.0f}", "100.0%") + "\n"
         return result
 
 class Observer(ABC):

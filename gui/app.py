@@ -78,6 +78,10 @@ def _chart_update_interval(nb_projections: int) -> int:
     return max(20, nb_projections // 100)
 
 
+# Set to False to restore the legacy "Run and results" block at the bottom of main().
+STEP4_CONTROLS_SIMULATION = True
+
+
 PRODUCT_ABOUT_HELP = (
     "finproj is a local Monte Carlo simulation tool for investment portfolios. "
     "Configure your starting capital, annual withdrawals, cash buffer, asset allocation, "
@@ -319,6 +323,70 @@ def _simulation_running() -> bool:
     return bool(st.session_state.get("simulation_running", False))
 
 
+def _request_simulation_run() -> None:
+    st.session_state.run_simulation_requested = True
+    _set_simulation_running(True)
+    st.rerun()
+
+
+def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
+    """Run Monte Carlo simulation. Returns True on success."""
+    live_charts_placeholder.empty()
+    try:
+        config = _collect_assumptions().to_simulation_config()
+        validate_allocation(config.risk_mix, config.asset_catalog)
+        validate_correlation(config.risk_param, config.risk_correlation)
+        live_distribution_year = config.max_year
+        chart_update_interval = _chart_update_interval(config.nb_projections)
+
+        progress = st.progress(0.0, text="Starting simulation...")
+        status = st.empty()
+
+        def progress_callback(
+            current: int,
+            total: int,
+            nav_fan: Any | None = None,
+        ) -> None:
+            progress.progress(
+                current / total,
+                text=f"Running projection {current:,} of {total:,}...",
+            )
+            if nav_fan is None:
+                return
+            if current == 1 or (
+                current != total and current % chart_update_interval == 0
+            ):
+                with live_charts_placeholder.container():
+                    _render_live_charts(
+                        nav_fan,
+                        live_distribution_year,
+                        projections_done=current,
+                        projections_total=total,
+                    )
+
+        importlib.reload(inv_proj)
+        importlib.reload(inv_proj_runner)
+        result = inv_proj_runner.run_simulation(
+            config,
+            progress_callback=progress_callback,
+        )
+
+        live_charts_placeholder.empty()
+        progress.progress(1.0, text="Simulation complete.")
+        status.success(
+            f"Finished {config.nb_projections:,} projections over {config.max_year} years."
+        )
+        st.session_state.result = result
+        st.session_state.result_max_year = int(_read_portfolio_fields()["max_year"])
+        return True
+    except ValueError as exc:
+        st.error(str(exc))
+        return False
+    except Exception as exc:
+        st.error(f"Simulation failed: {exc}")
+        return False
+
+
 def _init_session_state() -> None:
     st.session_state.setdefault("asset_catalog", default_asset_catalog())
     st.session_state.setdefault(
@@ -327,6 +395,7 @@ def _init_session_state() -> None:
     st.session_state.setdefault("mix_preset", "performance")
     st.session_state.setdefault("result", None)
     st.session_state.setdefault("simulation_running", False)
+    st.session_state.setdefault("run_simulation_requested", False)
     _init_portfolio_fields()
     st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault("assumptions_name", "Untitled")
@@ -1269,23 +1338,64 @@ def _render_step_3_edit() -> None:
 
 
 
-def _render_step_4_content() -> None:
+def _render_step_4_results(result: RunResult, result_year: int) -> None:
+    _render_charts(result)
+    _render_outcome_probability_metrics(result, result_year)
+    _render_summary(result)
+    st.subheader("Export")
+    if result.output_csv.exists():
+        st.download_button(
+            "Download output.csv",
+            data=result.output_csv.read_bytes(),
+            file_name="output.csv",
+            mime="text/csv",
+        )
+    st.caption(f"CSV written to: {result.output_csv}")
+    st.caption(f"Audit trail written to: {result.audit_path}")
 
-    st.write(f"Simulation running: {_simulation_running()}")
+
+def _render_step_4_content() -> None:
+    running = _simulation_running()
+    has_result = st.session_state.result is not None
     tabs = [st.container(), st.container()]
 
-    has_result = st.session_state.result is not None
     if has_result:
         result_area, button_area = tabs
         button_text = "Refresh simulation"
     else:
         button_area, result_area = tabs
         button_text = "Run simulation"
+
     with result_area:
         with st.container(border=True, key="step_4_result_area"):
-            st.write("Results")
+            if running:
+                st.info("Monte Carlo simulation is running…")
+            elif not has_result:
+                st.caption("Run a simulation to see charts and summary statistics here.")
+
+            charts_slot = st.empty()
+            st.session_state["_step_4_live_charts_placeholder"] = charts_slot
+
+            if has_result and not running:
+                result: RunResult = st.session_state.result
+                result_year = int(
+                    st.session_state.get(
+                        "result_max_year",
+                        _read_portfolio_fields()["max_year"],
+                    )
+                )
+                with charts_slot.container():
+                    _render_step_4_results(result, result_year)
+
     with button_area:
-        st.button(button_text, type="primary", key="run_simulation_new", width="stretch")
+        if st.button(
+            button_text,
+            type="primary",
+            key="run_simulation",
+            width="stretch",
+            disabled=running,
+        ):
+            _request_simulation_run()
 
 section1 = SectionContentEditable(
     name="Step 1",
@@ -1353,95 +1463,42 @@ def main() -> None:
 
     section4.render()
 
+    if STEP4_CONTROLS_SIMULATION:
+        if st.session_state.pop("run_simulation_requested", False):
+            charts_placeholder = st.session_state.get("_step_4_live_charts_placeholder")
+            if charts_placeholder is not None:
+                try:
+                    if _execute_simulation_run(charts_placeholder):
+                        st.rerun()
+                finally:
+                    _set_simulation_running(False)
+            else:
+                _set_simulation_running(False)
+
     SectionContentEditable.install_click_handlers()
 
-    # Install the section click handlers
-    # _install_section_click_handlers()
+    if not STEP4_CONTROLS_SIMULATION:
+        st.header("Run and results")
+        has_result = st.session_state.result is not None
+        run_label = "Refresh simulation" if has_result else "Run simulation"
+        run_clicked = st.button(run_label, type="primary", key="run_simulation_legacy")
 
-    st.header("Run and results")
-    has_result = st.session_state.result is not None
-    run_label = "Refresh simulation" if has_result else "Run simulation"
-    run_clicked = st.button(run_label, type="primary", key="run_simulation")
+        live_charts_placeholder = st.empty()
 
-    live_charts_placeholder = st.empty()
+        if run_clicked:
+            _set_simulation_running(True)
+            try:
+                if _execute_simulation_run(live_charts_placeholder):
+                    st.rerun()
+            finally:
+                _set_simulation_running(False)
 
-    if run_clicked:
-        live_charts_placeholder.empty()
-        _set_simulation_running(True)
-        try:
-            config = _collect_assumptions().to_simulation_config()
-            validate_allocation(config.risk_mix, config.asset_catalog)
-            validate_correlation(config.risk_param, config.risk_correlation)
-            live_distribution_year = config.max_year
-            chart_update_interval = _chart_update_interval(config.nb_projections)
-
-            progress = st.progress(0.0, text="Starting simulation...")
-            status = st.empty()
-
-            def progress_callback(
-                current: int,
-                total: int,
-                nav_fan: Any | None = None,
-            ) -> None:
-                progress.progress(
-                    current / total,
-                    text=f"Running projection {current:,} of {total:,}...",
-                )
-                if nav_fan is None:
-                    return
-                if current == 1 or (
-                    current != total and current % chart_update_interval == 0
-                ):
-                    with live_charts_placeholder.container():
-                        _render_live_charts(
-                            nav_fan,
-                            live_distribution_year,
-                            projections_done=current,
-                            projections_total=total,
-                        )
-
-            importlib.reload(inv_proj)
-            importlib.reload(inv_proj_runner)
-            result = inv_proj_runner.run_simulation(
-                config,
-                progress_callback=progress_callback,
+        if st.session_state.result is not None:
+            result = st.session_state.result
+            result_year = st.session_state.get(
+                "result_max_year", int(_read_portfolio_fields()["max_year"])
             )
-
-            live_charts_placeholder.empty()
-            progress.progress(1.0, text="Simulation complete.")
-            status.success(
-                f"Finished {config.nb_projections:,} projections over {config.max_year} years."
-            )
-            st.session_state.result = result
-            st.session_state.result_max_year = int(_read_portfolio_fields()["max_year"])
-            st.rerun()
-        except ValueError as exc:
-            st.error(str(exc))
-        except Exception as exc:
-            st.error(f"Simulation failed: {exc}")
-        finally:
-            _set_simulation_running(False)
-
-    if st.session_state.result is not None:
-        result: RunResult = st.session_state.result
-        result_year = st.session_state.get(
-            "result_max_year", int(_read_portfolio_fields()["max_year"])
-        )
-
-        _render_charts(result)
-        _render_outcome_probability_metrics(result, result_year)
-        _render_summary(result)
-
-        st.subheader("Export")
-        if result.output_csv.exists():
-            st.download_button(
-                "Download output.csv",
-                data=result.output_csv.read_bytes(),
-                file_name="output.csv",
-                mime="text/csv",
-            )
-        st.caption(f"CSV written to: {result.output_csv}")
-        st.caption(f"Audit log written to: {result.audit_path}")
+            _render_step_4_results(result, int(result_year))
 
 
 if __name__ == "__main__":
