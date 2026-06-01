@@ -64,13 +64,13 @@ class rc(Enum):
             else:
                 trs[''] = nst
 
-            rc.risk_names[risk_class] = trs
+            rc.risk_names[risk_class] = trs  # type: ignore[attr-defined]
 
 
-        if risk_class not in rc.risk_names:
+        if risk_class not in rc.risk_names:  # type: ignore[attr-defined]
             build_translation()
 
-        trs = rc.risk_names[risk_class]
+        trs = rc.risk_names[risk_class]  # type: ignore[attr-defined]
         
         result = trs[langage] if langage in trs else trs['']
             
@@ -80,7 +80,9 @@ class rc(Enum):
 
         return rc.getDescription_o(self, language)
 
-rc.risk_names = {}
+
+rc.risk_names = {}  # type: ignore[attr-defined]
+
 
 
 ''' 
@@ -150,7 +152,7 @@ Random variables
 class RV(ABC):
 
     @abstractmethod
-    def draw():
+    def draw(self) -> float:
         pass
 
 class Norm(RV):
@@ -608,13 +610,13 @@ class StatisticalObserver(Observer):
             if v:
                 self.values.append(v)
             else:
-                raise(Exception(f"Value not defined"))
+                raise(Exception("Value not defined"))
 
     def mean(self):
         if 'mean' not in self._mdata:
             values = self.values
-            l = len(values)
-            self._mdata['mean'] =  sum(values) / l if l>0 else float('nan')
+            length = len(values)
+            self._mdata['mean'] =  sum(values) / length if length>0 else float('nan')
         return self._mdata['mean']
     
     def std(self):
@@ -633,8 +635,8 @@ class StatisticalObserver(Observer):
         
         if 'ord' not in self._mdata:
             self._mdata['ord'] = sorted(self.values)
-        l=len(self.values)
-        i=round(l*pct*l/(l+1))
+        length=len(self.values)
+        i=round(length*pct*length/(length+1))
         return self._mdata['ord'][i]
         
     def min(self):

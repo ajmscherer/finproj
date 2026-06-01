@@ -75,7 +75,7 @@ def _nav_key(year: int) -> str:
 
 
 def _chart_update_interval(nb_projections: int) -> int:
-    return max(1, nb_projections // 200)
+    return max(20, nb_projections // 100)
 
 
 PRODUCT_ABOUT_HELP = (
@@ -291,6 +291,7 @@ def _exit_other_section_edits(active: str) -> None:
         _exit_asset_allocation_edit()
     if active != "return_assumptions":
         _exit_return_assumptions_edit()
+
 
 def _enter_return_assumptions_edit() -> None:
     _exit_other_section_edits("return_assumptions")
@@ -582,23 +583,6 @@ def _format_correlation_summary(
     return "Correlations: " + ", ".join(pairs)
 
 
-def _render_section_mode_button(
-    *,
-    editing: bool,
-    edit_key: str,
-    done_key: str,
-    enter_edit,
-    finish_edit,
-    edit_help: str,
-    done_help: str,
-) -> None:
-    """Edit/done icon buttons for section mode (hidden via theme when not needed)."""
-    if editing:
-        st.button("✓", help=done_help, key=done_key, on_click=finish_edit)
-    else:
-        st.button("✎", help=edit_help, key=edit_key, on_click=enter_edit)
-
-
 def _install_section_click_handlers() -> None:
     """Forward section panel clicks to enter or exit edit mode."""
     # Re-bind on every rerun: Streamlit reruns replace DOM nodes and a one-shot
@@ -672,90 +656,6 @@ def _install_section_click_handlers() -> None:
         unsafe_allow_javascript=True,
         width=1,
     )
-
-
-def _render_return_assumptions_readonly(
-    catalog: AssetCatalog,
-    mu_sigma: dict[str, tuple[float, float]],
-    correlation_values: dict[tuple[str, str], float],
-) -> None:
-    return_ids = return_model_asset_ids(catalog)
-    summary_cols = st.columns(max(len(return_ids), 1))
-    for idx, asset_id in enumerate(return_ids):
-        mu, sigma = mu_sigma[asset_id]
-        with summary_cols[idx]:
-            name = html.escape(catalog.name(asset_id))
-            st.markdown(
-                f'<div class="fp-return-metric-stack">'
-                f'<div class="fp-return-metric-label">{name}</div>'
-                f'<div class="fp-return-metric-value">μ {mu:.1f}%</div>'
-                f'<div class="fp-return-metric-value">σ {sigma:.1f}%</div>'
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-    st.caption(_format_correlation_summary(catalog, correlation_values))
-
-
-def _render_return_assumptions_edit_form(
-    catalog: AssetCatalog,
-) -> tuple[dict[str, tuple[float, float]], dict[tuple[str, str], float]]:
-    st.caption(
-        'Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions. \n\n⚠️ It is the user sole responsibility to select appropriate values for each asset. For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."'
-    )
-
-    header_cols = st.columns([3, 1.5, 1.5])
-    with header_cols[0]:
-        st.markdown("**Asset**")
-
-    for asset_id in return_model_asset_ids(catalog):
-        cols = st.columns([3, 1.5, 1.5])
-        with cols[0]:
-            st.markdown(catalog.name(asset_id))
-        with cols[1]:
-            st.number_input(
-                "μ (%)",
-                format="%.2f",
-                key=f"return_edit_mu_{asset_id}",
-                help=RETURN_ASSUMPTION_HELP["mu"],
-            )
-        with cols[2]:
-            st.number_input(
-                "σ (%)",
-                min_value=0.0,
-                format="%.2f",
-                key=f"return_edit_sigma_{asset_id}",
-                help=RETURN_ASSUMPTION_HELP["sigma"],
-            )
-
-    st.subheader("Pairwise correlations")
-    asset_order = return_model_asset_ids(catalog)
-    st.button(
-        "Reset correlations to defaults",
-        key="return_assumptions_reset_corr_old",
-        on_click=_reset_correlation_assumptions_to_defaults,
-    )
-
-    corr_cols = st.columns(2)
-    for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
-        label = f"{catalog.name(left)} / {catalog.name(right)}"
-        canonical = normalize_correlation_pair(left, right, asset_order)
-        edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
-        st.session_state.setdefault(
-            edit_key,
-            float(st.session_state.correlation_values.get(canonical, 0.0)),
-        )
-        with corr_cols[idx % 2]:
-            st.number_input(
-                label,
-                min_value=-1.0,
-                max_value=1.0,
-                step=0.05,
-                format="%.2f",
-                key=edit_key,
-            )
-
-    _sync_edit_widgets_to_return_assumptions(catalog)
-    return _read_mu_sigma(catalog), _read_correlation_values(catalog)
 
 
 def _render_outcome_probability_metrics(result: RunResult, max_year: int) -> None:
@@ -976,6 +876,8 @@ def _render_step_1_edit() -> None:
         for message in _validate_portfolio_amount_inputs():
             st.error(message)
 
+        _sync_edit_widgets_to_portfolio()
+
 
 def _render_step_2_readonly() -> None:
     catalog = _read_asset_catalog()
@@ -987,6 +889,13 @@ def _render_step_2_readonly() -> None:
             weight = allocation.get(asset.id, 0.0)
             with summary_cols[idx]:
                 st.metric(asset.name, f"{weight:.0f}%")
+        # if total allocation is not 100%, show a warning
+        alloc_total = sum(allocation.values())
+        error = abs(alloc_total - 100.0) > 0.01
+        if error:
+            st.error(
+                "Allocation must sum to 100%. Please edit and adjust the allocations to sum to 100%."
+            )
 
 
 def _render_step_2_edit() -> None:
@@ -1002,7 +911,7 @@ def _render_step_2_edit() -> None:
 
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
 
-    show_border = False # TODO: make this dynamic based on the section mode
+    show_border = False  # TODO: make this dynamic based on the section mode
 
     with st.container(border=False, key="portfolio_allocation_section", gap="small"):
         st.caption(
@@ -1015,11 +924,12 @@ def _render_step_2_edit() -> None:
         left_part, center_part, right_part = st.columns([3, 1, 2], gap="small")
 
         with left_part:
-
-            col_size = [5,3,1]
+            col_size = [5, 3, 1]
 
             def render_header():
-                header_cols = st.columns(col_size, )
+                header_cols = st.columns(
+                    col_size,
+                )
                 with header_cols[0]:
                     st.markdown("**Asset**")
                 with header_cols[1]:
@@ -1089,15 +999,14 @@ def _render_step_2_edit() -> None:
 
                 c1, c2, _ = st.columns(col_size)
 
-
                 alloc_total = sum(allocation.values())
                 error = abs(alloc_total - 100.0) > 0.01
-                divider_style = "margin: 0.5rem 0; border: none; border-top: 1px solid #e5e7eb;" # TODO: make this dynamic
+                divider_style = "margin: 0.5rem 0; border: none; border-top: 1px solid #e5e7eb;"  # TODO: make this dynamic
                 with c1:
                     st.markdown(
                         f'<hr style="{divider_style}" />',
                         unsafe_allow_html=True,
-                        )
+                    )
                     if error:
                         st.error("Allocation must sum to 100%")
                     else:
@@ -1142,7 +1051,8 @@ def _render_step_2_edit() -> None:
                 if st.button(
                     "Normalize",
                     width="stretch",
-                    help="Modify the allocation percentages proportionally to sum to 100%"):
+                    help="Modify the allocation percentages proportionally to sum to 100%",
+                ):
                     total = sum(allocation.values())
                     if total > 0:
                         st.session_state.allocation = {
@@ -1156,10 +1066,21 @@ def _render_step_2_edit() -> None:
                     width="stretch",
                     help="Reset the allocation percentages to the defaults",
                 ):
+                    fresh_catalog = default_asset_catalog()
+                    st.session_state.asset_catalog = fresh_catalog
+                    preset = st.session_state.get("mix_preset", "performance")
+                    defaults = DEFAULT_RISK_MIX_PRESETS.get(
+                        preset, DEFAULT_RISK_MIX_PRESETS.get("performance", {})
+                    )
                     st.session_state.allocation = {
-                        asset.id: asset.default_allocation for asset in _investable_assets(catalog)
+                        asset.id: float(defaults.get(asset.id, 0.0))
+                        for asset in _investable_assets(fresh_catalog)
                     }
+                    _init_mu_sigma_keys(fresh_catalog)
+                    _init_correlation_keys(fresh_catalog)
+
                     _request_allocation_widget_sync()
+                    st.rerun()
         with right_part:
             # render here a pie chart of the allocation
             pie_fig = build_pie_chart(
@@ -1168,7 +1089,7 @@ def _render_step_2_edit() -> None:
             )
             if pie_fig is not None:
                 with st.container(
-                    border=show_border,
+                    border=True,
                     key="portfolio_allocation_section_inner_pie",
                     height="stretch",
                     vertical_alignment="center",
@@ -1183,7 +1104,6 @@ def _render_step_2_edit() -> None:
 
 def _render_step_3_readonly() -> None:
     with st.container(border=False, key="assets_performance_and_vol", gap="small"):
-        
         catalog = st.session_state.asset_catalog
         mu_sigma = _read_mu_sigma(catalog)
         correlation_values = _read_correlation_values(catalog)
@@ -1213,24 +1133,37 @@ def _render_step_3_edit() -> None:
 
         with st.container(border=False):
             st.markdown(
-                '⚠️<span style="color: red;">It is the user sole responsibility to select appropriate values for each asset.</span>', help='For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."',
-                unsafe_allow_html=True, 
+                '⚠️<span style="color: orange;">It is the user sole responsibility to select appropriate values for each asset.</span>',
+                help='For help, the user may turn to an investment professional or try, at his own peril, to use an AI agent with a prompt like, for example : "Please provide historic average and standard deviation ofannual return and stock index X in the last Y years, net of investment expenses."',
+                unsafe_allow_html=True,
             )
-        
-        st.subheader("Returns", help='Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions.')
+
+        st.subheader(
+            "Returns",
+            help="Expected return (mu) and volatility (sigma) in percent. Returns are understood to be net of any and all applicable expenses and deductions.",
+        )
 
         left_part, right_part = st.columns(2, gap="small")
-        
+
         with left_part:
             with st.container(border=True, height="stretch"):
                 colWidths = [3, 1.5, 1.5]
                 header_cols = st.columns(colWidths)
                 with header_cols[0]:
-                    st.markdown("**Asset**", help='Go to Portfolio Allocation section to add or remove assets.')
+                    st.markdown(
+                        "**Asset**",
+                        help="Go to Portfolio Allocation section to add or remove assets.",
+                    )
                 with header_cols[1]:
-                    st.markdown("**μ (%)**", help='Expected return in percent. Returns are understood to be net of any and all applicable expenses and deductions.')
+                    st.markdown(
+                        "**μ (%)**",
+                        help="Expected return in percent. Returns are understood to be net of any and all applicable expenses and deductions.",
+                    )
                 with header_cols[2]:
-                    st.markdown("**σ (%)**", help='Volatility in percent. Volatility is a measure of the risk of the asset. It is calculated as the standard deviation of the asset\'s returns.')
+                    st.markdown(
+                        "**σ (%)**",
+                        help="Volatility in percent. Volatility is a measure of the risk of the asset. It is calculated as the standard deviation of the asset's returns.",
+                    )
 
                 for asset_id in return_model_asset_ids(catalog):
                     cols = st.columns(colWidths)
@@ -1241,7 +1174,7 @@ def _render_step_3_edit() -> None:
                             "μ (%)",
                             label_visibility="collapsed",
                             format="%.1f",
-                            step=0.1,
+                            step=1.0,
                             key=f"return_edit_mu_{asset_id}",
                             help=RETURN_ASSUMPTION_HELP["mu"],
                         )
@@ -1251,7 +1184,7 @@ def _render_step_3_edit() -> None:
                             min_value=0.0,
                             label_visibility="collapsed",
                             format="%.1f",
-                            step=0.1,
+                            step=1.0,
                             key=f"return_edit_sigma_{asset_id}",
                             help=RETURN_ASSUMPTION_HELP["sigma"],
                         )
@@ -1273,10 +1206,16 @@ def _render_step_3_edit() -> None:
                 if range_fig is not None:
                     st.pyplot(range_fig, transparent=True, width="content")
 
-        st.subheader("Pairwise correlations", help='Correlation between the returns of two assets. A value of 1 means the assets move perfectly together, a value of -1 means they move perfectly opposite, and a value of 0 means they are uncorrelated.')
+        st.subheader(
+            "Pairwise correlations",
+            help="Correlation between the returns of two assets. A value of 1 means the assets move perfectly together, a value of -1 means they move perfectly opposite, and a value of 0 means they are uncorrelated.",
+        )
         asset_order = return_model_asset_ids(catalog)
 
-        ccor = st.container(border=True, horizontal=True)
+        ccor0 = st.container(border=True, horizontal=True)
+        with ccor0:
+            ccor1 = st.container(border=False, horizontal=True)
+            ccor2 = st.container(border=False, width=150)
         for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
             label = f"{catalog.name(left)} \n\n {catalog.name(right)}"
             canonical = normalize_correlation_pair(left, right, asset_order)
@@ -1285,7 +1224,7 @@ def _render_step_3_edit() -> None:
                 edit_key,
                 float(st.session_state.correlation_values.get(canonical, 0.0)),
             )
-            with ccor:
+            with ccor1:
                 st.number_input(
                     label,
                     min_value=-1.0,
@@ -1295,15 +1234,23 @@ def _render_step_3_edit() -> None:
                     key=edit_key,
                     width=130,
                 )
-        with ccor:
+        with ccor2:
             st.button(
                 "Reset correlations to defaults",
                 key="return_assumptions_reset_corr",
                 width=130,
                 on_click=_reset_correlation_assumptions_to_defaults,
             )
+            st.button(
+                "Set no correlations",
+                help="Reset the correlation between all assets to zero",
+                key="return_assumptions_reset_all",
+                width=130,
+                on_click=_set_no_correlations,
+            )
 
         _sync_edit_widgets_to_return_assumptions(catalog)
+
 
 section1 = Section(
     name="Step 1",
@@ -1317,10 +1264,20 @@ section2 = Section(
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
 )
-section3 = Section(name="Step 3", title="Assets Performance",
+section3 = Section(
+    name="Step 3",
+    title="Assets Performance",
     edit_form=_render_step_3_edit,
     readonly_form=_render_step_3_readonly,
 )
+
+
+def _set_no_correlations() -> None:
+    catalog = st.session_state.asset_catalog
+    st.session_state.correlation_values = {
+        (left, right): 0.0 for left, right in _correlation_pairs(catalog)
+    }
+    _sync_return_assumptions_to_edit_widgets(catalog)
 
 
 def main() -> None:
@@ -1358,8 +1315,6 @@ def main() -> None:
 
     # Render the step 3 section
     section3.render()
-
-
 
     # Render the assets performance _vol_old(_read_asset_catalog())
 
