@@ -16,7 +16,7 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Theme tokens — adjust these values to customize the GUI appearance
 # ---------------------------------------------------------------------------
-THEME: dict[str, str] = {
+THEME: dict[str, str | int] = {
     # App title (st.title → h1)
     "title_font_size": "2.25rem",
     "title_font_weight": "600",
@@ -56,6 +56,7 @@ THEME: dict[str, str] = {
     "section_panel_background_edit": "#fffbeb",  # edit mode
     "section_panel_padding": "0.35rem 0.75rem",
     "section_panel_block_gap": "0.35rem",
+    "section_left_column_width": 100,
     # Tagline and captions
     "caption_font_size": "0.9rem",
     "caption_color": "#6b7280",
@@ -109,8 +110,8 @@ THEME: dict[str, str] = {
 }
 
 
-def _band_line_gradient(theme: Mapping[str, str]) -> str:
-    color = theme["header_band_color"]
+def _band_line_gradient(theme: Mapping[str, str | int]) -> str:
+    color = str(theme["header_band_color"])
     opacity = theme["header_band_opacity"]
     if color.startswith("#"):
         hex_color = color.lstrip("#")
@@ -122,7 +123,7 @@ def _band_line_gradient(theme: Mapping[str, str]) -> str:
     return f"linear-gradient(to right, transparent 0%, {color} 100%)"
 
 
-def build_css(theme: Mapping[str, str] | None = None) -> str:
+def build_css(theme: Mapping[str, str | int] | None = None) -> str:
     t = {**THEME, **(theme or {})}
     band_line = _band_line_gradient(t)
     line_height = t["header_band_line_height_pct"]

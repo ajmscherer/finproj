@@ -29,7 +29,7 @@ from typing import Any
 
 
 # from click_panel import ClickPanelRegistry
-from section import Section
+from section import SectionContentEditable
 
 import matplotlib
 
@@ -1252,19 +1252,21 @@ def _render_step_3_edit() -> None:
         _sync_edit_widgets_to_return_assumptions(catalog)
 
 
-section1 = Section(
+section1 = SectionContentEditable(
     name="Step 1",
     title="Projection Assumptions",
     edit_form=_render_step_1_edit,
     readonly_form=_render_step_1_readonly,
 )
-section2 = Section(
+
+section2 = SectionContentEditable(
     name="Step 2",
     title="Portfolio Allocation",
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
 )
-section3 = Section(
+
+section3 = SectionContentEditable(
     name="Step 3",
     title="Assets Performance",
     edit_form=_render_step_3_edit,
@@ -1318,7 +1320,7 @@ def main() -> None:
 
     # Render the assets performance _vol_old(_read_asset_catalog())
 
-    Section.install_click_handlers()
+    SectionContentEditable.install_click_handlers()
 
     # Install the section click handlers
     _install_section_click_handlers()
