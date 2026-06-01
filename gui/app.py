@@ -29,7 +29,7 @@ from typing import Any
 
 
 # from click_panel import ClickPanelRegistry
-from section import SectionContentEditable
+from section import (SectionContentEditable, Section)
 
 import matplotlib
 
@@ -581,6 +581,13 @@ def _format_correlation_summary(
     if not pairs:
         return "Correlations: none set"
     return "Correlations: " + ", ".join(pairs)
+
+def _set_no_correlations() -> None:
+    catalog = st.session_state.asset_catalog
+    st.session_state.correlation_values = {
+        (left, right): 0.0 for left, right in _correlation_pairs(catalog)
+    }
+    _sync_return_assumptions_to_edit_widgets(catalog)
 
 
 def _install_section_click_handlers() -> None:
@@ -1252,6 +1259,11 @@ def _render_step_3_edit() -> None:
         _sync_edit_widgets_to_return_assumptions(catalog)
 
 
+
+
+def _render_step_4_content() -> None:
+    pass
+
 section1 = SectionContentEditable(
     name="Step 1",
     title="Projection Assumptions",
@@ -1273,13 +1285,11 @@ section3 = SectionContentEditable(
     readonly_form=_render_step_3_readonly,
 )
 
-
-def _set_no_correlations() -> None:
-    catalog = st.session_state.asset_catalog
-    st.session_state.correlation_values = {
-        (left, right): 0.0 for left, right in _correlation_pairs(catalog)
-    }
-    _sync_return_assumptions_to_edit_widgets(catalog)
+section4 = Section(
+    name="Step 4",
+    title="Run and review analysis",
+    content_form=_render_step_4_content,
+)
 
 
 def main() -> None:
@@ -1318,12 +1328,12 @@ def main() -> None:
     # Render the step 3 section
     section3.render()
 
-    # Render the assets performance _vol_old(_read_asset_catalog())
+    section4.render()
 
     SectionContentEditable.install_click_handlers()
 
     # Install the section click handlers
-    _install_section_click_handlers()
+    # _install_section_click_handlers()
 
     st.header("Run and results")
     has_result = st.session_state.result is not None

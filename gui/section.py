@@ -10,6 +10,7 @@ import html
 from collections.abc import Callable
 from dataclasses import dataclass
 import streamlit as st
+from streamlit.delta_generator import DeltaGenerator
 from click_panel import ClickPanelRegistry, click_panel
 from theme import THEME
 
@@ -27,7 +28,7 @@ class SectionBaseLayout:
     def _slug(self) -> str:
         return self.name.lower().replace(" ", "_")
 
-    def getLayout(self):
+    def renderLayout(self) -> tuple[DeltaGenerator, DeltaGenerator]:
         with st.container(
             horizontal=True,
             gap="medium",
@@ -40,21 +41,29 @@ class SectionBaseLayout:
 @dataclass           
 class Section(SectionBaseLayout):
     title: str = "No Title"
+    content_form: Callable[[], None] = _need_to_be_implemented
     
-    def getLayout(self):
-        left, right0 =  super().getLayout()
+    @property
+    def _content_container_key(self) -> str:
+        return f"{self._slug}_panel"
+
+    def render(self) -> tuple[DeltaGenerator, DeltaGenerator]:
+        left, right0 =  super().renderLayout()
         with left:
             st.markdown(f'<p class="fp-section-title">{html.escape(self.name)}</p>', unsafe_allow_html=True)
         with right0:
             st.header(self.title)
-            right_key = f"{self._slug}_right_content"
-            right = st.container(width="stretch", border=True, key=right_key)
+            right = st.container(width="stretch", border=True, key=self._content_container_key)
+            with right:
+                self.content_form()
         return left, right
 
 @dataclass
 class SectionContentEditable(Section):
     edit_form: Callable[[], None] = _need_to_be_implemented
     readonly_form: Callable[[], None] = _need_to_be_implemented
+    done_button_text: str = "Done"
+    edit_button_text: str = "Edit"
 
     @property
     def _slug(self) -> str:
@@ -63,10 +72,6 @@ class SectionContentEditable(Section):
     @property
     def _frame_key(self) -> str:
         return f"section_{self._slug}"
-
-    @property
-    def _panel_key(self) -> str:
-        return f"{self._slug}_panel"
 
     @property
     def _handler_key(self) -> str:
@@ -90,8 +95,8 @@ class SectionContentEditable(Section):
     def _handle_panel_click(self) -> None:
         self.on_click()
 
-    def render(self) -> None:
-        _, right = self.getLayout()
+    def render(self) -> tuple[DeltaGenerator, DeltaGenerator]:
+        left, right = super().render()
         with right:
             mode_class = (
                 "fp-section-panel-edit"
@@ -102,7 +107,7 @@ class SectionContentEditable(Section):
                 f'<span class="{mode_class}" aria-hidden="true"></span>',
                 unsafe_allow_html=True,
             )
-            
+
             self._render_inside_panel()
 
             ClickPanelRegistry.register_handler(
@@ -110,9 +115,10 @@ class SectionContentEditable(Section):
                 self._handle_panel_click,
             )
             click_panel(
-                panel_key=self._panel_key,
+                panel_key=self._content_container_key,
                 handler_key=self._handler_key,
             )
+            return left, right
 
     @classmethod
     def install_click_handlers(cls) -> None:
@@ -130,7 +136,7 @@ class SectionContentEditable(Section):
             if self.editing:
                 self.edit_form()
                 st.button(
-                    "Close",
+                    self.done_button_text,
                     key=f"{self._slug}_done",
                     on_click=self.on_click,
                     help="Done editing this section",
@@ -138,7 +144,7 @@ class SectionContentEditable(Section):
             else:
                 self.readonly_form()
                 st.button(
-                    "Edit",
+                    self.edit_button_text,
                     key=f"{self._slug}_edit",
                     on_click=self.on_click,
                     help="Edit the content of this section",
