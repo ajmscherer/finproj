@@ -87,9 +87,10 @@ THEME: dict[str, str | int] = {
     "sidebar_header_color": "#111827",
     "sidebar_section_spacing": "1rem",
     # Buttons
-    "button_border_radius": "0.375rem",
-    "primary_button_background": "#2563eb",
-    "primary_button_color": "#ffffff",
+    "button_border_radius": "0.175rem",
+    "primary_button_background": "lightyellow",
+    "primary_button_font_size": "1.5rem",
+    "primary_button_color": "lightyellow",
     # Main content spacing
     "block_gap": "0.75rem",
     "main_padding_top": "1.25rem",

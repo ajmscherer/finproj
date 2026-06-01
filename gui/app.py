@@ -311,6 +311,14 @@ def _read_portfolio_fields() -> dict:
     return st.session_state.portfolio
 
 
+def _set_simulation_running(running: bool) -> None:
+    st.session_state.simulation_running = running
+
+
+def _simulation_running() -> bool:
+    return bool(st.session_state.get("simulation_running", False))
+
+
 def _init_session_state() -> None:
     st.session_state.setdefault("asset_catalog", default_asset_catalog())
     st.session_state.setdefault(
@@ -318,7 +326,7 @@ def _init_session_state() -> None:
     )
     st.session_state.setdefault("mix_preset", "performance")
     st.session_state.setdefault("result", None)
-    st.session_state.pop("simulation_running", None)
+    st.session_state.setdefault("simulation_running", False)
     _init_portfolio_fields()
     st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault("assumptions_name", "Untitled")
@@ -1262,7 +1270,22 @@ def _render_step_3_edit() -> None:
 
 
 def _render_step_4_content() -> None:
-    pass
+
+    st.write(f"Simulation running: {_simulation_running()}")
+    tabs = [st.container(), st.container()]
+
+    has_result = st.session_state.result is not None
+    if has_result:
+        result_area, button_area = tabs
+        button_text = "Refresh simulation"
+    else:
+        button_area, result_area = tabs
+        button_text = "Run simulation"
+    with result_area:
+        with st.container(border=True, key="step_4_result_area"):
+            st.write("Results")
+    with button_area:
+        st.button(button_text, type="primary", key="run_simulation_new", width="stretch")
 
 section1 = SectionContentEditable(
     name="Step 1",
@@ -1344,6 +1367,7 @@ def main() -> None:
 
     if run_clicked:
         live_charts_placeholder.empty()
+        _set_simulation_running(True)
         try:
             config = _collect_assumptions().to_simulation_config()
             validate_allocation(config.risk_mix, config.asset_catalog)
@@ -1390,10 +1414,13 @@ def main() -> None:
             )
             st.session_state.result = result
             st.session_state.result_max_year = int(_read_portfolio_fields()["max_year"])
+            st.rerun()
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
             st.error(f"Simulation failed: {exc}")
+        finally:
+            _set_simulation_running(False)
 
     if st.session_state.result is not None:
         result: RunResult = st.session_state.result
