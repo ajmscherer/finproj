@@ -1356,8 +1356,12 @@ def _can_run_simulation() -> bool:
 
 
 def _render_step_4_content() -> None:
+    can_run = _can_run_simulation()
     running = _simulation_running()
     has_result = st.session_state.result is not None
+
+    st.write(f"can_run: {can_run}     ---         running: {running}     ---      has_result: {has_result}")
+
     tabs = [st.container(), st.container()]
 
     if has_result:
