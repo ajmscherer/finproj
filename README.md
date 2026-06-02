@@ -50,24 +50,14 @@ Either approach will generate or update `output/output.csv` with the simulation 
 
 ### 2. Run as a web application (graphic user interface)
 
-Python 3.10 or higher is required to run the program from the web browser (graphic user interface).
-
-Install GUI dependencies once (the launcher scripts can also install them automatically if missing):
-
-```bash
-pip install -r requirements-gui.txt
-```
-
-Then launch the local app from the project root:
+Python 3.10 or higher is required. From the project root (after cloning or downloading the repository), launch the local app:
 
 - **Mac / Linux:** `./run_gui.sh`
 - **Windows:** double-click `run_gui.bat`, or run it from Command Prompt
 
-Alternatively:
+On the first run, the launcher creates a `.venv` folder in the project and installs GUI dependencies from `requirements-gui.txt` (this avoids system-wide `pip`, which modern Linux distributions often block).
 
-```bash
-python -m streamlit run gui/app.py
-```
+On Debian or Ubuntu, if virtual-environment creation fails, install: `sudo apt install python3-venv python3-full`, then run the launcher again.
 
 The GUI runs on `localhost` only. The main workflow has four sections:
 
@@ -377,7 +367,7 @@ For commercial licensing, pricing, or custom terms, please contact the author vi
 
 ## Editing credits
 
-Grok assisted Alex Scherer in editing this readme file, most significantly by proposing verbiage for the sections analyzing how the code works and proposing grammar and stylistic corrections. 
+Alex Scherer developed **finproj** with editorial and technical assistance from several AI assistants, including Grok, Cursor, and others. Their contributions include this README—especially the sections analyzing how the code works, grammar and stylistic review, and setup instructions for the web GUI—as well as related launcher scripts.
 
 ## Disclaimer
 
