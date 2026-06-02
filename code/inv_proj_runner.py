@@ -163,6 +163,15 @@ def validate_correlation(risk_param: dict, correlations: Dict[Tuple[str, str], f
     cholesky_decomposition(matrix)
 
 
+def simulation_can_run(config: SimulationConfig) -> bool:
+    try:
+        validate_allocation(config.risk_mix, config.asset_catalog)
+        validate_correlation(config.risk_param, config.risk_correlation)
+        return True
+    except Exception:
+        return False
+
+
 def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float:
     if not observer.values:
         return float('nan')

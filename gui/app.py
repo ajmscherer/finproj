@@ -65,6 +65,7 @@ from inv_proj_runner import (  # noqa: E402
     success_rate,
     validate_allocation,
     validate_correlation,
+    simulation_can_run,
 )
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
@@ -1348,6 +1349,10 @@ def _render_step_4_results(result: RunResult, result_year: int) -> None:
         )
     st.caption(f"CSV written to: {result.output_csv}")
     st.caption(f"Audit trail written to: {result.audit_path}")
+
+def _can_run_simulation() -> bool:
+    config = _collect_assumptions().to_simulation_config()
+    return simulation_can_run(config)
 
 
 def _render_step_4_content() -> None:
