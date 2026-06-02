@@ -1392,6 +1392,8 @@ def _render_step_4_content() -> None:
             disabled=running,
         ):
             _request_simulation_run()
+            
+    _process_pending_simulation_run()
 
 section1 = SectionContentEditable(
     name="Step 1",
@@ -1458,7 +1460,7 @@ def _render_workflow_sections() -> None:
     section2.render()
     section3.render()
     section4.render()
-    _process_pending_simulation_run()
+
     SectionContentEditable.install_click_handlers()
 
 
