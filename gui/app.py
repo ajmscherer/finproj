@@ -29,7 +29,7 @@ from typing import Any
 
 
 # from click_panel import ClickPanelRegistry
-from section import (SectionContentEditable, Section)
+from section import SectionContentEditable, Section
 
 import matplotlib
 
@@ -65,7 +65,7 @@ from inv_proj_runner import (  # noqa: E402
     success_rate,
     validate_allocation,
     validate_correlation,
-    simulation_can_run,
+    find_config_problems,
 )
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
@@ -655,6 +655,7 @@ def _format_correlation_summary(
     if not pairs:
         return "Correlations: none set"
     return "Correlations: " + ", ".join(pairs)
+
 
 def _set_no_correlations() -> None:
     catalog = st.session_state.asset_catalog
@@ -1333,8 +1334,6 @@ def _render_step_3_edit() -> None:
         _sync_edit_widgets_to_return_assumptions(catalog)
 
 
-
-
 def _render_step_4_results(result: RunResult, result_year: int) -> None:
     _render_charts(result)
     _render_outcome_probability_metrics(result, result_year)
@@ -1350,17 +1349,82 @@ def _render_step_4_results(result: RunResult, result_year: int) -> None:
     st.caption(f"CSV written to: {result.output_csv}")
     st.caption(f"Audit trail written to: {result.audit_path}")
 
-def _can_run_simulation() -> bool:
+
+def _check_config_validity() -> None:
     config = _collect_assumptions().to_simulation_config()
-    return simulation_can_run(config)
+    problems = find_config_problems(config)
+    if problems:
+        st.session_state.config_problems = problems
+    else:
+        st.session_state.config_problems = None
+
+
+def _has_result() -> bool:
+    return st.session_state.result is not None
 
 
 def _render_step_4_content() -> None:
-    can_run = _can_run_simulation()
+    _check_config_validity()
+    can_run = st.session_state.config_problems is None
     running = _simulation_running()
-    has_result = st.session_state.result is not None
+    has_result = _has_result()
 
-    st.write(f"can_run: {can_run}     ---         running: {running}     ---      has_result: {has_result}")
+    top_part, bottom_part = st.container(), st.container()
+
+    with top_part:
+        if running:
+            st.info("Monte Carlo simulation is running…")
+            charts_slot = st.empty()
+            st.session_state["_step_4_live_charts_placeholder"] = charts_slot
+        elif has_result:
+            result: RunResult = st.session_state.result
+            result_year = int(
+                st.session_state.get(
+                    "result_max_year",
+                    _read_portfolio_fields()["max_year"],
+                )
+            )
+            charts_slot = st.empty()
+            with charts_slot.container():
+                _render_step_4_results(result, result_year)
+            with st.container(border=True, horizontal=True):
+                if st.button(
+                    "Refresh simulation",
+                    width="stretch",
+                    type="primary",
+                    key="refresh_simulation",
+                    on_click=_request_simulation_run,
+                ):
+                    _request_simulation_run()
+                if st.button(
+                    "Discard simulation",
+                    width="stretch",
+                ):
+                    st.session_state.result = None
+                    st.rerun()
+        else:
+            if can_run:
+                st.info(
+                    "Configuration is valid. Click the button below to run the simulation."
+                )
+            else:
+                problems = st.session_state.config_problems
+                msg = "\n".join([f"- {str(problem)}" for problem in problems])
+                msg = f"Invalid configuration. Please check the assumptions and try again.\n{msg}"
+                st.error(msg)
+            if st.button(
+                "Run simulation",
+                key="run_simulation",
+                type="primary",
+                disabled=not can_run,
+                width="stretch",
+            ):
+                _request_simulation_run()
+
+    with bottom_part:
+        _process_pending_simulation_run()
+
+    return
 
     tabs = [st.container(), st.container()]
 
@@ -1376,7 +1440,9 @@ def _render_step_4_content() -> None:
             if running:
                 st.info("Monte Carlo simulation is running…")
             elif not has_result:
-                st.caption("Run a simulation to see charts and summary statistics here.")
+                st.caption(
+                    "Run a simulation to see charts and summary statistics here."
+                )
 
             charts_slot = st.empty()
             st.session_state["_step_4_live_charts_placeholder"] = charts_slot
@@ -1401,8 +1467,9 @@ def _render_step_4_content() -> None:
             disabled=running,
         ):
             _request_simulation_run()
-            
+
     _process_pending_simulation_run()
+
 
 section1 = SectionContentEditable(
     name="Step 1",

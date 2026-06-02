@@ -89,6 +89,7 @@ class SectionContentEditable(Section):
     def editing(self, value: bool) -> None:
         st.session_state[self._editing_state_key] = value
         st.session_state.simulation_running = False
+        st.session_state.result = None
 
     def on_click(self) -> None:
         self.editing = not self.editing

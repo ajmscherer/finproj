@@ -38,46 +38,52 @@ from inv_proj import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / 'output'
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 
 DEFAULT_RISK_MIX_PRESETS: Dict[str, Dict[str, float]] = {
-    'safe': {'bonds': 80, 'stocks': 20, 'pmetal': 1, 'crypto': 0, 'real_estate': 0},
-    'moderate': {'bonds': 45, 'stocks': 45, 'pmetal': 8, 'crypto': 2, 'real_estate': 0},
-    'performance': {'bonds': 30, 'stocks': 40, 'pmetal': 5, 'crypto': 5, 'real_estate': 20},
+    "safe": {"bonds": 80, "stocks": 20, "pmetal": 1, "crypto": 0, "real_estate": 0},
+    "moderate": {"bonds": 45, "stocks": 45, "pmetal": 8, "crypto": 2, "real_estate": 0},
+    "performance": {
+        "bonds": 30,
+        "stocks": 40,
+        "pmetal": 5,
+        "crypto": 5,
+        "real_estate": 20,
+    },
 }
 
 DEFAULT_RISK_PARAM = {
-    'cash': [{'from_year': 1, 'rv': 'norm', 'mu': 0.0, 'sigma': 0.0}],
-    'money_market': [{'from_year': 1, 'rv': 'norm', 'mu': 0.5, 'sigma': 4.0}],
-    'bonds': [{'from_year': 1, 'rv': 'norm', 'mu': 2.0, 'sigma': 10.0}],
-    'stocks': [{'from_year': 1, 'rv': 'norm', 'mu': 6.5, 'sigma': 20.0}],
-    'crypto': [{'from_year': 1, 'rv': 'norm', 'mu': 10.0, 'sigma': 50.0}],
-    'pmetal': [{'from_year': 1, 'rv': 'norm', 'mu': 1.0, 'sigma': 18.0}],
-    'real_estate': [{'from_year': 1, 'rv': 'norm', 'mu': 3.0, 'sigma': 15.0}],
+    "cash": [{"from_year": 1, "rv": "norm", "mu": 0.0, "sigma": 0.0}],
+    "money_market": [{"from_year": 1, "rv": "norm", "mu": 0.5, "sigma": 4.0}],
+    "bonds": [{"from_year": 1, "rv": "norm", "mu": 2.0, "sigma": 10.0}],
+    "stocks": [{"from_year": 1, "rv": "norm", "mu": 6.5, "sigma": 20.0}],
+    "crypto": [{"from_year": 1, "rv": "norm", "mu": 10.0, "sigma": 50.0}],
+    "pmetal": [{"from_year": 1, "rv": "norm", "mu": 1.0, "sigma": 18.0}],
+    "real_estate": [{"from_year": 1, "rv": "norm", "mu": 3.0, "sigma": 15.0}],
 }
 
 DEFAULT_RISK_CORRELATION: Dict[Tuple[str, str], float] = {
-    ('money_market', 'bonds'): 0.50,
-    ('stocks', 'bonds'): -0.20,
-    ('stocks', 'real_estate'): 0.30,
-    ('bonds', 'real_estate'): 0.10,
-    ('stocks', 'pmetal'): 0.05,
-    ('stocks', 'crypto'): 0.15,
+    ("money_market", "bonds"): 0.50,
+    ("stocks", "bonds"): -0.20,
+    ("stocks", "real_estate"): 0.30,
+    ("bonds", "real_estate"): 0.10,
+    ("stocks", "pmetal"): 0.05,
+    ("stocks", "crypto"): 0.15,
 }
 
-DEFAULT_NEW_ASSET_RISK = {'from_year': 1, 'rv': 'norm', 'mu': 5.0, 'sigma': 15.0}
+DEFAULT_NEW_ASSET_RISK = {"from_year": 1, "rv": "norm", "mu": 5.0, "sigma": 15.0}
 
 
 @dataclass
 class SimulationConfig:
-    initial_capital: str = '1M'
-    withdrawals: str = '40k'
-    cash_buffer: str = '100k'
+    initial_capital: str = "1M"
+    withdrawals: str = "40k"
+    cash_buffer: str = "100k"
     max_year: int = 15
     nb_projections: int = 2000
     asset_catalog: AssetCatalog = field(default_factory=default_asset_catalog)
     risk_mix: Dict[str, float] = field(
-        default_factory=lambda: copy.deepcopy(DEFAULT_RISK_MIX_PRESETS['performance'])
+        default_factory=lambda: copy.deepcopy(DEFAULT_RISK_MIX_PRESETS["performance"])
     )
     risk_param: dict = field(default_factory=lambda: copy.deepcopy(DEFAULT_RISK_PARAM))
     risk_correlation: Dict[Tuple[str, str], float] = field(
@@ -108,7 +114,9 @@ def return_model_asset_ids(catalog: AssetCatalog) -> List[str]:
     return catalog.return_model_ids()
 
 
-def normalize_correlation_pair(left: str, right: str, asset_order: List[str]) -> Tuple[str, str]:
+def normalize_correlation_pair(
+    left: str, right: str, asset_order: List[str]
+) -> Tuple[str, str]:
     if asset_order.index(left) <= asset_order.index(right):
         return left, right
     return right, left
@@ -137,12 +145,13 @@ def sync_config_with_catalog(config: SimulationConfig) -> None:
     valid_pairs = {
         normalize_correlation_pair(left, right, asset_order)
         for i, left in enumerate(asset_order)
-        for right in asset_order[i + 1:]
+        for right in asset_order[i + 1 :]
     }
     config.risk_correlation = {
         normalize_correlation_pair(left, right, asset_order): rho
         for (left, right), rho in config.risk_correlation.items()
-        if left in catalog.ids and right in catalog.ids
+        if left in catalog.ids
+        and right in catalog.ids
         and normalize_correlation_pair(left, right, asset_order) in valid_pairs
     }
 
@@ -151,37 +160,53 @@ def validate_allocation(risk_mix: Dict[str, float], catalog: AssetCatalog) -> No
     investable = set(catalog.investable_ids())
     unknown = set(risk_mix.keys()) - investable
     if unknown:
-        raise ValueError(f'Allocation includes unknown or non-investable assets: {", ".join(sorted(unknown))}')
+        raise ValueError(
+            f"Allocation includes unknown or non-investable assets: {', '.join(sorted(unknown))}"
+        )
     total = sum(risk_mix.values())
     if abs(total - 100) > 0.01:
-        raise ValueError(f'Asset allocation must sum to 100%, got {total:.1f}%')
+        raise ValueError(f"Asset allocation must sum to 100%, got {total:.1f}%")
 
 
-def validate_correlation(risk_param: dict, correlations: Dict[Tuple[str, str], float]) -> None:
+def validate_correlation(
+    risk_param: dict, correlations: Dict[Tuple[str, str], float]
+) -> None:
     risk_classes = list(risk_param.keys())
     matrix = build_correlation_matrix(risk_classes, correlations)
     cholesky_decomposition(matrix)
 
 
-def simulation_can_run(config: SimulationConfig) -> bool:
-    try:
+def find_config_problems(config: SimulationConfig) -> list[Exception]:
+    '''
+    Find problems with the configuration.
+    Returns a list of exceptions that occurred during validation.
+    '''
+    problems = []
+    def v1():
         validate_allocation(config.risk_mix, config.asset_catalog)
+    def v2():
         validate_correlation(config.risk_param, config.risk_correlation)
-        return True
-    except Exception:
-        return False
+
+    for validator in [v1, v2]:
+        try:
+            validator()
+        except Exception as e:
+            problems.append(e)
+            
+    return problems
+
 
 
 def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float:
     if not observer.values:
-        return float('nan')
+        return float("nan")
     successes = sum(1 for value in observer.values if value > threshold)
     return 100.0 * successes / len(observer.values)
 
 
 def rate_below(observer: StatisticalObserver, threshold: float = 0.0) -> float:
     if not observer.values:
-        return float('nan')
+        return float("nan")
     matches = sum(1 for value in observer.values if value < threshold)
     return 100.0 * matches / len(observer.values)
 
@@ -206,19 +231,21 @@ def _define_observers(
     for year in nav_years:
         nav_observer = StatisticalObserver(
             quantity=lambda projection, **param: projection.ptf_eop.total_value(),
-            condition=lambda projection, step, y=year, **params: (projection.period == y) & (step == ps.EOP),
+            condition=lambda projection, step, y=year, **params: (
+                (projection.period == y) & (step == ps.EOP)
+            ),
         )
-        nav[f'Net Asset Value @ year {year:>2}'] = nav_observer
+        nav[f"Net Asset Value @ year {year:>2}"] = nav_observer
         simulation.registerObserver(nav_observer)
 
     nav_fan = NavFanObserver(config.max_year)
     simulation.registerObserver(nav_fan)
 
-    audit_path = config.output_dir / 'audit.txt'
-    audit_observer = AuditObserver(out=open(audit_path, mode='w'))
+    audit_path = config.output_dir / "audit.txt"
+    audit_observer = AuditObserver(out=open(audit_path, mode="w"))
     simulation.registerObserver(audit_observer)
 
-    csv_observer = CSV_Observer(str(config.output_dir / 'output.csv'))
+    csv_observer = CSV_Observer(str(config.output_dir / "output.csv"))
     simulation.registerObserver(csv_observer)
 
     return nav, nav_fan
@@ -271,11 +298,13 @@ def run_simulation(
 
     for i in range(config.nb_projections):
         simulation.run(i + 1)
-        _call_progress_callback(progress_callback, i + 1, config.nb_projections, nav_fan)
+        _call_progress_callback(
+            progress_callback, i + 1, config.nb_projections, nav_fan
+        )
 
     return RunResult(
         nav_observers=nav,
         nav_fan=nav_fan,
-        output_csv=config.output_dir / 'output.csv',
-        audit_path=config.output_dir / 'audit.txt',
+        output_csv=config.output_dir / "output.csv",
+        audit_path=config.output_dir / "audit.txt",
     )
