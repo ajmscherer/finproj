@@ -1426,49 +1426,7 @@ def _render_step_4_content() -> None:
 
     return
 
-    tabs = [st.container(), st.container()]
-
-    if has_result:
-        result_area, button_area = tabs
-        button_text = "Refresh simulation"
-    else:
-        button_area, result_area = tabs
-        button_text = "Run simulation"
-
-    with result_area:
-        with st.container(border=True, key="step_4_result_area"):
-            if running:
-                st.info("Monte Carlo simulation is running…")
-            elif not has_result:
-                st.caption(
-                    "Run a simulation to see charts and summary statistics here."
-                )
-
-            charts_slot = st.empty()
-            st.session_state["_step_4_live_charts_placeholder"] = charts_slot
-
-            if has_result and not running:
-                result: RunResult = st.session_state.result
-                result_year = int(
-                    st.session_state.get(
-                        "result_max_year",
-                        _read_portfolio_fields()["max_year"],
-                    )
-                )
-                with charts_slot.container():
-                    _render_step_4_results(result, result_year)
-
-    with button_area:
-        if st.button(
-            button_text,
-            type="primary",
-            key="run_simulation",
-            width="stretch",
-            disabled=running,
-        ):
-            _request_simulation_run()
-
-    _process_pending_simulation_run()
+  
 
 
 section1 = SectionContentEditable(

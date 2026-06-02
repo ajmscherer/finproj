@@ -31,17 +31,17 @@ class SectionBaseLayout:
     def renderLayout(self) -> tuple[DeltaGenerator, DeltaGenerator]:
         with st.container(
             horizontal=True,
-            gap="medium",
+            gap="small", 
             vertical_alignment="center",
             key=f"section_{self._slug}_main_container",
         ):
-            left=st.container(width=self.left_column_width, key=f"{self._slug}_left_column")
-            right=st.container(width="stretch", key=f"{self._slug}_right_column")
+            left=st.container(width=self.left_column_width, key=f"{self._slug}_left_column", gap="small")
+            right=st.container(width="stretch", key=f"{self._slug}_right_column", gap="small")
             return left, right
 @dataclass           
 class Section(SectionBaseLayout):
     title: str = "No Title"
-    content_form: Callable[[], None] = _need_to_be_implemented
+    content_form: Callable[[], None]|None = None
     
     @property
     def _content_container_key(self) -> str:
@@ -55,7 +55,8 @@ class Section(SectionBaseLayout):
             st.header(self.title)
             right = st.container(width="stretch", border=True, key=self._content_container_key)
             with right:
-                self.content_form()
+                if self.content_form:
+                    self.content_form()
         return left, right
 
 @dataclass
