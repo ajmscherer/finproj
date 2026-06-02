@@ -57,7 +57,7 @@ DEFAULT_RISK_PARAM = {
     "money_market": [{"from_year": 1, "rv": "norm", "mu": 0.5, "sigma": 4.0}],
     "bonds": [{"from_year": 1, "rv": "norm", "mu": 2.0, "sigma": 10.0}],
     "stocks": [{"from_year": 1, "rv": "norm", "mu": 6.5, "sigma": 20.0}],
-    "crypto": [{"from_year": 1, "rv": "norm", "mu": 10.0, "sigma": 50.0}],
+    "crypto": [{"from_year": 1, "rv": "norm", "mu": 5.0, "sigma": 40.0}],
     "pmetal": [{"from_year": 1, "rv": "norm", "mu": 1.0, "sigma": 18.0}],
     "real_estate": [{"from_year": 1, "rv": "norm", "mu": 3.0, "sigma": 15.0}],
 }

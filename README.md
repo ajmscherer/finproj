@@ -7,8 +7,8 @@
 - It runs locally on your machine and is accessible via a user-friendly browser interface, guaranteeing the privacy and confidentiality of the data used in your simulations.
 
 <div align="center">
-<img src="screenshots/bandeau_image.jpeg" alt="Illustration of a couple walking on a beach" height="200">
-<img src="screenshots/GUI_Snapshot.png" alt="finproj GUI screenshot" height="200">
+<img src="screenshots/bandeau_image.jpeg" alt="Illustration of a couple walking on a beach" height="200" style="border:0; outline:0; vertical-align:middle;">
+<img src="screenshots/screen_recording1.gif" alt="finproj GUI demo animation" height="200" style="border:0; outline:0; vertical-align:middle;">
 </div>
 
 
@@ -27,7 +27,12 @@
 
 ## Quick Start
 
-You have the option to run the program from the command line or from a web browser (graphic user interface).
+The first thing to do is to download the program from the GitHub repository and install the required dependencies. If you are not familiar with GitHub, you may want to ask your favorite AI assistant to guide you with this. Here is a prompt that you can use:
+```
+I'm non-technical. Please help me install and run finproj (https://github.com/ajmscherer/finproj) on [Windows/Mac/Linux]. One step at a time. Phases: (1) explain requirements shortly, in plain English, (2) diagnose my PC for Python 3.10+, gh, disk, port 8501, (3) install only what's missing using official sources, (4) clone with `gh repo clone ajmscherer/finproj`, (5) run run_gui.bat or ./run_gui.sh and open http://localhost:8501. Use the project's .venv launcher — don't make me install Streamlit globally unless troubleshooting. Wait for my output after each step. Assume I don't have a GitHub account.
+```
+
+You then have the option to run the program from the command line or from a web browser (graphic user interface).
 
 ### 1. Run the programme from the command line (no graphic user interface)
 
