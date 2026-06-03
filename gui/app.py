@@ -156,10 +156,10 @@ def _init_correlation_keys(catalog: AssetCatalog) -> None:
 
 
 PORTFOLIO_FIELD_DEFAULTS = {
-    "initial_capital": "200k",
-    "contributions": "10k",
-    "withdrawals": "0k",
-    "cash_buffer": "10k",
+    "initial_capital": "1M",
+    "contributions": "0k",
+    "withdrawals": "50k",
+    "cash_buffer": "150k",
     "max_year": 20,
     "nb_projections": 2000,
 }
