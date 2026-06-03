@@ -156,10 +156,11 @@ def _init_correlation_keys(catalog: AssetCatalog) -> None:
 
 
 PORTFOLIO_FIELD_DEFAULTS = {
-    "initial_capital": "1M",
-    "withdrawals": "40k",
-    "cash_buffer": "100k",
-    "max_year": 15,
+    "initial_capital": "200k",
+    "contributions": "10k",
+    "withdrawals": "0k",
+    "cash_buffer": "10k",
+    "max_year": 20,
     "nb_projections": 2000,
 }
 
@@ -169,10 +170,15 @@ PORTFOLIO_FIELD_HELP = {
         "The cash buffer is set aside first; the rest is invested per your allocation. "
         "Supports shorthand such as 1M, 40k, or 2.5B."
     ),
+    "contributions": (
+        "Amount contributed to the portfolio every year. "
+        "Contributions are added to the initial capital. "
+        "Supports shorthand such as 40k or 50k. Must be positive."
+    ),
     "withdrawals": (
         "Amount withdrawn from the portfolio every year. "
         "Withdrawals are taken from the cash buffer first; any shortfall is covered by selling bonds. "
-        "Supports shorthand such as 40k or 50k."
+        "Supports shorthand such as 40k or 50k. Must be positive."
     ),
     "cash_buffer": (
         "Target cash reserve held in the liquidity asset (Cash). "
@@ -203,6 +209,7 @@ RETURN_ASSUMPTION_HELP = {
 
 PORTFOLIO_AMOUNT_FIELDS = (
     ("Initial capital", "portfolio_edit_initial_capital"),
+    ("Annual contributions", "portfolio_edit_contributions"),
     ("Annual withdrawals", "portfolio_edit_withdrawals"),
     ("Cash buffer", "portfolio_edit_cash_buffer"),
 )
@@ -246,6 +253,7 @@ def _init_portfolio_fields() -> None:
 def _sync_portfolio_to_edit_widgets() -> None:
     portfolio = st.session_state.portfolio
     st.session_state.portfolio_edit_initial_capital = portfolio["initial_capital"]
+    st.session_state.portfolio_edit_contributions = portfolio["contributions"]
     st.session_state.portfolio_edit_withdrawals = portfolio["withdrawals"]
     st.session_state.portfolio_edit_cash_buffer = portfolio["cash_buffer"]
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
@@ -255,6 +263,7 @@ def _sync_portfolio_to_edit_widgets() -> None:
 def _sync_edit_widgets_to_portfolio() -> None:
     portfolio = st.session_state.portfolio
     portfolio["initial_capital"] = st.session_state.portfolio_edit_initial_capital
+    portfolio["contributions"] = st.session_state.portfolio_edit_contributions
     portfolio["withdrawals"] = st.session_state.portfolio_edit_withdrawals
     portfolio["cash_buffer"] = st.session_state.portfolio_edit_cash_buffer
     portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
@@ -330,7 +339,8 @@ def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
     """Run Monte Carlo simulation. Returns True on success."""
     live_charts_placeholder.empty()
     try:
-        config = _collect_assumptions().to_simulation_config()
+        assumptions = _collect_assumptions()    
+        config = assumptions.to_simulation_config()
         validate_allocation(config.risk_mix, config.asset_catalog)
         validate_correlation(config.risk_param, config.risk_correlation)
         live_distribution_year = config.max_year
@@ -440,9 +450,10 @@ def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], flo
 def _collect_assumptions() -> Assumptions:
     catalog: AssetCatalog = _read_asset_catalog()
     portfolio = _read_portfolio_fields()
-    return Assumptions.from_gui_state(
+    assumptions = Assumptions.from_gui_state(
         name=st.session_state.assumptions_name.strip() or "Untitled",
         initial_capital=portfolio["initial_capital"],
+        contributions=portfolio["contributions"],
         withdrawals=portfolio["withdrawals"],
         cash_buffer=portfolio["cash_buffer"],
         max_year=int(portfolio["max_year"]),
@@ -454,7 +465,7 @@ def _collect_assumptions() -> Assumptions:
         mu_sigma=_read_mu_sigma(catalog),
         correlation_values=_read_correlation_values(catalog),
     )
-
+    return assumptions
 
 def _queue_assumptions_load(
     assumptions: Assumptions, file_path: Path | None = None
@@ -477,6 +488,7 @@ def _process_pending_assumptions() -> None:
 def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) -> None:
     st.session_state.portfolio = {
         "initial_capital": assumptions.initial_capital,
+        "contributions": assumptions.contributions,
         "withdrawals": assumptions.withdrawals,
         "cash_buffer": assumptions.cash_buffer,
         "max_year": assumptions.max_year,
@@ -885,28 +897,33 @@ def _render_live_charts(
 def _render_step_1_readonly() -> None:
     portfolio = st.session_state.portfolio
     with st.container(border=False, key="portfolio_section2"):
-        summary_cols = st.columns(5)
+        summary_cols = st.columns(6)
         summary_cols[0].metric(
             "Initial capital",
             portfolio["initial_capital"],
             help=PORTFOLIO_FIELD_HELP["initial_capital"],
         )
         summary_cols[1].metric(
+            "Annual contributions",
+            portfolio["contributions"],
+            help=PORTFOLIO_FIELD_HELP["contributions"],
+        )
+        summary_cols[2].metric(
             "Annual withdrawals",
             portfolio["withdrawals"],
             help=PORTFOLIO_FIELD_HELP["withdrawals"],
         )
-        summary_cols[2].metric(
+        summary_cols[3].metric(
             "Cash buffer",
             portfolio["cash_buffer"],
             help=PORTFOLIO_FIELD_HELP["cash_buffer"],
         )
-        summary_cols[3].metric(
+        summary_cols[4].metric(
             "Horizon",
             f"{int(portfolio['max_year'])} yrs",
             help=PORTFOLIO_FIELD_HELP["max_year"],
         )
-        summary_cols[4].metric(
+        summary_cols[5].metric(
             "Projections",
             f"{int(portfolio['nb_projections']):,}",
             help=PORTFOLIO_FIELD_HELP["nb_projections"],
@@ -924,6 +941,11 @@ def _render_step_1_edit() -> None:
                 "Initial capital",
                 key="portfolio_edit_initial_capital",
                 help=PORTFOLIO_FIELD_HELP["initial_capital"],
+            )
+            st.text_input(
+                "Annual contributions",
+                key="portfolio_edit_contributions",
+                help=PORTFOLIO_FIELD_HELP["contributions"],
             )
             st.text_input(
                 "Annual withdrawals",

@@ -1,0 +1,79 @@
+{
+  "format_version": 1,
+  "name": "Untitled",
+  "initial_capital": "100k",
+  "contributions": "0",
+  "withdrawals": "0k",
+  "cash_buffer": "10k",
+  "max_year": 20,
+  "nb_projections": 2000,
+  "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
+  "mix_preset": "performance",
+  "asset_catalog": [
+    {
+      "id": "cash",
+      "name": "Cash",
+      "required": true,
+      "roles": [
+        "liquidity"
+      ]
+    },
+    {
+      "id": "money_market",
+      "name": "Money Market",
+      "required": true,
+      "roles": [
+        "investable"
+      ]
+    },
+    {
+      "id": "bonds",
+      "name": "Bonds",
+      "required": true,
+      "roles": [
+        "investable",
+        "replenishment",
+        "shortfall"
+      ]
+    },
+    {
+      "id": "stocks",
+      "name": "Stocks",
+      "required": true,
+      "roles": [
+        "investable"
+      ]
+    }
+  ],
+  "allocation": {
+    "money_market": 100.0,
+    "bonds": 0.0,
+    "stocks": 0.0
+  },
+  "mu_sigma": {
+    "cash": {
+      "mu": 0.0,
+      "sigma": 0.0
+    },
+    "money_market": {
+      "mu": 0.0,
+      "sigma": 0.1
+    },
+    "bonds": {
+      "mu": 2.0,
+      "sigma": 10.0
+    },
+    "stocks": {
+      "mu": 6.5,
+      "sigma": 20.0
+    }
+  },
+  "correlations": {
+    "cash|money_market": 0.0,
+    "cash|bonds": 0.0,
+    "cash|stocks": 0.0,
+    "money_market|bonds": 0.5,
+    "money_market|stocks": 0.0,
+    "bonds|stocks": -0.2
+  }
+}

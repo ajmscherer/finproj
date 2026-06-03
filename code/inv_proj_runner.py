@@ -77,7 +77,8 @@ DEFAULT_NEW_ASSET_RISK = {"from_year": 1, "rv": "norm", "mu": 5.0, "sigma": 15.0
 @dataclass
 class SimulationConfig:
     initial_capital: str = "1M"
-    withdrawals: str = "40k"
+    contributions: str = "40k"
+    withdrawals: str = "0k"
     cash_buffer: str = "100k"
     max_year: int = 15
     nb_projections: int = 2000
@@ -284,6 +285,7 @@ def run_simulation(
 
     simulation = Projection(
         initial_capital=config.initial_capital,
+        contributions=config.contributions,
         withdrawals=config.withdrawals,
         cashBuffer=config.cash_buffer,
         risk_mix=config.risk_mix,

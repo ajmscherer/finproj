@@ -23,7 +23,7 @@ import copy
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 from asset_classes import AssetCatalog, AssetClass, default_asset_catalog
 from inv_proj_runner import (
@@ -77,7 +77,8 @@ def _correlation_from_key(key: str) -> Tuple[str, str]:
 class Assumptions:
     name: str = 'Untitled'
     initial_capital: str = '1M'
-    withdrawals: str = '40k'
+    contributions: str = '40k'  
+    withdrawals: str = '10k'
     cash_buffer: str = '100k'
     max_year: int = 15
     nb_projections: int = 2000
@@ -102,7 +103,8 @@ class Assumptions:
         cls,
         *,
         name: str,
-        initial_capital: str,
+        initial_capital: str,   
+        contributions: str,
         withdrawals: str,
         cash_buffer: str,
         max_year: int,
@@ -123,6 +125,7 @@ class Assumptions:
         return cls(
             name=name,
             initial_capital=initial_capital,
+            contributions=contributions,
             withdrawals=withdrawals,
             cash_buffer=cash_buffer,
             max_year=int(max_year),
@@ -165,6 +168,7 @@ class Assumptions:
         }
         config = SimulationConfig(
             initial_capital=self.initial_capital,
+            contributions=self.contributions,
             withdrawals=self.withdrawals,
             cash_buffer=self.cash_buffer,
             max_year=self.max_year,
@@ -183,6 +187,7 @@ class Assumptions:
             'format_version': self.format_version,
             'name': self.name,
             'initial_capital': self.initial_capital,
+            'contributions': self.contributions,
             'withdrawals': self.withdrawals,
             'cash_buffer': self.cash_buffer,
             'max_year': self.max_year,
@@ -208,6 +213,7 @@ class Assumptions:
             format_version=version,
             name=data.get('name', 'Untitled'),
             initial_capital=data['initial_capital'],
+            contributions=data['contributions'],
             withdrawals=data['withdrawals'],
             cash_buffer=data['cash_buffer'],
             max_year=int(data['max_year']),

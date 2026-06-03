@@ -438,6 +438,7 @@ class Projection(Observable):
     def __init__(
         self,
         initial_capital,
+        contributions,
         withdrawals,
         cashBuffer,
         risk_mix,
@@ -450,6 +451,7 @@ class Projection(Observable):
         '''
         arguments:
             capital:        the initial amount of capital
+            contributions:  the amount of money contributed in each period
             withdrawals:    the amount of money spent in each period
             cashBuffer:     the target amount of cash that needs to be held when possible
             risk_mix:       the allocation of capital by asset id
@@ -467,6 +469,7 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
+        self.contributions = cv(contributions)
         self.withdrawals = cv(withdrawals)
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
@@ -524,13 +527,13 @@ class Projection(Observable):
 
         # determine how much cash is available
         self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
-        self.cashDepletion = min(self.withdrawals, self.availableCash)
+        self.cashDepletion = min(self.withdrawals-self.contributions, self.availableCash)
         self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
         
         self.ptf1 = self.ptf_bop.dup()
-        self.shortfall = self.withdrawals - self.cashDepletion
+        self.shortfall = self.withdrawals - self.contributions - self.cashDepletion
         self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
         if self.shortfall_asset_id not in self.ptf1.lines:
             self.ptf1.lines[self.shortfall_asset_id] = 0.0
