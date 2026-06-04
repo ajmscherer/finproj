@@ -24,9 +24,18 @@ fi
 # shellcheck source=/dev/null
 source .venv/bin/activate
 
-if ! python -c "import streamlit" 2>/dev/null; then
+# Determine the python executable inside the activated venv.
+# Some macOS setups only create a 'python3' symlink (no bare 'python'),
+# so we fall back gracefully instead of assuming 'python' exists.
+if command -v python &>/dev/null; then
+  VENV_PYTHON=python
+else
+  VENV_PYTHON=python3
+fi
+
+if ! "$VENV_PYTHON" -c "import streamlit" 2>/dev/null; then
   echo "Installing GUI dependencies from requirements-gui.txt ..."
-  python -m pip install -r requirements-gui.txt
+  "$VENV_PYTHON" -m pip install -r requirements-gui.txt
 fi
 
 PORT=8501
@@ -36,4 +45,4 @@ if lsof -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   exit 1
 fi
 
-exec python -m streamlit run gui/app.py --server.address localhost --server.headless false "$@"
+exec "$VENV_PYTHON" -m streamlit run gui/app.py --server.address localhost --server.headless false "$@"
