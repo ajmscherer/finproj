@@ -336,7 +336,12 @@ def _request_simulation_run() -> None:
 
 
 def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
-    """Run Monte Carlo simulation. Returns True on success."""
+    """
+    Run Monte Carlo simulation. Returns True on success.
+    
+    live_charts_placeholder: the placeholder for the live charts
+    """
+
     live_charts_placeholder.empty()
     try:
         assumptions = _collect_assumptions()    
@@ -379,6 +384,7 @@ def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
         )
 
         live_charts_placeholder.empty()
+
         progress.progress(1.0, text="Simulation complete.")
         status.success(
             f"Finished {config.nb_projections:,} projections over {config.max_year} years."

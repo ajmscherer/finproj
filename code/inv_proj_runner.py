@@ -226,6 +226,12 @@ def _define_observers(
     simulation: Projection,
     config: SimulationConfig,
 ) -> tuple[Dict[str, StatisticalObserver], NavFanObserver]:
+    '''
+    Define the observers for the simulation.
+    simulation: the simulation to observe
+    config: the configuration for the simulation
+    '''
+    
     nav: Dict[str, StatisticalObserver] = {}
     nav_years = nav_observer_years(config.max_year)
 
@@ -270,6 +276,11 @@ def run_simulation(
     config: SimulationConfig,
     progress_callback: Optional[Callable[..., None]] = None,
 ) -> RunResult:
+    '''
+    Run a simulation.
+    config: the configuration for the simulation
+    progress_callback: the callback to call to update the progress bar
+    '''
     sync_config_with_catalog(config)
     config.asset_catalog.validate()
     validate_allocation(config.risk_mix, config.asset_catalog)

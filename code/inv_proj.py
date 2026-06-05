@@ -479,7 +479,10 @@ class Projection(Observable):
         self.nb_projections = nb_projections
         
     def run(self,id):
-        '''Method to run a single projection'''
+        '''
+        Method to run a single projection
+        id: the id of the projection to run
+        '''
 
         # init simulation
         self.start(id)
@@ -758,7 +761,7 @@ class CSV_Observer(Observer):
         self.file_name = file_name
         self.lines =[]
         self.ptfs =['ptf_bop','ptf_eop',     'ptf1', 'ptf2', 'ptf3', 'ptf4', 'ptf5']
-        self.vars = [ 'withdrawals', 'availableCash', 'cashBuffer', 'cashDepletion','shortfall', 'cashReplenishment','financialGainLoss']
+        self.vars = [ 'contributions', 'withdrawals', 'availableCash', 'cashBuffer', 'cashDepletion','shortfall', 'cashReplenishment','financialGainLoss']
 
     def _addLine(self, items):
         line = ",".join(items)
@@ -791,7 +794,6 @@ class CSV_Observer(Observer):
         for var in self.vars:
             newLine(var,'',observed.__dict__[var])
         
-        pass
 
     def save(self, observed):
 
