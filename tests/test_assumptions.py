@@ -18,6 +18,7 @@ class AssumptionsTest(unittest.TestCase):
         assumptions = Assumptions.from_gui_state(
             name='Test scenario',
             initial_capital='2M',
+            contributions='100k',
             withdrawals='50k',
             cash_buffer='120k',
             max_year=20,
@@ -42,6 +43,7 @@ class AssumptionsTest(unittest.TestCase):
         assumptions = Assumptions.from_gui_state(
             name='File test',
             initial_capital=config.initial_capital,
+            contributions=config.contributions,
             withdrawals=config.withdrawals,
             cash_buffer=config.cash_buffer,
             max_year=config.max_year,
@@ -67,6 +69,7 @@ class AssumptionsTest(unittest.TestCase):
         assumptions = Assumptions.from_gui_state(
             name='Runnable',
             initial_capital=config.initial_capital,
+            contributions=config.contributions,
             withdrawals=config.withdrawals,
             cash_buffer=config.cash_buffer,
             max_year=config.max_year,

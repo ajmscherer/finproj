@@ -178,13 +178,15 @@ def validate_correlation(
 
 
 def find_config_problems(config: SimulationConfig) -> list[Exception]:
-    '''
+    """
     Find problems with the configuration.
     Returns a list of exceptions that occurred during validation.
-    '''
+    """
     problems = []
+
     def v1():
         validate_allocation(config.risk_mix, config.asset_catalog)
+
     def v2():
         validate_correlation(config.risk_param, config.risk_correlation)
 
@@ -193,9 +195,8 @@ def find_config_problems(config: SimulationConfig) -> list[Exception]:
             validator()
         except Exception as e:
             problems.append(e)
-            
-    return problems
 
+    return problems
 
 
 def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float:
@@ -226,12 +227,12 @@ def _define_observers(
     simulation: Projection,
     config: SimulationConfig,
 ) -> tuple[Dict[str, StatisticalObserver], NavFanObserver]:
-    '''
+    """
     Define the observers for the simulation.
     simulation: the simulation to observe
     config: the configuration for the simulation
-    '''
-    
+    """
+
     nav: Dict[str, StatisticalObserver] = {}
     nav_years = nav_observer_years(config.max_year)
 
@@ -276,11 +277,11 @@ def run_simulation(
     config: SimulationConfig,
     progress_callback: Optional[Callable[..., None]] = None,
 ) -> RunResult:
-    '''
+    """
     Run a simulation.
     config: the configuration for the simulation
     progress_callback: the callback to call to update the progress bar
-    '''
+    """
     sync_config_with_catalog(config)
     config.asset_catalog.validate()
     validate_allocation(config.risk_mix, config.asset_catalog)
