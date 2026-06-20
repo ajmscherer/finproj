@@ -2,3 +2,4 @@
 # Core simulation engine remains stdlib-only.
 streamlit>=1.55.0,<2
 matplotlib>=3.10.0,<4
+viva @ git+https://github.com/ajmscherer/viva.git

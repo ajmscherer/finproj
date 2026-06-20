@@ -25,6 +25,11 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 from asset_classes import AssetCatalog, default_asset_catalog
+from viva_adapter import (
+    HAS_VIVA,
+    default_viva_start_year,
+    resolve_viva_schedules,
+)
 from inv_proj import (
     AuditObserver,
     CSV_Observer,
@@ -91,6 +96,9 @@ class SimulationConfig:
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_CORRELATION)
     )
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
+    viva_source: Optional[str] = None
+    viva_start_year: Optional[int] = None
+    viva_probabilistic: bool = False
 
 
 @dataclass
@@ -273,6 +281,34 @@ def _call_progress_callback(
         callback(current, total)
 
 
+def _viva_configured(config: SimulationConfig) -> bool:
+    return bool(config.viva_source and config.viva_source.strip())
+
+
+def _resolve_viva_for_config(
+    config: SimulationConfig,
+    *,
+    seed: Optional[int] = None,
+):
+    viva_source = config.viva_source
+    if not viva_source or not viva_source.strip():
+        return None, None
+    if not HAS_VIVA:
+        raise ImportError(
+            "Viva cash-flow model is configured but viva is not installed. "
+            "Install with: pip install -r requirements-gui.txt"
+        )
+    start_year = config.viva_start_year or default_viva_start_year()
+    schedule = resolve_viva_schedules(
+        viva_source,
+        start_year=start_year,
+        horizon_years=config.max_year,
+        seed=seed,
+        probabilistic=config.viva_probabilistic,
+    )
+    return schedule.contributions, schedule.withdrawals
+
+
 def run_simulation(
     config: SimulationConfig,
     progress_callback: Optional[Callable[..., None]] = None,
@@ -295,6 +331,8 @@ def run_simulation(
         asset_names=config.asset_catalog.name_map(),
     )
 
+    contrib_schedule, withdraw_schedule = _resolve_viva_for_config(config)
+
     simulation = Projection(
         initial_capital=config.initial_capital,
         contributions=config.contributions,
@@ -306,11 +344,16 @@ def run_simulation(
         nb_projections=config.nb_projections,
         asset_catalog=config.asset_catalog,
         correlations=config.risk_correlation,
+        contributions_schedule=contrib_schedule,
+        withdrawals_schedule=withdraw_schedule,
     )
 
     nav, nav_fan = _define_observers(simulation, config)
 
     for i in range(config.nb_projections):
+        if _viva_configured(config) and config.viva_probabilistic:
+            contrib, withdraw = _resolve_viva_for_config(config, seed=i + 1)
+            simulation.set_flow_schedules(contrib, withdraw)
         simulation.run(i + 1)
         _call_progress_callback(
             progress_callback, i + 1, config.nb_projections, nav_fan

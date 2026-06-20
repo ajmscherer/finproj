@@ -447,6 +447,8 @@ class Projection(Observable):
         nb_projections,
         asset_catalog,
         correlations=None,
+        contributions_schedule=None,
+        withdrawals_schedule=None,
     ):
         '''
         arguments:
@@ -460,6 +462,8 @@ class Projection(Observable):
             nb_projections: the number of projections to run
             asset_catalog:  asset definitions and role mapping
             correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
+            contributions_schedule: optional per-period contributions (period 1 = index 0)
+            withdrawals_schedule: optional per-period withdrawals (period 1 = index 0)
 
         '''
 
@@ -469,15 +473,37 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
-        self.contributions = cv(contributions)
-        self.withdrawals = cv(withdrawals)
+        self._base_contributions = cv(contributions)
+        self._base_withdrawals = cv(withdrawals)
+        self.contributions = self._base_contributions
+        self.withdrawals = self._base_withdrawals
+        self.contributions_schedule = contributions_schedule
+        self.withdrawals_schedule = withdrawals_schedule
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
         self.correlated_returns = CorrelatedReturns(risk_distrib, correlations=correlations)
         self.nb_years = nb_years
         self.nb_projections = nb_projections
-        
+
+    def set_flow_schedules(
+        self,
+        contributions_schedule,
+        withdrawals_schedule,
+    ) -> None:
+        self.contributions_schedule = contributions_schedule
+        self.withdrawals_schedule = withdrawals_schedule
+
+    def _resolve_period_flows(self, period: int) -> None:
+        if self.contributions_schedule is not None:
+            self.contributions = self.contributions_schedule[period - 1]
+        else:
+            self.contributions = self._base_contributions
+        if self.withdrawals_schedule is not None:
+            self.withdrawals = self.withdrawals_schedule[period - 1]
+        else:
+            self.withdrawals = self._base_withdrawals
+
     def run(self,id):
         '''
         Method to run a single projection
@@ -521,6 +547,7 @@ class Projection(Observable):
 
         # retrieve period
         self.period = period
+        self._resolve_period_flows(period)
 
         # notify observers
         self.notifyObservers(step=ps.BOP)

@@ -89,6 +89,9 @@ class Assumptions:
     mu_sigma: Dict[str, Dict[str, float]] = field(default_factory=dict)
     correlations: Dict[str, float] = field(default_factory=dict)
     format_version: int = ASSUMPTIONS_FORMAT_VERSION
+    viva_source: str = ''
+    viva_start_year: int | None = None
+    viva_probabilistic: bool = False
 
     def __post_init__(self) -> None:
         if not self.allocation:
@@ -115,6 +118,9 @@ class Assumptions:
         allocation: Dict[str, float],
         mu_sigma: Dict[str, Tuple[float, float]],
         correlation_values: Dict[Tuple[str, str], float],
+        viva_source: str = '',
+        viva_start_year: int | None = None,
+        viva_probabilistic: bool = False,
     ) -> Assumptions:
         asset_order = asset_catalog.return_model_ids()
         correlations = {}
@@ -139,6 +145,9 @@ class Assumptions:
                 for asset_id, (mu, sigma) in mu_sigma.items()
             },
             correlations=correlations,
+            viva_source=viva_source,
+            viva_start_year=viva_start_year,
+            viva_probabilistic=viva_probabilistic,
         )
 
     def correlation_values(self) -> Dict[Tuple[str, str], float]:
@@ -178,6 +187,9 @@ class Assumptions:
             risk_param=risk_param,
             risk_correlation=self.correlation_values(),
             output_dir=Path(self.output_dir),
+            viva_source=self.viva_source or None,
+            viva_start_year=self.viva_start_year,
+            viva_probabilistic=self.viva_probabilistic,
         )
         sync_config_with_catalog(config)
         return config
@@ -198,6 +210,9 @@ class Assumptions:
             'allocation': copy.deepcopy(self.allocation),
             'mu_sigma': copy.deepcopy(self.mu_sigma),
             'correlations': copy.deepcopy(self.correlations),
+            'viva_source': self.viva_source,
+            'viva_start_year': self.viva_start_year,
+            'viva_probabilistic': self.viva_probabilistic,
         }
 
     @classmethod
@@ -227,6 +242,9 @@ class Assumptions:
                 for asset_id, params in data['mu_sigma'].items()
             },
             correlations={k: float(v) for k, v in data.get('correlations', {}).items()},
+            viva_source=data.get('viva_source', ''),
+            viva_start_year=data.get('viva_start_year'),
+            viva_probabilistic=bool(data.get('viva_probabilistic', False)),
         )
         assumptions.asset_catalog.validate()
         return assumptions

@@ -67,6 +67,7 @@ from inv_proj_runner import (  # noqa: E402
     validate_correlation,
     find_config_problems,
 )
+from viva_adapter import HAS_VIVA, default_viva_start_year  # noqa: E402
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
 
@@ -162,6 +163,9 @@ PORTFOLIO_FIELD_DEFAULTS = {
     "cash_buffer": "150k",
     "max_year": 20,
     "nb_projections": 2000,
+    "viva_source": "",
+    "viva_start_year": default_viva_start_year(),
+    "viva_probabilistic": False,
 }
 
 PORTFOLIO_FIELD_HELP = {
@@ -193,6 +197,23 @@ PORTFOLIO_FIELD_HELP = {
         "Number of simulation projections to run. "
         "More projections produce smoother statistics but take longer. "
         "Counts above 5,000 can take several minutes."
+    ),
+}
+
+VIVA_FIELD_HELP = {
+    "viva_source": (
+        "Optional [Viva](https://github.com/ajmscherer/viva) DSL program describing "
+        "portfolio contributions and withdrawals over time. When set, Viva schedules "
+        "replace the flat annual amounts above. Positive amounts are contributions "
+        "(e.g. `flow: insurance, 100k, upon death`); negative amounts are withdrawals."
+    ),
+    "viva_start_year": (
+        "Calendar year for period 1 of the simulation when using a Viva model."
+    ),
+    "viva_probabilistic": (
+        "Draw probabilistic life events from Viva on each Monte Carlo projection. "
+        "Requires a Viva Pro license after the 30-day evaluation; deterministic "
+        "flows are MIT-licensed."
     ),
 }
 
@@ -258,6 +279,13 @@ def _sync_portfolio_to_edit_widgets() -> None:
     st.session_state.portfolio_edit_cash_buffer = portfolio["cash_buffer"]
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
+    st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
+    st.session_state.portfolio_edit_viva_start_year = int(
+        portfolio.get("viva_start_year", default_viva_start_year())
+    )
+    st.session_state.portfolio_edit_viva_probabilistic = bool(
+        portfolio.get("viva_probabilistic", False)
+    )
 
 
 def _sync_edit_widgets_to_portfolio() -> None:
@@ -268,6 +296,11 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["cash_buffer"] = st.session_state.portfolio_edit_cash_buffer
     portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
     portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
+    portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
+    portfolio["viva_start_year"] = int(st.session_state.portfolio_edit_viva_start_year)
+    portfolio["viva_probabilistic"] = bool(
+        st.session_state.portfolio_edit_viva_probabilistic
+    )
 
 
 def _exit_portfolio_edit(*, force: bool = False) -> None:
@@ -470,6 +503,9 @@ def _collect_assumptions() -> Assumptions:
         allocation=dict(st.session_state.allocation),
         mu_sigma=_read_mu_sigma(catalog),
         correlation_values=_read_correlation_values(catalog),
+        viva_source=portfolio.get("viva_source", ""),
+        viva_start_year=int(portfolio.get("viva_start_year", default_viva_start_year())),
+        viva_probabilistic=bool(portfolio.get("viva_probabilistic", False)),
     )
     return assumptions
 
@@ -499,6 +535,9 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         "cash_buffer": assumptions.cash_buffer,
         "max_year": assumptions.max_year,
         "nb_projections": assumptions.nb_projections,
+        "viva_source": assumptions.viva_source,
+        "viva_start_year": assumptions.viva_start_year or default_viva_start_year(),
+        "viva_probabilistic": assumptions.viva_probabilistic,
     }
     st.session_state.output_dir = assumptions.output_dir
     st.session_state.mix_preset = assumptions.mix_preset
@@ -934,6 +973,11 @@ def _render_step_1_readonly() -> None:
             f"{int(portfolio['nb_projections']):,}",
             help=PORTFOLIO_FIELD_HELP["nb_projections"],
         )
+        if portfolio.get("viva_source", "").strip():
+            st.caption(
+                "Viva cash-flow model active — flat annual amounts are overridden "
+                "by the Viva schedule (positive = contribution, negative = withdrawal)."
+            )
 
 
 def _render_step_1_edit() -> None:
@@ -985,6 +1029,46 @@ def _render_step_1_edit() -> None:
                 st.warning("Large projection counts can take several minutes.")
         for message in _validate_portfolio_amount_inputs():
             st.error(message)
+
+        with st.expander("Viva cash-flow model (optional)", expanded=False):
+            if not HAS_VIVA:
+                st.warning(
+                    "Viva is not installed in this environment. "
+                    "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
+                )
+            st.text_area(
+                "Viva program",
+                key="portfolio_edit_viva_source",
+                height=180,
+                help=VIVA_FIELD_HELP["viva_source"],
+                placeholder=(
+                    "life: Julian, person, born 1980\n"
+                    "event: death, at age 90\n"
+                    "flow: insurance, 100k, upon death\n"
+                    "flow: living_expenses, -50k per year, for 20 years"
+                ),
+            )
+            viva_col1, viva_col2 = st.columns(2)
+            with viva_col1:
+                st.number_input(
+                    "Viva start year",
+                    min_value=1900,
+                    max_value=2200,
+                    step=1,
+                    key="portfolio_edit_viva_start_year",
+                    help=VIVA_FIELD_HELP["viva_start_year"],
+                )
+            with viva_col2:
+                st.checkbox(
+                    "Probabilistic life events",
+                    key="portfolio_edit_viva_probabilistic",
+                    help=VIVA_FIELD_HELP["viva_probabilistic"],
+                )
+            if st.session_state.portfolio_edit_viva_probabilistic:
+                st.info(
+                    "Probabilistic Viva features require a Viva Pro license after "
+                    "the 30-day evaluation period. Deterministic flows remain MIT-licensed."
+                )
 
         _sync_edit_widgets_to_portfolio()
 

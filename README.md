@@ -24,6 +24,34 @@
 - **Interactive results**: NAV fan chart (median with nested probability-density bands), horizon-year NAV distribution histogram, and key outcome probabilities
 - Companion Excel workbook (`output/finproj.xlsx`) for deeper analysis (scenario navigator, additional charts)
 - Runs entirely on your local machine — no cloud services or third-party APIs; suitable for sensitive financial data
+- **Optional [Viva](https://github.com/ajmscherer/viva) integration** — model life-event-driven contributions and withdrawals with the Viva DSL instead of flat annual amounts (optional expander in step 1; saved in assumptions JSON)
+
+## Viva cash-flow models (optional)
+
+finproj can drive contributions and withdrawals from a [Viva](https://github.com/ajmscherer/viva) program instead of fixed annual amounts. Viva is installed automatically with the GUI dependencies (`requirements-gui.txt`):
+
+```bash
+pip install -r requirements-gui.txt
+```
+
+In the GUI, open **Viva cash-flow model (optional)** under step 1 (Projection parameters). Paste a Viva program; when set, it replaces the flat annual contribution/withdrawal fields for the simulation horizon.
+
+Sign convention when mapping Viva flows to finproj:
+
+- **Positive amounts** → contributions to the portfolio (e.g. `flow: insurance, 100k, upon death`)
+- **Negative amounts** → withdrawals from the portfolio (e.g. `flow: living_expenses, -50k per year`)
+
+Assumptions JSON files store the Viva source alongside other parameters.
+
+**Licensing:** deterministic Viva flows are MIT-licensed. Probabilistic life events (mortality, conditional events) require a [Viva Pro](https://github.com/ajmscherer/viva) license after the 30-day evaluation period.
+
+Verify the install:
+
+```bash
+python -c "from viva import generateFlowEngine; print('viva OK')"
+```
+
+For local Viva development, use an editable install: `pip install -e /path/to/viva`.
 
 ## Quick Start
 
