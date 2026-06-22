@@ -469,35 +469,33 @@ def step1_edit_layout_css(theme: Mapping[str, str | int] | None = None) -> str:
     flex-wrap: nowrap !important;
     align-items: stretch !important;
     width: 100% !important;
+    gap: 0 !important;
 }}
 [class*="portfolio_step1_layout"] > div,
-[class*="portfolio_step1_left"],
-[class*="portfolio_step1_right"] {{
+[class*="portfolio_step1_main"],
+[class*="portfolio_step1_side"] {{
     min-width: 0 !important;
 }}
-[class*="portfolio_step1_layout"] > div:first-child,
-[class*="portfolio_step1_left"] {{
+[class*="portfolio_step1_layout"] > div:first-child {{
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}}
+[class*="portfolio_step1_layout"] > div:last-child {{
     flex: 0 0 {left_px}px !important;
     width: {left_px}px !important;
     max-width: {left_px}px !important;
     min-width: {left_px}px !important;
     box-sizing: border-box !important;
 }}
-[class*="portfolio_step1_layout"] > div:last-child {{
-    flex: 1 1 0 !important;
-    width: auto !important;
-    max-width: none !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-}}
-[class*="portfolio_step1_right"] {{
-    flex: 1 1 0 !important;
-    width: auto !important;
-    max-width: none !important;
-    min-width: 0 !important;
+[class*="portfolio_step1_side"] {{
     box-sizing: border-box !important;
     border-left: 2px solid {divider_color} !important;
     padding-left: 12px !important;
+    padding-right: 12px !important;
+    min-width: 0 !important;
 }}
 </style>"""
 

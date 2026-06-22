@@ -1013,47 +1013,15 @@ def _render_step_1_edit() -> None:
         if "portfolio_edit_initial_capital" not in st.session_state:
             _sync_portfolio_to_edit_widgets()
         st.markdown(step1_edit_layout_css(), unsafe_allow_html=True)
-        with st.container(horizontal=True, gap="small", key="portfolio_step1_layout"):
-            left_side = st.container(
+        with st.container(horizontal=True, gap=None, key="portfolio_step1_layout"):
+            main_side = st.container(width="stretch", key="portfolio_step1_main")
+            divider = st.container(width=10, key="portfolio_step1_divider")
+            narrow_side = st.container(
                 width=int(THEME["step1_left_column_width_px"]),
-                key="portfolio_step1_left",
+                key="portfolio_step1_side",
             )
-            right_side = st.container(width="stretch", key="portfolio_step1_right")
 
-            with left_side:
-                st.text_input(
-                    "Initial capital",
-                    key="portfolio_edit_initial_capital",
-                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
-                )
-                st.text_input(
-                    "Cash buffer",
-                    key="portfolio_edit_cash_buffer",
-                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-                )
-                st.number_input(
-                    "Horizon (years)",
-                    min_value=1,
-                    max_value=50,
-                    step=1,
-                    key="portfolio_edit_max_year",
-                    help=PORTFOLIO_FIELD_HELP["max_year"],
-                )
-                st.number_input(
-                    "Number of projections",
-                    min_value=10,
-                    max_value=20000,
-                    step=10,
-                    key="portfolio_edit_nb_projections",
-                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
-                )
-                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-                    st.warning("Large projection counts can take several minutes.")
-                for message in _validate_portfolio_amount_inputs():
-                    st.error(message)
-
-            with right_side:
-
+            with main_side:
                 def period_block(name: str, help: str, key: str | None = None) -> None:
                     slug = name.lower().replace(" ", "_")
                     if not key:
@@ -1073,7 +1041,7 @@ def _render_step_1_edit() -> None:
                         st.session_state[to_key] = from_period
 
                     container = st.container(
-                        border=True,
+                        border=False,
                         horizontal=True,
                         key=f"{key}_block",
                     )
@@ -1105,7 +1073,7 @@ def _render_step_1_edit() -> None:
                         "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
                     )
                 st.text_area(
-                    "Viva program",
+                    "Additional flows",
                     key="portfolio_edit_viva_source",
                     height=180,
                     help=VIVA_FIELD_HELP["viva_source"],
@@ -1137,6 +1105,41 @@ def _render_step_1_edit() -> None:
                         "Probabilistic Viva features require a Viva Pro license after "
                         "the 30-day evaluation period. Deterministic flows remain MIT-licensed."
                     )
+
+            with divider:
+                st.caption("")
+
+            with narrow_side:
+                st.text_input(
+                    "Initial capital",
+                    key="portfolio_edit_initial_capital",
+                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
+                )
+                st.text_input(
+                    "Cash buffer",
+                    key="portfolio_edit_cash_buffer",
+                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                )
+                st.number_input(
+                    "Horizon (years)",
+                    min_value=1,
+                    max_value=50,
+                    step=1,
+                    key="portfolio_edit_max_year",
+                    help=PORTFOLIO_FIELD_HELP["max_year"],
+                )
+                st.number_input(
+                    "Number of projections",
+                    min_value=10,
+                    max_value=20000,
+                    step=10,
+                    key="portfolio_edit_nb_projections",
+                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
+                )
+                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                    st.warning("Large projection counts can take several minutes.")
+                for message in _validate_portfolio_amount_inputs():
+                    st.error(message)
 
         _sync_edit_widgets_to_portfolio()
 
