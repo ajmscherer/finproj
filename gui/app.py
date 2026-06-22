@@ -43,7 +43,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "code"))
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog, slugify  # noqa: E402
 from inv_proj import cv  # noqa: E402
-from theme import THEME, inject_theme  # noqa: E402
+from theme import THEME, inject_theme, step1_edit_layout_css  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
 from charts import (  # noqa: E402
     build_mu_sigma_range_figure,
@@ -985,14 +985,11 @@ def _render_step_1_edit() -> None:
     with st.container(border=False, key="portfolio_section2"):
         if "portfolio_edit_initial_capital" not in st.session_state:
             _sync_portfolio_to_edit_widgets()
+        st.markdown(step1_edit_layout_css(), unsafe_allow_html=True)
         with st.container(horizontal=True, gap="small", key="portfolio_step1_layout"):
             left_side = st.container(
                 width=int(THEME["step1_left_column_width_px"]),
                 key="portfolio_step1_left",
-            )
-            divider_col = st.container(
-                width=int(THEME["step1_divider_column_width_px"]),
-                key="portfolio_step1_divider",
             )
             right_side = st.container(width="stretch", key="portfolio_step1_right")
 
@@ -1038,10 +1035,31 @@ def _render_step_1_edit() -> None:
                 for message in _validate_portfolio_amount_inputs():
                     st.error(message)
 
-            with divider_col:
-                st.empty()
-
             with right_side:
+
+                def period_block(name: str, help: str) -> None:
+                    slug = name.lower().replace(" ", "_")
+                    container = st.container(
+                        border=True,
+                        horizontal=True,
+                        key=f"fixe_flow_{slug}_block",
+                    )
+                    with container:
+                        st.text_input(
+                            name,
+                            key=f"fixed_flow_amount_{slug}",
+                            help=help,
+                        )
+                        st.radio(
+                            f"{name} period",
+                            ["for all years", "from year X to year Y"],
+                            key=f"fixed_flow_mode_{slug}",
+                            label_visibility="collapsed",
+                        )
+
+                period_block("Contributions", PORTFOLIO_FIELD_HELP["contributions"])
+                period_block("Withdrawals", PORTFOLIO_FIELD_HELP["withdrawals"])
+
                 if not HAS_VIVA:
                     st.warning(
                         "Viva is not installed in this environment. "

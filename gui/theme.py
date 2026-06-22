@@ -109,7 +109,7 @@ THEME: dict[str, str | int] = {
     "summary_table_border": "1px solid #e5e7eb",
     "summary_table_cell_padding": "0.5rem 0.75rem",
     "column_divider_color": "#e5e7eb",
-    "step1_divider_color": "#d1d5db",
+    "step1_divider_color": "#9ca3af",
     "step1_left_column_width": "2in",
     "step1_left_column_width_px": 192,
     "step1_divider_column_width_px": 12,
@@ -450,40 +450,56 @@ section.main h3,
     color: {t["body_color"]};
 }}
 
-/* Step 1 edit: fixed left + divider, stretch right */
-.st-key-portfolio_step1_layout {{
-    align-items: stretch !important;
-}}
-.st-key-portfolio_step1_left {{
-    width: {t["step1_left_column_width"]} !important;
-    max-width: {t["step1_left_column_width"]} !important;
-    min-width: {t["step1_left_column_width"]} !important;
-    flex: 0 0 {t["step1_left_column_width"]} !important;
-}}
-.st-key-portfolio_step1_divider {{
-    width: {t["step1_divider_column_width_px"]}px !important;
-    max-width: {t["step1_divider_column_width_px"]}px !important;
-    min-width: {t["step1_divider_column_width_px"]}px !important;
-    flex: 0 0 {t["step1_divider_column_width_px"]}px !important;
-    align-self: stretch !important;
-    box-sizing: border-box !important;
-}}
-.st-key-portfolio_step1_divider [data-testid="stVerticalBlock"] {{
-    border-left: 1px solid {t["step1_divider_color"]} !important;
-    min-height: 100% !important;
-    height: 100% !important;
-    box-sizing: border-box !important;
-}}
-.st-key-portfolio_step1_right {{
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    width: auto !important;
-    padding-left: 0.5rem !important;
-}}
+/* Step 1 edit layout widths — divider CSS injected inline in app (see step1_edit_layout_css) */
 
 {section_mode_button_hide_css}
 </style>
 """
+
+
+def step1_edit_layout_css(theme: Mapping[str, str | int] | None = None) -> str:
+    """CSS for step 1 edit two-column layout (injected at render time)."""
+    t = theme or THEME
+    left_px = t["step1_left_column_width_px"]
+    divider_color = t["step1_divider_color"]
+    return f"""<style>
+[class*="portfolio_step1_layout"] {{
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    width: 100% !important;
+}}
+[class*="portfolio_step1_layout"] > div,
+[class*="portfolio_step1_left"],
+[class*="portfolio_step1_right"] {{
+    min-width: 0 !important;
+}}
+[class*="portfolio_step1_layout"] > div:first-child,
+[class*="portfolio_step1_left"] {{
+    flex: 0 0 {left_px}px !important;
+    width: {left_px}px !important;
+    max-width: {left_px}px !important;
+    min-width: {left_px}px !important;
+    box-sizing: border-box !important;
+}}
+[class*="portfolio_step1_layout"] > div:last-child {{
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}}
+[class*="portfolio_step1_right"] {{
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    border-left: 2px solid {divider_color} !important;
+    padding-left: 12px !important;
+}}
+</style>"""
 
 
 def inject_theme(theme: Mapping[str, str] | None = None) -> None:
