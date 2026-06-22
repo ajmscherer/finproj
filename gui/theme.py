@@ -108,6 +108,11 @@ THEME: dict[str, str | int] = {
     "summary_table_header_color": "#374151",
     "summary_table_border": "1px solid #e5e7eb",
     "summary_table_cell_padding": "0.5rem 0.75rem",
+    "column_divider_color": "#e5e7eb",
+    "step1_divider_color": "#d1d5db",
+    "step1_left_column_width": "2in",
+    "step1_left_column_width_px": 192,
+    "step1_divider_column_width_px": 12,
 }
 
 
@@ -444,6 +449,38 @@ section.main h3,
     font-size: {t["body_font_size"]};
     color: {t["body_color"]};
 }}
+
+/* Step 1 edit: fixed left + divider, stretch right */
+.st-key-portfolio_step1_layout {{
+    align-items: stretch !important;
+}}
+.st-key-portfolio_step1_left {{
+    width: {t["step1_left_column_width"]} !important;
+    max-width: {t["step1_left_column_width"]} !important;
+    min-width: {t["step1_left_column_width"]} !important;
+    flex: 0 0 {t["step1_left_column_width"]} !important;
+}}
+.st-key-portfolio_step1_divider {{
+    width: {t["step1_divider_column_width_px"]}px !important;
+    max-width: {t["step1_divider_column_width_px"]}px !important;
+    min-width: {t["step1_divider_column_width_px"]}px !important;
+    flex: 0 0 {t["step1_divider_column_width_px"]}px !important;
+    align-self: stretch !important;
+    box-sizing: border-box !important;
+}}
+.st-key-portfolio_step1_divider [data-testid="stVerticalBlock"] {{
+    border-left: 1px solid {t["step1_divider_color"]} !important;
+    min-height: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+}}
+.st-key-portfolio_step1_right {{
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+    padding-left: 0.5rem !important;
+}}
+
 {section_mode_button_hide_css}
 </style>
 """

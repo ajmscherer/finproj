@@ -43,7 +43,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "code"))
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog, slugify  # noqa: E402
 from inv_proj import cv  # noqa: E402
-from theme import inject_theme  # noqa: E402
+from theme import THEME, inject_theme  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
 from charts import (  # noqa: E402
     build_mu_sigma_range_figure,
@@ -985,90 +985,101 @@ def _render_step_1_edit() -> None:
     with st.container(border=False, key="portfolio_section2"):
         if "portfolio_edit_initial_capital" not in st.session_state:
             _sync_portfolio_to_edit_widgets()
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.text_input(
-                "Initial capital",
-                key="portfolio_edit_initial_capital",
-                help=PORTFOLIO_FIELD_HELP["initial_capital"],
+        with st.container(horizontal=True, gap="small", key="portfolio_step1_layout"):
+            left_side = st.container(
+                width=int(THEME["step1_left_column_width_px"]),
+                key="portfolio_step1_left",
             )
-            st.text_input(
-                "Annual contributions",
-                key="portfolio_edit_contributions",
-                help=PORTFOLIO_FIELD_HELP["contributions"],
+            divider_col = st.container(
+                width=int(THEME["step1_divider_column_width_px"]),
+                key="portfolio_step1_divider",
             )
-            st.text_input(
-                "Annual withdrawals",
-                key="portfolio_edit_withdrawals",
-                help=PORTFOLIO_FIELD_HELP["withdrawals"],
-            )
-        with col2:
-            st.text_input(
-                "Cash buffer",
-                key="portfolio_edit_cash_buffer",
-                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-            )
-            st.number_input(
-                "Horizon (years)",
-                min_value=1,
-                max_value=50,
-                step=1,
-                key="portfolio_edit_max_year",
-                help=PORTFOLIO_FIELD_HELP["max_year"],
-            )
-        with col3:
-            st.number_input(
-                "Number of projections",
-                min_value=10,
-                max_value=20000,
-                step=10,
-                key="portfolio_edit_nb_projections",
-                help=PORTFOLIO_FIELD_HELP["nb_projections"],
-            )
-            if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-                st.warning("Large projection counts can take several minutes.")
-        for message in _validate_portfolio_amount_inputs():
-            st.error(message)
+            right_side = st.container(width="stretch", key="portfolio_step1_right")
 
-        with st.expander("Viva cash-flow model (optional)", expanded=False):
-            if not HAS_VIVA:
-                st.warning(
-                    "Viva is not installed in this environment. "
-                    "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
+            with left_side:
+                st.text_input(
+                    "Initial capital",
+                    key="portfolio_edit_initial_capital",
+                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
                 )
-            st.text_area(
-                "Viva program",
-                key="portfolio_edit_viva_source",
-                height=180,
-                help=VIVA_FIELD_HELP["viva_source"],
-                placeholder=(
-                    "life: Julian, person, born 1980\n"
-                    "event: death, at age 90\n"
-                    "flow: insurance, 100k, upon death\n"
-                    "flow: living_expenses, -50k per year, for 20 years"
-                ),
-            )
-            viva_col1, viva_col2 = st.columns(2)
-            with viva_col1:
+                st.text_input(
+                    "Annual contributions",
+                    key="portfolio_edit_contributions",
+                    help=PORTFOLIO_FIELD_HELP["contributions"],
+                )
+                st.text_input(
+                    "Annual withdrawals",
+                    key="portfolio_edit_withdrawals",
+                    help=PORTFOLIO_FIELD_HELP["withdrawals"],
+                )
+                st.text_input(
+                    "Cash buffer",
+                    key="portfolio_edit_cash_buffer",
+                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                )
                 st.number_input(
-                    "Viva start year",
-                    min_value=1900,
-                    max_value=2200,
+                    "Horizon (years)",
+                    min_value=1,
+                    max_value=50,
                     step=1,
-                    key="portfolio_edit_viva_start_year",
-                    help=VIVA_FIELD_HELP["viva_start_year"],
+                    key="portfolio_edit_max_year",
+                    help=PORTFOLIO_FIELD_HELP["max_year"],
                 )
-            with viva_col2:
-                st.checkbox(
-                    "Probabilistic life events",
-                    key="portfolio_edit_viva_probabilistic",
-                    help=VIVA_FIELD_HELP["viva_probabilistic"],
+                st.number_input(
+                    "Number of projections",
+                    min_value=10,
+                    max_value=20000,
+                    step=10,
+                    key="portfolio_edit_nb_projections",
+                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
                 )
-            if st.session_state.portfolio_edit_viva_probabilistic:
-                st.info(
-                    "Probabilistic Viva features require a Viva Pro license after "
-                    "the 30-day evaluation period. Deterministic flows remain MIT-licensed."
+                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                    st.warning("Large projection counts can take several minutes.")
+                for message in _validate_portfolio_amount_inputs():
+                    st.error(message)
+
+            with divider_col:
+                st.empty()
+
+            with right_side:
+                if not HAS_VIVA:
+                    st.warning(
+                        "Viva is not installed in this environment. "
+                        "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
+                    )
+                st.text_area(
+                    "Viva program",
+                    key="portfolio_edit_viva_source",
+                    height=180,
+                    help=VIVA_FIELD_HELP["viva_source"],
+                    placeholder=(
+                        "life: Julian, person, born 1980\n"
+                        "event: death, at age 90\n"
+                        "flow: insurance, 100k, upon death\n"
+                        "flow: living_expenses, -50k per year, for 20 years"
+                    ),
                 )
+                viva_col1, viva_col2 = st.columns(2)
+                with viva_col1:
+                    st.number_input(
+                        "Viva start year",
+                        min_value=1900,
+                        max_value=2200,
+                        step=1,
+                        key="portfolio_edit_viva_start_year",
+                        help=VIVA_FIELD_HELP["viva_start_year"],
+                    )
+                with viva_col2:
+                    st.checkbox(
+                        "Probabilistic life events",
+                        key="portfolio_edit_viva_probabilistic",
+                        help=VIVA_FIELD_HELP["viva_probabilistic"],
+                    )
+                if st.session_state.portfolio_edit_viva_probabilistic:
+                    st.info(
+                        "Probabilistic Viva features require a Viva Pro license after "
+                        "the 30-day evaluation period. Deterministic flows remain MIT-licensed."
+                    )
 
         _sync_edit_widgets_to_portfolio()
 
