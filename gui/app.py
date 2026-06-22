@@ -266,6 +266,32 @@ def _validate_portfolio_amount_inputs() -> list[str]:
     return errors
 
 
+def _simulation_projection_years() -> list[int]:
+    max_year = max(1, int(st.session_state.get("portfolio_edit_max_year", 20)))
+    return list(range(1, max_year + 1))
+
+
+def _init_flow_period_edit_widgets(max_year: int) -> None:
+    horizon = max(1, int(max_year))
+    for slug in ("contributions", "withdrawals"):
+        prefix = f"portfolio_edit_{slug}"
+        st.session_state[f"{prefix}_from_period"] = 1
+        st.session_state[f"{prefix}_to_period"] = horizon
+        st.session_state[f"{prefix}_periods_initialized"] = True
+
+
+def _ensure_flow_period_defaults(base_key: str, horizon: int) -> tuple[str, str]:
+    from_key = f"{base_key}_from_period"
+    to_key = f"{base_key}_to_period"
+    init_key = f"{base_key}_periods_initialized"
+    horizon = max(1, int(horizon))
+    if not st.session_state.get(init_key):
+        st.session_state[from_key] = 1
+        st.session_state[to_key] = horizon
+        st.session_state[init_key] = True
+    return from_key, to_key
+
+
 def _init_portfolio_fields() -> None:
     if "portfolio" not in st.session_state:
         st.session_state.portfolio = copy.deepcopy(PORTFOLIO_FIELD_DEFAULTS)
@@ -286,6 +312,7 @@ def _sync_portfolio_to_edit_widgets() -> None:
     st.session_state.portfolio_edit_viva_probabilistic = bool(
         portfolio.get("viva_probabilistic", False)
     )
+    _init_flow_period_edit_widgets(int(portfolio["max_year"]))
 
 
 def _sync_edit_widgets_to_portfolio() -> None:
@@ -1000,16 +1027,6 @@ def _render_step_1_edit() -> None:
                     help=PORTFOLIO_FIELD_HELP["initial_capital"],
                 )
                 st.text_input(
-                    "Annual contributions",
-                    key="portfolio_edit_contributions",
-                    help=PORTFOLIO_FIELD_HELP["contributions"],
-                )
-                st.text_input(
-                    "Annual withdrawals",
-                    key="portfolio_edit_withdrawals",
-                    help=PORTFOLIO_FIELD_HELP["withdrawals"],
-                )
-                st.text_input(
                     "Cash buffer",
                     key="portfolio_edit_cash_buffer",
                     help=PORTFOLIO_FIELD_HELP["cash_buffer"],
@@ -1037,24 +1054,46 @@ def _render_step_1_edit() -> None:
 
             with right_side:
 
-                def period_block(name: str, help: str) -> None:
+                def period_block(name: str, help: str, key: str | None = None) -> None:
                     slug = name.lower().replace(" ", "_")
+                    if not key:
+                        key = f"portfolio_edit_{slug}"
+                    years = _simulation_projection_years()
+                    horizon = years[-1]
+                    from_key, to_key = _ensure_flow_period_defaults(key, horizon)
+                    if int(st.session_state[from_key]) not in years:
+                        st.session_state[from_key] = years[0]
+                    if int(st.session_state[to_key]) not in years:
+                        st.session_state[to_key] = horizon
+                    from_period = int(st.session_state[from_key])
+                    to_years = list(range(from_period, years[-1] + 1))
+                    if int(st.session_state[to_key]) not in to_years:
+                        st.session_state[to_key] = to_years[-1]
+                    if int(st.session_state[to_key]) < from_period:
+                        st.session_state[to_key] = from_period
+
                     container = st.container(
                         border=True,
                         horizontal=True,
-                        key=f"fixe_flow_{slug}_block",
+                        key=f"{key}_block",
                     )
                     with container:
                         st.text_input(
                             name,
-                            key=f"fixed_flow_amount_{slug}",
+                            key=key,
                             help=help,
                         )
-                        st.radio(
-                            f"{name} period",
-                            ["for all years", "from year X to year Y"],
-                            key=f"fixed_flow_mode_{slug}",
-                            label_visibility="collapsed",
+                        st.selectbox(
+                            label="From period",
+                            options=years,
+                            key=from_key,
+                            label_visibility="visible",
+                        )
+                        st.selectbox(
+                            label="To period",
+                            options=to_years,
+                            key=to_key,
+                            label_visibility="visible",
                         )
 
                 period_block("Contributions", PORTFOLIO_FIELD_HELP["contributions"])
@@ -1572,7 +1611,7 @@ def _render_step_4_content() -> None:
 
 section1 = SectionContentEditable(
     name="Step 1",
-    title="Projection Assumptions",
+    title="Contributions, Withdrawals, and projection parameters",
     edit_form=_render_step_1_edit,
     readonly_form=_render_step_1_readonly,
 )
