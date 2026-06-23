@@ -164,6 +164,10 @@ PORTFOLIO_FIELD_DEFAULTS = {
     "max_year": 20,
     "nb_projections": 2000,
     "viva_source": "",
+    "contributions_from_period": 1,
+    "contributions_to_period": 20,
+    "withdrawals_from_period": 1,
+    "withdrawals_to_period": 20,
 }
 
 PORTFOLIO_FIELD_HELP = {
@@ -266,10 +270,13 @@ def _simulation_projection_years() -> list[int]:
 
 def _init_flow_period_edit_widgets(max_year: int) -> None:
     horizon = max(1, int(max_year))
+    portfolio = st.session_state.portfolio
     for slug in ("contributions", "withdrawals"):
+        portfolio.setdefault(f"{slug}_from_period", 1)
+        portfolio.setdefault(f"{slug}_to_period", horizon)
         prefix = f"portfolio_edit_{slug}"
-        st.session_state[f"{prefix}_from_period"] = 1
-        st.session_state[f"{prefix}_to_period"] = horizon
+        st.session_state[f"{prefix}_from_period"] = int(portfolio[f"{slug}_from_period"])
+        st.session_state[f"{prefix}_to_period"] = int(portfolio[f"{slug}_to_period"])
         st.session_state[f"{prefix}_periods_initialized"] = True
 
 
@@ -313,7 +320,10 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
     portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
     portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
-    
+    for slug in ("contributions", "withdrawals"):
+        prefix = f"portfolio_edit_{slug}"
+        portfolio[f"{slug}_from_period"] = int(st.session_state[f"{prefix}_from_period"])
+        portfolio[f"{slug}_to_period"] = int(st.session_state[f"{prefix}_to_period"])
 
 
 def _exit_portfolio_edit(*, force: bool = False) -> None:
@@ -517,6 +527,14 @@ def _collect_assumptions() -> Assumptions:
         mu_sigma=_read_mu_sigma(catalog),
         correlation_values=_read_correlation_values(catalog),
         viva_source=portfolio.get("viva_source", ""),
+        contributions_from_period=int(portfolio.get("contributions_from_period", 1)),
+        contributions_to_period=int(
+            portfolio.get("contributions_to_period", portfolio["max_year"])
+        ),
+        withdrawals_from_period=int(portfolio.get("withdrawals_from_period", 1)),
+        withdrawals_to_period=int(
+            portfolio.get("withdrawals_to_period", portfolio["max_year"])
+        ),
     )
     return assumptions
 
@@ -547,6 +565,10 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         "max_year": assumptions.max_year,
         "nb_projections": assumptions.nb_projections,
         "viva_source": assumptions.viva_source,
+        "contributions_from_period": assumptions.contributions_from_period,
+        "contributions_to_period": assumptions.contributions_to_period,
+        "withdrawals_from_period": assumptions.withdrawals_from_period,
+        "withdrawals_to_period": assumptions.withdrawals_to_period,
     }
     st.session_state.output_dir = assumptions.output_dir
     st.session_state.mix_preset = assumptions.mix_preset
@@ -1061,10 +1083,11 @@ def _render_step_1_edit() -> None:
                         height=180,
                         help=VIVA_FIELD_HELP["viva_source"],
                         placeholder=(
-                            "life: Julian, person, born 1980\n"
-                            "event: death, at age 90\n"
-                            "flow: insurance, 100k, upon death\n"
-                            "flow: living_expenses, -50k per year, for 20 years"
+                            "life: Julian, man, born 2000\n"
+                            "event: wedding, year 2030\n"
+                            "flow: party, -100k, year 2030\n"
+                            "flow: insurance_premium, -2k per year, until death\n"
+                            "flow: insurance, 1 million, upon death\n"
                         ),
                     )
 

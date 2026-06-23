@@ -40,6 +40,7 @@ from inv_proj import (
     StatisticalObserver,
     build_correlation_matrix,
     cholesky_decomposition,
+    cv,
     ps,
 )
 
@@ -98,6 +99,10 @@ class SimulationConfig:
     )
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
     viva_source: Optional[str] = None
+    contributions_from_period: int = 1
+    contributions_to_period: int = 15
+    withdrawals_from_period: int = 1
+    withdrawals_to_period: int = 15
 
 
 @dataclass
@@ -280,8 +285,60 @@ def _call_progress_callback(
         callback(current, total)
 
 
-def _viva_configured(config: SimulationConfig) -> bool:
-    return bool(config.viva_source and config.viva_source.strip())
+
+
+def _positive_amount(amount: str) -> float:
+    try:
+        return max(cv(amount), 0.0)
+    except ValueError:
+        return 0.0
+
+
+def _clamp_period_range(from_period: int, to_period: int, max_year: int) -> tuple[int, int]:
+    from_p = max(1, min(int(from_period), max_year))
+    to_p = max(from_p, min(int(to_period), max_year))
+    return from_p, to_p
+
+
+def _compose_flow_engine_source(config: SimulationConfig) -> str:
+    """Build a Viva program from flat flows, period ranges, and optional extra source."""
+    lines: list[str] = []
+
+    if _positive_amount(config.contributions) > 0:
+        from_p, to_p = _clamp_period_range(
+            config.contributions_from_period,
+            config.contributions_to_period,
+            config.max_year,
+        )
+        lines.append(
+            "flow: contributions, "
+            f"{config.contributions.strip()} per year, "
+            f"from year {from_p}, "
+            f"to year {to_p}"
+        )
+
+    if _positive_amount(config.withdrawals) > 0:
+        from_p, to_p = _clamp_period_range(
+            config.withdrawals_from_period,
+            config.withdrawals_to_period,
+            config.max_year,
+        )
+        withdrawal_amount = config.withdrawals.strip().lstrip("-")
+        lines.append(
+            "flow: withdrawals, "
+            f"-{withdrawal_amount} per year, "
+            f"from year {from_p}, "
+            f"to year {to_p}"
+        )
+
+    extra = (config.viva_source or "").strip()
+    if extra:
+        lines.append(extra)
+
+    if not lines:
+        lines.append(f"flow: none, 0 per year, for {config.max_year} years")
+
+    return "\n".join(lines)
 
 
 def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
@@ -290,15 +347,13 @@ def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
             "Viva cash-flow model is configured but viva is not installed. "
             "Install with: pip install -r requirements-gui.txt"
         )
-    viva_source = config.viva_source if config.viva_source else ""
-
-    
-    engine = VivaFlowEngine.build(
+    viva_source = _compose_flow_engine_source(config)
+    flow_engine = VivaFlowEngine.build(
         viva_source,
         start_year=default_viva_start_year(),
         horizon_years=config.max_year,
     )
-    return engine
+    return flow_engine
 
 
 def run_simulation(

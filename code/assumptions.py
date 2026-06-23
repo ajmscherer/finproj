@@ -90,6 +90,10 @@ class Assumptions:
     correlations: Dict[str, float] = field(default_factory=dict)
     format_version: int = ASSUMPTIONS_FORMAT_VERSION
     viva_source: str = ''
+    contributions_from_period: int = 1
+    contributions_to_period: int = 15
+    withdrawals_from_period: int = 1
+    withdrawals_to_period: int = 15
 
     def __post_init__(self) -> None:
         if not self.allocation:
@@ -117,6 +121,10 @@ class Assumptions:
         mu_sigma: Dict[str, Tuple[float, float]],
         correlation_values: Dict[Tuple[str, str], float],
         viva_source: str = '',
+        contributions_from_period: int = 1,
+        contributions_to_period: int = 15,
+        withdrawals_from_period: int = 1,
+        withdrawals_to_period: int = 15,
     ) -> Assumptions:
         asset_order = asset_catalog.return_model_ids()
         correlations = {}
@@ -142,6 +150,10 @@ class Assumptions:
             },
             correlations=correlations,
             viva_source=viva_source,
+            contributions_from_period=int(contributions_from_period),
+            contributions_to_period=int(contributions_to_period),
+            withdrawals_from_period=int(withdrawals_from_period),
+            withdrawals_to_period=int(withdrawals_to_period),
         )
 
     def correlation_values(self) -> Dict[Tuple[str, str], float]:
@@ -182,6 +194,10 @@ class Assumptions:
             risk_correlation=self.correlation_values(),
             output_dir=Path(self.output_dir),
             viva_source=self.viva_source or None,
+            contributions_from_period=self.contributions_from_period,
+            contributions_to_period=self.contributions_to_period,
+            withdrawals_from_period=self.withdrawals_from_period,
+            withdrawals_to_period=self.withdrawals_to_period,
         )
         sync_config_with_catalog(config)
         return config
@@ -203,6 +219,10 @@ class Assumptions:
             'mu_sigma': copy.deepcopy(self.mu_sigma),
             'correlations': copy.deepcopy(self.correlations),
             'viva_source': self.viva_source,
+            'contributions_from_period': self.contributions_from_period,
+            'contributions_to_period': self.contributions_to_period,
+            'withdrawals_from_period': self.withdrawals_from_period,
+            'withdrawals_to_period': self.withdrawals_to_period,
         }
 
     @classmethod
@@ -233,6 +253,14 @@ class Assumptions:
             },
             correlations={k: float(v) for k, v in data.get('correlations', {}).items()},
             viva_source=data.get('viva_source', ''),
+            contributions_from_period=int(data.get('contributions_from_period', 1)),
+            contributions_to_period=int(
+                data.get('contributions_to_period', data.get('max_year', 15))
+            ),
+            withdrawals_from_period=int(data.get('withdrawals_from_period', 1)),
+            withdrawals_to_period=int(
+                data.get('withdrawals_to_period', data.get('max_year', 15))
+            ),
         )
         assumptions.asset_catalog.validate()
         return assumptions

@@ -466,6 +466,7 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
+        self.nb_years = nb_years
         if len(flows) != nb_years:
             self.set_flows([0.0] * nb_years)
         else:
@@ -474,7 +475,6 @@ class Projection(Observable):
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
         self.correlated_returns = CorrelatedReturns(risk_distrib, correlations=correlations)
-        self.nb_years = nb_years
         self.nb_projections = nb_projections
 
     def set_flows(self, flows:list[float]):
@@ -525,9 +525,11 @@ class Projection(Observable):
 
         # retrieve period
         self.period = period
-        flow = self.flows[period]
-        contributions = max(flow, 0)
-        withdrawals = max(-flow, 0)
+        flow = self.flows[period - 1]
+        self.contributions = max(flow, 0)
+        self.withdrawals = max(-flow, 0)
+        contributions = self.contributions
+        withdrawals = self.withdrawals
 
         # notify observers
         self.notifyObservers(step=ps.BOP)
@@ -536,7 +538,8 @@ class Projection(Observable):
         self.ptf_bop = self.ptf_eop.dup()
 
         # determine how much cash is available
-        self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]+contributions
+        self.ptf_bop.lines[self.liquidity_asset_id] += contributions
+        self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
         self.cashDepletion = min(withdrawals, self.availableCash)
         self.availableCash -= self.cashDepletion
 
