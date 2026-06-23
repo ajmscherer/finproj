@@ -27,8 +27,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 from asset_classes import AssetCatalog, default_asset_catalog
 from viva_adapter import (
     HAS_VIVA,
-    default_viva_start_year,
     resolve_viva_schedules,
+    default_viva_start_year,
 )
 from inv_proj import (
     AuditObserver,
@@ -97,8 +97,6 @@ class SimulationConfig:
     )
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
     viva_source: Optional[str] = None
-    viva_start_year: Optional[int] = None
-    viva_probabilistic: bool = False
 
 
 @dataclass
@@ -298,13 +296,11 @@ def _resolve_viva_for_config(
             "Viva cash-flow model is configured but viva is not installed. "
             "Install with: pip install -r requirements-gui.txt"
         )
-    start_year = config.viva_start_year or default_viva_start_year()
     schedule = resolve_viva_schedules(
         viva_source,
-        start_year=start_year,
+        start_year=default_viva_start_year(),
         horizon_years=config.max_year,
         seed=seed,
-        probabilistic=config.viva_probabilistic,
     )
     return schedule.contributions, schedule.withdrawals
 
@@ -335,8 +331,7 @@ def run_simulation(
 
     simulation = Projection(
         initial_capital=config.initial_capital,
-        contributions=config.contributions,
-        withdrawals=config.withdrawals,
+        flows=flows,
         cashBuffer=config.cash_buffer,
         risk_mix=config.risk_mix,
         risk_distrib=distributions,
@@ -344,14 +339,12 @@ def run_simulation(
         nb_projections=config.nb_projections,
         asset_catalog=config.asset_catalog,
         correlations=config.risk_correlation,
-        contributions_schedule=contrib_schedule,
-        withdrawals_schedule=withdraw_schedule,
     )
 
     nav, nav_fan = _define_observers(simulation, config)
 
     for i in range(config.nb_projections):
-        if _viva_configured(config) and config.viva_probabilistic:
+        if _viva_configured(config) :
             contrib, withdraw = _resolve_viva_for_config(config, seed=i + 1)
             simulation.set_flow_schedules(contrib, withdraw)
         simulation.run(i + 1)

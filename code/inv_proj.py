@@ -438,8 +438,7 @@ class Projection(Observable):
     def __init__(
         self,
         initial_capital,
-        contributions,
-        withdrawals,
+        flows,
         cashBuffer,
         risk_mix,
         risk_distrib,
@@ -447,24 +446,18 @@ class Projection(Observable):
         nb_projections,
         asset_catalog,
         correlations=None,
-        contributions_schedule=None,
-        withdrawals_schedule=None,
     ):
         '''
         arguments:
-            capital:        the initial amount of capital
-            contributions:  the amount of money contributed in each period
-            withdrawals:    the amount of money spent in each period
+            initial_capital:        the initial amount of capital
+            flows:            the flows of money in and out of the portfolio
             cashBuffer:     the target amount of cash that needs to be held when possible
             risk_mix:       the allocation of capital by asset id
-            risk_distrib:   the risk distributions keyed by asset id
+            risk_distrib:   the risk distributions keyed by asset id  
             nb_years:       the number of years to run
             nb_projections: the number of projections to run
-            asset_catalog:  asset definitions and role mapping
+            asset_catalog:  asset definitions and role mapping  
             correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
-            contributions_schedule: optional per-period contributions (period 1 = index 0)
-            withdrawals_schedule: optional per-period withdrawals (period 1 = index 0)
-
         '''
 
         super().__init__()
@@ -473,12 +466,7 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
-        self._base_contributions = cv(contributions)
-        self._base_withdrawals = cv(withdrawals)
-        self.contributions = self._base_contributions
-        self.withdrawals = self._base_withdrawals
-        self.contributions_schedule = contributions_schedule
-        self.withdrawals_schedule = withdrawals_schedule
+        self.flows = flows
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
@@ -486,23 +474,6 @@ class Projection(Observable):
         self.nb_years = nb_years
         self.nb_projections = nb_projections
 
-    def set_flow_schedules(
-        self,
-        contributions_schedule,
-        withdrawals_schedule,
-    ) -> None:
-        self.contributions_schedule = contributions_schedule
-        self.withdrawals_schedule = withdrawals_schedule
-
-    def _resolve_period_flows(self, period: int) -> None:
-        if self.contributions_schedule is not None:
-            self.contributions = self.contributions_schedule[period - 1]
-        else:
-            self.contributions = self._base_contributions
-        if self.withdrawals_schedule is not None:
-            self.withdrawals = self.withdrawals_schedule[period - 1]
-        else:
-            self.withdrawals = self._base_withdrawals
 
     def run(self,id):
         '''
@@ -547,7 +518,8 @@ class Projection(Observable):
 
         # retrieve period
         self.period = period
-        self._resolve_period_flows(period)
+        flow = self.flows[period]
+        withdrawal = max(-flow, 0)
 
         # notify observers
         self.notifyObservers(step=ps.BOP)
@@ -557,13 +529,13 @@ class Projection(Observable):
 
         # determine how much cash is available
         self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
-        self.cashDepletion = min(self.withdrawals-self.contributions, self.availableCash)
+        self.cashDepletion = min(withdrawal, self.availableCash)
         self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
         
         self.ptf1 = self.ptf_bop.dup()
-        self.shortfall = self.withdrawals - self.contributions - self.cashDepletion
+        self.shortfall = withdrawal - self.cashDepletion
         self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
         if self.shortfall_asset_id not in self.ptf1.lines:
             self.ptf1.lines[self.shortfall_asset_id] = 0.0

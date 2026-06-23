@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
+from typing import Any, Callable, Optional
 
 try:
     import viva  # noqa: F401
@@ -20,74 +20,91 @@ except ImportError:
 
 
 @dataclass(frozen=True)
-class FlowSchedule:
-    """Per-period contributions and withdrawals (period 1 = index 0)."""
-
-    contributions: list[float]
-    withdrawals: list[float]
-
-
-def viva_flows_to_schedule(
-    flows: list[dict],
-    start_year: int,
-    nb_years: int,
-) -> FlowSchedule:
-    """
-    Convert Viva flow events into finproj period schedules.
-
-    Sign convention when mapping Viva amounts to finproj:
-      positive amount → contribution to the portfolio (e.g. insurance payout)
-      negative amount → withdrawal from the portfolio
-    """
-    contributions = [0.0] * nb_years
-    withdrawals = [0.0] * nb_years
-
-    for flow in flows:
-        flow_date = flow["date"]
-        year = flow_date.year if hasattr(flow_date, "year") else int(flow_date)
-        period = year - start_year + 1
-        if period < 1 or period > nb_years:
-            continue
-        idx = period - 1
-        amount = float(flow["amount"])
-        if amount > 0:
-            contributions[idx] += amount
-        elif amount < 0:
-            withdrawals[idx] += abs(amount)
-
-    return FlowSchedule(contributions=contributions, withdrawals=withdrawals)
+class FlowStructure:
+    flows: list[float]
+    audit: dict[str, list[float]]
+    start_year: int
+    horizon_years: int
+    seed: int
 
 
-def resolve_viva_schedules(
-    source: str,
-    *,
-    start_year: int,
-    horizon_years: int,
-    seed: Optional[int] = None,
-    probabilistic: bool = False,
-) -> FlowSchedule:
-    """Parse Viva source and return per-period contribution/withdrawal schedules."""
-    if not HAS_VIVA:
-        raise ImportError(
-            "viva is not installed. Install GUI dependencies with "
-            "pip install -r requirements-gui.txt"
+class FlowEngine:
+    def __init__(self, start_year: int, horizon_years: int):
+        self.start_year = start_year
+        self.horizon_years = horizon_years
+
+    @staticmethod
+    def build(source: str, start_year: int, horizon_years: int) -> FlowEngine:
+        raise NotImplementedError("Not implemented")
+
+    def draw_flows(self, seed: int) -> FlowStructure:
+        raise NotImplementedError("Not implemented")
+
+
+class VivaFlowEngine(FlowEngine):
+    def __init__(
+        self, viva_engine: viva.FlowEngine, start_year: int, horizon_years: int
+    ):
+        super().__init__(start_year, horizon_years)
+        self.viva_engine = viva_engine
+
+    @staticmethod
+    def build(source: str, start_year: int, horizon_years: int) -> FlowEngine:
+        if not HAS_VIVA:
+            raise ImportError(
+                "viva is not installed. Install GUI dependencies with "
+                "pip install -r requirements-gui.txt"
+            )
+        from viva import generateFlowEngine
+
+        engine = generateFlowEngine(
+            source, start_year=start_year, horizon_years=horizon_years
         )
-    if not source.strip():
-        raise ValueError("Viva source is empty")
+        result = VivaFlowEngine(engine, start_year, horizon_years)
+        return result
 
-    from viva import generateFlowEngine
+    def draw_flows(self, seed: int) -> FlowStructure:
 
-    engine = generateFlowEngine(
-        source,
-        start_year=start_year,
-        horizon_years=horizon_years,
-    )
-    if probabilistic:
-        flows = engine.drawFlows(seed=seed)
-    else:
-        flows = engine.getFlows()
+        vflows = self.viva_engine.drawFlows(seed=seed)
 
-    return viva_flows_to_schedule(flows, start_year, horizon_years)
+        amoount_key = "amount"
+        date_key = "date"
+        name_key = "name"
+        currency_key = "currency"
+        currency = set([flow[currency_key] for flow in vflows])
+        if len(currency) > 1:
+            raise ValueError("Multiple currencies are not supported")
+
+        flows = []
+        for year in range(self.horizon_years):
+            year_flows = [
+                flow[amoount_key]
+                for flow in vflows
+                if flow[date_key].year == self.start_year + year
+            ]
+            flows.append(sum(year_flows))
+
+        audit = {}
+        for name in set([flow[name_key] for flow in vflows]):
+            audit[name] = []
+            for year in range(self.horizon_years):
+                year_flows = [
+                    flow[amoount_key]
+                    for flow in vflows
+                    if flow[date_key].year == self.start_year + year
+                    and flow[name_key] == name
+                ]
+                audit[name].append(sum(year_flows))
+
+        flow_structure = FlowStructure(
+            flows=flows,
+            audit=audit,
+            start_year=self.start_year,
+            horizon_years=self.horizon_years,
+            seed=seed,
+        )
+
+        return flow_structure
 
 
 def default_viva_start_year() -> int:

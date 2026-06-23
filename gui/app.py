@@ -67,7 +67,7 @@ from inv_proj_runner import (  # noqa: E402
     validate_correlation,
     find_config_problems,
 )
-from viva_adapter import HAS_VIVA, default_viva_start_year  # noqa: E402
+from viva_adapter import HAS_VIVA  # noqa: E402
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
 
@@ -164,8 +164,6 @@ PORTFOLIO_FIELD_DEFAULTS = {
     "max_year": 20,
     "nb_projections": 2000,
     "viva_source": "",
-    "viva_start_year": default_viva_start_year(),
-    "viva_probabilistic": False,
 }
 
 PORTFOLIO_FIELD_HELP = {
@@ -203,18 +201,13 @@ PORTFOLIO_FIELD_HELP = {
 VIVA_FIELD_HELP = {
     "viva_source": (
         "Optional [Viva](https://github.com/ajmscherer/viva) DSL program describing "
-        "portfolio contributions and withdrawals over time. When set, Viva schedules "
-        "replace the flat annual amounts above. Positive amounts are contributions "
+        "portfolio contributions and withdrawals. Positive amounts are contributions. "
+        "Note: Probabilistic Viva features require a Viva Pro license after "
+        "the 30-day evaluation period. Deterministic flows remain MIT-licensed. "
         "(e.g. `flow: insurance, 100k, upon death`); negative amounts are withdrawals."
     ),
-    "viva_start_year": (
-        "Calendar year for period 1 of the simulation when using a Viva model."
-    ),
-    "viva_probabilistic": (
-        "Draw probabilistic life events from Viva on each Monte Carlo projection. "
-        "Requires a Viva Pro license after the 30-day evaluation; deterministic "
-        "flows are MIT-licensed."
-    ),
+   
+  
 }
 
 RETURN_ASSUMPTION_HELP = {
@@ -306,12 +299,8 @@ def _sync_portfolio_to_edit_widgets() -> None:
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
     st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
-    st.session_state.portfolio_edit_viva_start_year = int(
-        portfolio.get("viva_start_year", default_viva_start_year())
-    )
-    st.session_state.portfolio_edit_viva_probabilistic = bool(
-        portfolio.get("viva_probabilistic", False)
-    )
+   
+    
     _init_flow_period_edit_widgets(int(portfolio["max_year"]))
 
 
@@ -324,10 +313,7 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
     portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
     portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
-    portfolio["viva_start_year"] = int(st.session_state.portfolio_edit_viva_start_year)
-    portfolio["viva_probabilistic"] = bool(
-        st.session_state.portfolio_edit_viva_probabilistic
-    )
+    
 
 
 def _exit_portfolio_edit(*, force: bool = False) -> None:
@@ -531,8 +517,6 @@ def _collect_assumptions() -> Assumptions:
         mu_sigma=_read_mu_sigma(catalog),
         correlation_values=_read_correlation_values(catalog),
         viva_source=portfolio.get("viva_source", ""),
-        viva_start_year=int(portfolio.get("viva_start_year", default_viva_start_year())),
-        viva_probabilistic=bool(portfolio.get("viva_probabilistic", False)),
     )
     return assumptions
 
@@ -563,8 +547,6 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         "max_year": assumptions.max_year,
         "nb_projections": assumptions.nb_projections,
         "viva_source": assumptions.viva_source,
-        "viva_start_year": assumptions.viva_start_year or default_viva_start_year(),
-        "viva_probabilistic": assumptions.viva_probabilistic,
     }
     st.session_state.output_dir = assumptions.output_dir
     st.session_state.mix_preset = assumptions.mix_preset
@@ -1041,7 +1023,7 @@ def _render_step_1_edit() -> None:
                         st.session_state[to_key] = from_period
 
                     container = st.container(
-                        border=False,
+                        border=True,
                         horizontal=True,
                         key=f"{key}_block",
                     )
@@ -1072,38 +1054,18 @@ def _render_step_1_edit() -> None:
                         "Viva is not installed in this environment. "
                         "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
                     )
-                st.text_area(
-                    "Additional flows",
-                    key="portfolio_edit_viva_source",
-                    height=180,
-                    help=VIVA_FIELD_HELP["viva_source"],
-                    placeholder=(
-                        "life: Julian, person, born 1980\n"
-                        "event: death, at age 90\n"
-                        "flow: insurance, 100k, upon death\n"
-                        "flow: living_expenses, -50k per year, for 20 years"
-                    ),
-                )
-                viva_col1, viva_col2 = st.columns(2)
-                with viva_col1:
-                    st.number_input(
-                        "Viva start year",
-                        min_value=1900,
-                        max_value=2200,
-                        step=1,
-                        key="portfolio_edit_viva_start_year",
-                        help=VIVA_FIELD_HELP["viva_start_year"],
-                    )
-                with viva_col2:
-                    st.checkbox(
-                        "Probabilistic life events",
-                        key="portfolio_edit_viva_probabilistic",
-                        help=VIVA_FIELD_HELP["viva_probabilistic"],
-                    )
-                if st.session_state.portfolio_edit_viva_probabilistic:
-                    st.info(
-                        "Probabilistic Viva features require a Viva Pro license after "
-                        "the 30-day evaluation period. Deterministic flows remain MIT-licensed."
+                with st.container(border=True):
+                    st.text_area(
+                        "Additional flows",
+                        key="portfolio_edit_viva_source",
+                        height=180,
+                        help=VIVA_FIELD_HELP["viva_source"],
+                        placeholder=(
+                            "life: Julian, person, born 1980\n"
+                            "event: death, at age 90\n"
+                            "flow: insurance, 100k, upon death\n"
+                            "flow: living_expenses, -50k per year, for 20 years"
+                        ),
                     )
 
             with divider:
