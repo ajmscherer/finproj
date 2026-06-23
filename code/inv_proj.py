@@ -438,7 +438,7 @@ class Projection(Observable):
     def __init__(
         self,
         initial_capital,
-        flows,
+        flows:list[float],
         cashBuffer,
         risk_mix,
         risk_distrib,
@@ -466,7 +466,10 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
-        self.flows = flows
+        if len(flows) != nb_years:
+            self.set_flows([0.0] * nb_years)
+        else:
+            self.set_flows(flows)
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
@@ -474,6 +477,10 @@ class Projection(Observable):
         self.nb_years = nb_years
         self.nb_projections = nb_projections
 
+    def set_flows(self, flows:list[float]):
+        if len(flows) != self.nb_years:
+            raise ValueError(f"Number of flows ({len(flows)}) does not match number of years ({self.nb_years})")
+        self.flows = flows
 
     def run(self,id):
         '''
@@ -519,7 +526,8 @@ class Projection(Observable):
         # retrieve period
         self.period = period
         flow = self.flows[period]
-        withdrawal = max(-flow, 0)
+        contributions = max(flow, 0)
+        withdrawals = max(-flow, 0)
 
         # notify observers
         self.notifyObservers(step=ps.BOP)
@@ -528,14 +536,14 @@ class Projection(Observable):
         self.ptf_bop = self.ptf_eop.dup()
 
         # determine how much cash is available
-        self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
-        self.cashDepletion = min(withdrawal, self.availableCash)
+        self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]+contributions
+        self.cashDepletion = min(withdrawals, self.availableCash)
         self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
         
         self.ptf1 = self.ptf_bop.dup()
-        self.shortfall = withdrawal - self.cashDepletion
+        self.shortfall = withdrawals - self.cashDepletion
         self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
         if self.shortfall_asset_id not in self.ptf1.lines:
             self.ptf1.lines[self.shortfall_asset_id] = 0.0

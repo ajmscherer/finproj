@@ -27,7 +27,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 from asset_classes import AssetCatalog, default_asset_catalog
 from viva_adapter import (
     HAS_VIVA,
-    resolve_viva_schedules,
+    FlowEngine,
+    VivaFlowEngine,
     default_viva_start_year,
 )
 from inv_proj import (
@@ -283,26 +284,21 @@ def _viva_configured(config: SimulationConfig) -> bool:
     return bool(config.viva_source and config.viva_source.strip())
 
 
-def _resolve_viva_for_config(
-    config: SimulationConfig,
-    *,
-    seed: Optional[int] = None,
-):
-    viva_source = config.viva_source
-    if not viva_source or not viva_source.strip():
-        return None, None
+def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
     if not HAS_VIVA:
         raise ImportError(
             "Viva cash-flow model is configured but viva is not installed. "
             "Install with: pip install -r requirements-gui.txt"
         )
-    schedule = resolve_viva_schedules(
+    viva_source = config.viva_source if config.viva_source else ""
+
+    
+    engine = VivaFlowEngine.build(
         viva_source,
         start_year=default_viva_start_year(),
         horizon_years=config.max_year,
-        seed=seed,
     )
-    return schedule.contributions, schedule.withdrawals
+    return engine
 
 
 def run_simulation(
@@ -327,11 +323,12 @@ def run_simulation(
         asset_names=config.asset_catalog.name_map(),
     )
 
-    contrib_schedule, withdraw_schedule = _resolve_viva_for_config(config)
+    engine = _build_flow_engine(config) 
+    flows0 = [0.0] * config.max_year
 
     simulation = Projection(
         initial_capital=config.initial_capital,
-        flows=flows,
+        flows=flows0,
         cashBuffer=config.cash_buffer,
         risk_mix=config.risk_mix,
         risk_distrib=distributions,
@@ -344,9 +341,12 @@ def run_simulation(
     nav, nav_fan = _define_observers(simulation, config)
 
     for i in range(config.nb_projections):
-        if _viva_configured(config) :
-            contrib, withdraw = _resolve_viva_for_config(config, seed=i + 1)
-            simulation.set_flow_schedules(contrib, withdraw)
+        if engine is not None:
+            flow_structure = engine.draw_flows(seed=i + 1)
+            flows = flow_structure.flows
+            simulation.set_flows(flows)
+        else:
+            simulation.set_flows(flows0)
         simulation.run(i + 1)
         _call_progress_callback(
             progress_callback, i + 1, config.nb_projections, nav_fan
