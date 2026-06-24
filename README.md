@@ -16,7 +16,7 @@
 
 - Stochastic modeling using Monte Carlo simulation
 - **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics (the program can also run from the command line and be used as a library in other application, subject to licensing)
-- Flexible input assumptions: expected returns, volatility, initial capital, annual withdrawals, cash buffer, horizon, and projection count
+- Flexible input assumptions: expected returns, volatility, initial capital, contributions and withdrawals (with optional period ranges), cash buffer, horizon, and projection count
 - **Customizable asset classes** — rename, add, or remove optional investable assets; four core classes are always present (Cash, Money Market, Bonds, Stocks)
 - **Save and load assumptions** as JSON files from the GUI sidebar
 - Correlated asset-class returns via Cholesky decomposition of a user-defined correlation matrix
@@ -24,31 +24,71 @@
 - **Interactive results**: NAV fan chart (median with nested probability-density bands), horizon-year NAV distribution histogram, and key outcome probabilities
 - Companion Excel workbook (`output/finproj.xlsx`) for deeper analysis (scenario navigator, additional charts)
 - Runs entirely on your local machine — no cloud services or third-party APIs; suitable for sensitive financial data
-- **Optional [Viva](https://github.com/ajmscherer/viva) integration** — model life-event-driven contributions and withdrawals with the Viva DSL instead of flat annual amounts (optional expander in step 1; saved in assumptions JSON)
+- **Optional [Viva](https://github.com/ajmscherer/viva) integration** — all simulations build a Viva cash-flow program from step 1 inputs; add life-event flows in the **Additional flows** editor, validate syntax, and save programs in assumptions JSON
 
-## Viva cash-flow models (optional)
+## Viva cash-flow models
 
-finproj can drive contributions and withdrawals from a [Viva](https://github.com/ajmscherer/viva) program instead of fixed annual amounts. Viva is installed automatically with the GUI dependencies (`requirements-gui.txt`):
+finproj models portfolio contributions and withdrawals through [Viva](https://github.com/ajmscherer/viva). Viva is installed with the GUI dependencies (`requirements-gui.txt` and `requirements.txt`):
 
 ```bash
 pip install -r requirements-gui.txt
 ```
 
-In the GUI, open **Viva cash-flow model (optional)** under step 1 (Projection parameters). Paste a Viva program; when set, it replaces the flat annual contribution/withdrawal fields for the simulation horizon.
+### How flows reach the simulation
+
+On each run, `code/inv_proj_runner.py` assembles a Viva program from step 1:
+
+1. **Contributions** — if the amount is positive, a `flow: contributions, … per year, from year X, to year Y` line is generated from the amount and **From period** / **To period** selectors.
+2. **Withdrawals** — if the amount is positive, a matching `flow: withdrawals, -… per year, …` line is generated (withdrawals are stored as positive amounts in the GUI and negated for Viva).
+3. **Additional flows** — optional Viva DSL pasted in the step 1 text area (`viva_source` in assumptions JSON) is appended verbatim (lives, events, insurance, and so on).
+
+If nothing is configured, a zero placeholder flow spans the horizon.
+
+For each Monte Carlo projection, finproj calls `VivaFlowEngine.draw_flows(seed=…)` once. That yields one net cash-flow vector per year; `Projection` applies `flows[period - 1]` each year (positive = contribution, negative = withdrawal). Probabilistic Viva features (mortality, conditional events) therefore produce **different cash-flow paths per projection** while remaining reproducible for a fixed seed.
+
+### GUI (step 1)
+
+Step 1 edit mode includes:
+
+- **Contributions** and **Withdrawals** — amount plus **From period** / **To period** (simulation years 1 … horizon).
+- **Additional flows** — Viva program text area with **Clear**, **Load example** (Julian life-event demo), and **Test syntax** (parse check; result clears when the text changes or you leave edit mode).
+
+Read-only step 1 shows:
+
+- **Contributions** / **Withdrawals** labels with period-qualified amounts (e.g. `50k per year from Y2 through Y5`, `250k per year from year 4`).
+- A compact two-line summary of parsed **lives**, **events**, and **flows** when additional Viva source is present.
 
 Sign convention when mapping Viva flows to finproj:
 
-- **Positive amounts** → contributions to the portfolio (e.g. `flow: insurance, 100k, upon death`)
-- **Negative amounts** → withdrawals from the portfolio (e.g. `flow: living_expenses, -50k per year`)
+- **Positive amounts** → contributions to the portfolio (e.g. `flow: insurance, 1M, upon Julian's death`)
+- **Negative amounts** → withdrawals from the portfolio (e.g. `flow: party, -100k, upon wedding`)
 
-Assumptions JSON files store the Viva source alongside other parameters.
+Example additional-flows program (also available via **Load example**):
+
+```text
+life: Julian, man, born 2000
+event: wedding, year 2030, probability 50%
+flow: party, -100k, upon wedding
+flow: insurance_premium, -2k per year, until Julian's death
+flow: insurance, 1 million, upon Julian's death
+```
+
+Assumptions JSON stores `viva_source`, `contributions_from_period`, `contributions_to_period`, `withdrawals_from_period`, and `withdrawals_to_period` alongside other parameters.
+
+| Field | Description |
+| ----- | ----------- |
+| `contributions_from_period` | First simulation year for contributions (default `1`) |
+| `contributions_to_period` | Last simulation year for contributions (default = horizon) |
+| `withdrawals_from_period` | First simulation year for withdrawals (default `1`) |
+| `withdrawals_to_period` | Last simulation year for withdrawals (default = horizon) |
+| `viva_source` | Optional Viva DSL appended to the composed contribution/withdrawal flows |
 
 **Licensing:** deterministic Viva flows are MIT-licensed. Probabilistic life events (mortality, conditional events) require a [Viva Pro](https://github.com/ajmscherer/viva) license after the 30-day evaluation period.
 
 Verify the install:
 
 ```bash
-python -c "from viva import generateFlowEngine; print('viva OK')"
+python -c "from viva import parse, generateFlowEngine; print('viva OK')"
 ```
 
 For local Viva development, use an editable install: `pip install -e /path/to/viva`.
@@ -94,7 +134,7 @@ On Debian or Ubuntu, if virtual-environment creation fails, install: `sudo apt i
 
 The GUI runs on `localhost` only. The main workflow has four sections:
 
-1. **Projection parameters** — initial capital, annual withdrawals, cash buffer, horizon, and number of Monte Carlo projections (with shorthand amounts such as `1M` or `40k`)
+1. **Contributions, withdrawals, and projection parameters** — initial capital, contributions and withdrawals (each with **From period** / **To period**), cash buffer, horizon, projection count, and optional **Additional flows** Viva editor (shorthand amounts such as `1M` or `40k`)
 2. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
 3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
 4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
@@ -120,11 +160,11 @@ For additional charts and the scenario navigator, refresh `output/finproj.xlsx` 
 
 ### 5. Change the Financial Assumptions
 
-**GUI (recommended):** use the various sections in the GUI to change capital amount, liquidiy requirement, number of runs (section 1), rename, add, or remove optional assets, and adjust allocation (section 2), and change returns, and correlations (section 3). Assumptions can be saved and reloaded from the sidebar.
+**GUI (recommended):** use the various sections in the GUI to change capital, liquidity requirement, contributions and withdrawals (including period ranges), optional Viva flows, and number of runs (section 1); rename, add, or remove optional assets, and adjust allocation (section 2); and change returns and correlations (section 3). Assumptions can be saved and reloaded from the sidebar.
 
 **Command line / code:** defaults live in [code/inv_proj_runner.py](code/inv_proj_runner.py). [code/inv_proj_run.py](code/inv_proj_run.py) is a thin entry point that runs those defaults.
 
-- Edit `SimulationConfig` defaults (or the `DEFAULT_*` constants) for capital, withdrawals, cash buffer, horizon, and projection count.
+- Edit `SimulationConfig` defaults (or the `DEFAULT_*` constants) for capital, contributions, withdrawals, period ranges, cash buffer, horizon, projection count, and optional `viva_source`.
 - Edit `default_asset_classes()` in [code/asset_classes.py](code/asset_classes.py) to change the built-in asset list programmatically.
 - Edit `DEFAULT_RISK_MIX_PRESETS` for the `safe`, `moderate`, and `performance` allocation presets.
 - Edit `DEFAULT_RISK_PARAM` for expected return (`mu`) and volatility (`sigma`) per asset id.
@@ -152,14 +192,16 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `code/inv_proj.py` — Core simulation logic and classes
 - `code/asset_classes.py` — Asset catalog: required/optional classes, roles, add/rename/remove
 - `code/assumptions.py` — Save/load scenario assumptions as JSON (used by the GUI)
-- `code/inv_proj_runner.py` — Shared simulation configuration and runner (used by CLI and GUI)
+- `code/viva_adapter.py` — `VivaFlowEngine` adapter: builds Viva engine, `draw_flows(seed)` → per-year net flows and audit by flow name
+- `code/viva_summary.py` — Parse and summarize Viva programs for the GUI (lives, events, flows)
+- `code/inv_proj_runner.py` — Shared simulation configuration, Viva program composition, and runner (used by CLI and GUI)
 - `code/inv_proj_run.py` — Command-line entry point
 - `gui/app.py` — Streamlit GUI for assumptions, runs, charts, and summary statistics
 - `gui/charts.py` — Matplotlib chart builders (NAV fan chart, distribution histogram)
 - `gui/formatting.py` — Compact number formatting and summary table HTML
 - `gui/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
 - `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
-- `requirements-gui.txt` — Optional GUI dependencies (Streamlit, matplotlib)
+- `requirements-gui.txt` — GUI dependencies (Streamlit, matplotlib, Viva)
 - `assumptions/` — Default location for saved scenario JSON files
 - `screenshots/` — README illustration and example Excel output screenshots
 - `output/finproj.xlsx` — Companion Excel workbook for visualization and analysis
@@ -168,6 +210,7 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `tests/test_correlated_returns.py` — Statistical tests for correlated return sampling
 - `tests/test_asset_classes.py` — Tests for the asset catalog
 - `tests/test_assumptions.py` — Tests for assumptions save/load and config round-trip
+- `tests/test_viva_flow_engine.py` — Tests for Viva flow engine and program summarization
 
 ## How It Works
 
@@ -177,10 +220,12 @@ The core engine lives in `code/inv_proj.py`. Investable assets are defined by an
 
 Each Monte Carlo run (`Projection` class) starts with an initial capital, splits it between a **Cash** liquidity reserve and the invested portfolio, then simulates year by year. In every period the model:
 
-- Withdraws the planned spending (first from Cash, then from Bonds if needed),
+- Applies the net cash flow for that year (contributions add to Cash; withdrawals are taken from Cash first, then Bonds if needed),
 - Rebalances the portfolio to the target mix,
 - Draws correlated random returns for each asset class,
 - Applies those returns and optionally replenishes the cash buffer from gains (typically from Bonds).
+
+Cash flows come from Viva: flat contributions and withdrawals from the config are compiled into a Viva program together with any **Additional flows** DSL. Each projection draws its own flow path (`draw_flows(seed=projection_id)`), so probabilistic life events can vary across runs while staying deterministic for a given seed.
 
 `code/inv_proj_runner.py` holds the default configuration; `code/inv_proj_run.py` runs it from the command line. Defaults use **2,000 projections** over **15 years** with a diversified "performance" mix (e.g., 40% Stocks, 30% Bonds, 20% Real Estate, plus smaller allocations to Crypto and Precious Metals). Several **observers** track results: `StatisticalObserver` instances collect NAV statistics at years 1, 5, 10, and the horizon; `NavFanObserver` accumulates end-of-year NAV across all projections for the live and final fan charts; `CSV_Observer` writes detailed data from every simulation projection into `output/output.csv`; and `AuditObserver` writes a run log to `output/audit.txt`. Asset display names appear in the CSV; ids are used internally.
 
@@ -323,7 +368,7 @@ classDiagram
 
     class Projection {
       +initial_capital
-      +withdrawals
+      +flows
       +cashBuffer
       +risk_mix
       +risk_distribution
@@ -333,6 +378,7 @@ classDiagram
       +run(id)
       +start(id)
       +processPeriod(period)
+      +set_flows(flows)
       +wrapUp()
     }
 
