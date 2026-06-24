@@ -226,22 +226,43 @@ VIVA_JULIAN_EXAMPLE = (
 )
 
 
+def _clear_viva_syntax_result() -> None:
+    st.session_state.pop("viva_syntax_result", None)
+    st.session_state.pop("viva_syntax_checked_source", None)
+
+
 def _load_viva_julian_example() -> None:
     st.session_state.portfolio_edit_viva_source = VIVA_JULIAN_EXAMPLE
+    _clear_viva_syntax_result()
 
 
 def _clear_viva_source() -> None:
     st.session_state.portfolio_edit_viva_source = ""
+    _clear_viva_syntax_result()
 
 
 def _test_viva_syntax() -> None:
     source = st.session_state.get("portfolio_edit_viva_source", "")
+    st.session_state.viva_syntax_checked_source = source
     summary, error = try_summarize_viva_source(source)
     if error or summary is None:
         st.session_state.viva_syntax_result = ("error", error or "Could not parse Viva program.")
         return
     message = " · ".join(format_viva_program_summary_lines(summary))
     st.session_state.viva_syntax_result = ("success", message)
+
+
+def _viva_syntax_result_for_display() -> tuple[str, str] | None:
+    checked = st.session_state.get("viva_syntax_checked_source")
+    current = st.session_state.get("portfolio_edit_viva_source", "")
+    if checked != current:
+        _clear_viva_syntax_result()
+        return None
+    result = st.session_state.get("viva_syntax_result")
+    if not result:
+        return None
+    level, message = result
+    return level, message
 
 
 def _render_viva_program_summary(source: str) -> None:
@@ -1015,6 +1036,7 @@ def _render_live_charts(
 
 
 def _render_step_1_readonly() -> None:
+    _clear_viva_syntax_result()
     portfolio = st.session_state.portfolio
     with st.container(border=False, key="portfolio_section2"):
         summary_cols = st.columns(6)
@@ -1145,7 +1167,7 @@ def _render_step_1_edit() -> None:
                             key="viva_test_syntax",
                             on_click=_test_viva_syntax,
                         )
-                syntax_result = st.session_state.get("viva_syntax_result")
+                syntax_result = _viva_syntax_result_for_display()
                 if syntax_result:
                     level, message = syntax_result
                     if level == "error":
