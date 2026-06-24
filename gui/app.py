@@ -68,6 +68,11 @@ from inv_proj_runner import (  # noqa: E402
     find_config_problems,
 )
 from viva_adapter import HAS_VIVA  # noqa: E402
+import viva_summary as _viva_summary_module  # noqa: E402
+
+importlib.reload(_viva_summary_module)
+try_summarize_viva_source = _viva_summary_module.try_summarize_viva_source
+format_viva_program_summary_lines = _viva_summary_module.format_viva_program_summary_lines
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
 
@@ -210,9 +215,48 @@ VIVA_FIELD_HELP = {
         "the 30-day evaluation period. Deterministic flows remain MIT-licensed. "
         "(e.g. `flow: insurance, 100k, upon death`); negative amounts are withdrawals."
     ),
-   
-  
 }
+
+VIVA_JULIAN_EXAMPLE = (
+    "life: Julian, man, born 2000\n"
+    "event: wedding, year 2030, probability 50%\n"
+    "flow: party, -100k, upon wedding\n"
+    "flow: insurance_premium, -2k per year, until Julian's death\n"
+    "flow: insurance, 1 million, upon Julian's death\n"
+)
+
+
+def _load_viva_julian_example() -> None:
+    st.session_state.portfolio_edit_viva_source = VIVA_JULIAN_EXAMPLE
+
+
+def _clear_viva_source() -> None:
+    st.session_state.portfolio_edit_viva_source = ""
+
+
+def _test_viva_syntax() -> None:
+    source = st.session_state.get("portfolio_edit_viva_source", "")
+    summary, error = try_summarize_viva_source(source)
+    if error or summary is None:
+        st.session_state.viva_syntax_result = ("error", error or "Could not parse Viva program.")
+        return
+    message = " · ".join(format_viva_program_summary_lines(summary))
+    st.session_state.viva_syntax_result = ("success", message)
+
+
+def _render_viva_program_summary(source: str) -> None:
+    summary, error = try_summarize_viva_source(source)
+    if error or summary is None:
+        st.caption(f"Viva syntax error: {error or 'Could not parse Viva program.'}")
+        return
+    lines = format_viva_program_summary_lines(summary)
+    st.markdown(
+        '<div class="fp-viva-summary">'
+        + "<br>".join(html.escape(line) for line in lines)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
 
 RETURN_ASSUMPTION_HELP = {
     "mu": (
@@ -1004,11 +1048,9 @@ def _render_step_1_readonly() -> None:
             f"{int(portfolio['nb_projections']):,}",
             help=PORTFOLIO_FIELD_HELP["nb_projections"],
         )
-        if portfolio.get("viva_source", "").strip():
-            st.caption(
-                "Viva cash-flow model active — flat annual amounts are overridden "
-                "by the Viva schedule (positive = contribution, negative = withdrawal)."
-            )
+        viva_source = portfolio.get("viva_source", "").strip()
+        if viva_source:
+            _render_viva_program_summary(viva_source)
 
 
 def _render_step_1_edit() -> None:
@@ -1076,20 +1118,40 @@ def _render_step_1_edit() -> None:
                         "Viva is not installed in this environment. "
                         "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
                     )
-                with st.container(border=True):
+                with st.container(border=True, horizontal=True):
                     st.text_area(
                         "Additional flows",
                         key="portfolio_edit_viva_source",
                         height=180,
                         help=VIVA_FIELD_HELP["viva_source"],
-                        placeholder=(
-                            "life: Julian, man, born 2000\n"
-                            "event: wedding, year 2030\n"
-                            "flow: party, -100k, year 2030\n"
-                            "flow: insurance_premium, -2k per year, until death\n"
-                            "flow: insurance, 1 million, upon death\n"
-                        ),
+                        placeholder=VIVA_JULIAN_EXAMPLE,
                     )
+                    with st.container(border=False, horizontal=False, width=150, height="stretch", vertical_alignment="bottom"):
+                        st.button(
+                            "clear",
+                            width="stretch",
+                            key="viva_clear",
+                            on_click=_clear_viva_source,
+                        )
+                        st.button(
+                            "load example",
+                            width="stretch",
+                            key="viva_load_example",
+                            on_click=_load_viva_julian_example,
+                        )
+                        st.button(
+                            "test syntax",
+                            width="stretch",
+                            key="viva_test_syntax",
+                            on_click=_test_viva_syntax,
+                        )
+                syntax_result = st.session_state.get("viva_syntax_result")
+                if syntax_result:
+                    level, message = syntax_result
+                    if level == "error":
+                        st.error(message)
+                    else:
+                        st.success(message)
 
             with divider:
                 st.caption("")

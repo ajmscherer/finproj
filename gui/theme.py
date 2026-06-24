@@ -276,6 +276,13 @@ section.main h3,
     margin-bottom: {t["caption_margin_bottom"]};
 }}
 
+.fp-viva-summary {{
+    font-size: {t["caption_font_size"]};
+    color: {t["caption_color"]};
+    margin: 0 0 {t["caption_margin_bottom"]} 0;
+    line-height: 1.35;
+}}
+
 /* Input labels */
 [data-testid="stWidgetLabel"] {{
     font-size: {t["label_font_size"]};
