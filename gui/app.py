@@ -333,6 +333,23 @@ def _simulation_projection_years() -> list[int]:
     return list(range(1, max_year + 1))
 
 
+def _format_flow_amount_with_period(
+    amount: str,
+    from_period: int,
+    to_period: int,
+    horizon: int,
+) -> tuple[str, str|None]:
+    from_p = max(1, min(int(from_period), int(horizon)))
+    to_p = max(from_p, min(int(to_period), int(horizon)))
+    if from_p == 1 and to_p == horizon:
+        return (f"{amount} per year", None)
+    if from_p == 1:
+        return (f"{amount} per year", f"thru Y{to_p}")
+    if to_p == horizon:
+        return (f"{amount} per year", f"from year {from_p}")
+    return (f"{amount} per year", f"from Y{from_p} through Y{to_p}")
+
+
 def _init_flow_period_edit_widgets(max_year: int) -> None:
     horizon = max(1, int(max_year))
     portfolio = st.session_state.portfolio
@@ -1038,6 +1055,7 @@ def _render_live_charts(
 def _render_step_1_readonly() -> None:
     _clear_viva_syntax_result()
     portfolio = st.session_state.portfolio
+    horizon = int(portfolio["max_year"])
     with st.container(border=False, key="portfolio_section2"):
         summary_cols = st.columns(6)
         summary_cols[0].metric(
@@ -1045,16 +1063,29 @@ def _render_step_1_readonly() -> None:
             portfolio["initial_capital"],
             help=PORTFOLIO_FIELD_HELP["initial_capital"],
         )
-        summary_cols[1].metric(
-            "Annual contributions",
-            portfolio["contributions"],
-            help=PORTFOLIO_FIELD_HELP["contributions"],
-        )
-        summary_cols[2].metric(
-            "Annual withdrawals",
-            portfolio["withdrawals"],
-            help=PORTFOLIO_FIELD_HELP["withdrawals"],
-        )
+        with summary_cols[1].container(border=False, gap=None):
+            line1, line2 = _format_flow_amount_with_period(
+                portfolio["contributions"],
+                portfolio.get("contributions_from_period", 1),
+                portfolio.get("contributions_to_period", horizon),
+                horizon,
+            )
+            st.metric("Contributions", line1,help=PORTFOLIO_FIELD_HELP["contributions"],
+            )
+            if line2:
+                st.caption(line2)
+        with summary_cols[2].container(border=False, gap=None):
+            line1, line2 = _format_flow_amount_with_period(
+                portfolio["withdrawals"],
+                portfolio.get("withdrawals_from_period", 1),
+                portfolio.get("withdrawals_to_period", horizon),
+                horizon,
+            )
+            st.metric("Withdrawals", line1,help=PORTFOLIO_FIELD_HELP["withdrawals"],
+            )
+            if line2:
+                st.caption(line2)
+        
         summary_cols[3].metric(
             "Cash buffer",
             portfolio["cash_buffer"],
