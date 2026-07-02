@@ -472,6 +472,12 @@ def _request_simulation_run() -> None:
     _set_simulation_running(True)
     st.rerun()
 
+def _request_simulation_save() -> None:
+    st.session_state.run_simulation_save_requested = True
+    st.rerun()
+
+def _execute_simulation_save() -> None:
+    pass
 
 def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
     """
@@ -1672,13 +1678,21 @@ def _render_step_4_content() -> None:
                 _render_step_4_results(result, result_year)
             with st.container(border=True, horizontal=True):
                 if st.button(
-                    "Refresh simulation",
+                    "Run again",
                     width="stretch",
                     type="primary",
                     key="refresh_simulation",
                     on_click=_request_simulation_run,
                 ):
                     _request_simulation_run()
+                if st.button(
+                    "Save simulation",
+                    width="stretch",
+                    type="secondary",
+                    key="run_with_new_parameters",
+                    on_click=_request_simulation_save,
+                ):
+                    _request_simulation_save()
                 if st.button(
                     "Discard simulation",
                     width="stretch",
