@@ -1,4 +1,5 @@
-# Optional GUI dependencies (Python 3.10+).
-# Core simulation engine remains stdlib-only.
+# GUI and simulation dependencies (Python 3.10+).
+# Viva is required to build per-projection cash-flow schedules.
 streamlit>=1.55.0,<2
 matplotlib>=3.10.0,<4
+viva @ git+https://github.com/ajmscherer/viva.git

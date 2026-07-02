@@ -70,17 +70,33 @@ class ClickPanelRegistry:
                 const bindings = {bindings_json};
 
                 function isDataEntryTarget(target) {{
-                    if (target.closest('input, textarea, select, [contenteditable="true"]')) {{
+                    if (target.closest('input, textarea, select, label, [contenteditable="true"]')) {{
                         return true;
                     }}
-                    if (target.closest('[data-baseweb="select"], [data-baseweb="input"], [data-baseweb="textarea"]')) {{
+                    if (target.closest(
+                        '[data-baseweb="select"], [data-baseweb="input"], [data-baseweb="textarea"], '
+                        + '[data-baseweb="radio"], [data-baseweb="checkbox"]'
+                    )) {{
                         return true;
                     }}
-                    if (target.closest('[data-baseweb="popover"], [role="listbox"], [role="option"]')) {{
+                    if (target.closest(
+                        '[data-baseweb="popover"], [role="listbox"], [role="option"], '
+                        + '[role="radiogroup"], [role="radio"]'
+                    )) {{
                         return true;
                     }}
                     if (target.closest('[data-testid="stNumberInput"] button')) {{
                         return true;
+                    }}
+                    const widgetRoots = [
+                        'stTextInput', 'stTextArea', 'stNumberInput', 'stRadio', 'stCheckbox',
+                        'stSelectbox', 'stMultiSelect', 'stSlider', 'stDateInput', 'stTimeInput',
+                        'stColorPicker', 'stFileUploader', 'stToggle', 'stSegmentedControl',
+                    ];
+                    for (const testId of widgetRoots) {{
+                        if (target.closest('[data-testid="' + testId + '"]')) {{
+                            return true;
+                        }}
                     }}
                     return false;
                 }}

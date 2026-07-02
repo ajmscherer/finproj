@@ -108,6 +108,11 @@ THEME: dict[str, str | int] = {
     "summary_table_header_color": "#374151",
     "summary_table_border": "1px solid #e5e7eb",
     "summary_table_cell_padding": "0.5rem 0.75rem",
+    "column_divider_color": "#e5e7eb",
+    "step1_divider_color": "#9ca3af",
+    "step1_left_column_width": "2in",
+    "step1_left_column_width_px": 192,
+    "step1_divider_column_width_px": 12,
 }
 
 
@@ -269,6 +274,13 @@ section.main h3,
     font-size: {t["caption_font_size"]};
     color: {t["caption_color"]};
     margin-bottom: {t["caption_margin_bottom"]};
+}}
+
+.fp-viva-summary {{
+    font-size: {t["caption_font_size"]};
+    color: {t["caption_color"]};
+    margin: 0 0 {t["caption_margin_bottom"]} 0;
+    line-height: 1.35;
 }}
 
 /* Input labels */
@@ -444,9 +456,55 @@ section.main h3,
     font-size: {t["body_font_size"]};
     color: {t["body_color"]};
 }}
+
+/* Step 1 edit layout widths — divider CSS injected inline in app (see step1_edit_layout_css) */
+
 {section_mode_button_hide_css}
 </style>
 """
+
+
+def step1_edit_layout_css(theme: Mapping[str, str | int] | None = None) -> str:
+    """CSS for step 1 edit two-column layout (injected at render time)."""
+    t = theme or THEME
+    left_px = t["step1_left_column_width_px"]
+    divider_color = t["step1_divider_color"]
+    return f"""<style>
+[class*="portfolio_step1_layout"] {{
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 0 !important;
+}}
+[class*="portfolio_step1_layout"] > div,
+[class*="portfolio_step1_main"],
+[class*="portfolio_step1_side"] {{
+    min-width: 0 !important;
+}}
+[class*="portfolio_step1_layout"] > div:first-child {{
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}}
+[class*="portfolio_step1_layout"] > div:last-child {{
+    flex: 0 0 {left_px}px !important;
+    width: {left_px}px !important;
+    max-width: {left_px}px !important;
+    min-width: {left_px}px !important;
+    box-sizing: border-box !important;
+}}
+[class*="portfolio_step1_side"] {{
+    box-sizing: border-box !important;
+    border-left: 2px solid {divider_color} !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    min-width: 0 !important;
+}}
+</style>"""
 
 
 def inject_theme(theme: Mapping[str, str] | None = None) -> None:

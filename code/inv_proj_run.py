@@ -23,7 +23,8 @@ from inv_proj_runner import default_config, run_simulation
 
 def run():
     '''Main procedure to run investment projection simulation'''
-    result = run_simulation(default_config())
+    config = default_config()
+    result = run_simulation(config)
 
     for period in result.nav_observers:
         print(f"{period:<20}: {result.nav_observers[period]}")

@@ -25,6 +25,12 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 from asset_classes import AssetCatalog, default_asset_catalog
+from viva_adapter import (
+    HAS_VIVA,
+    FlowEngine,
+    VivaFlowEngine,
+    default_viva_start_year,
+)
 from inv_proj import (
     AuditObserver,
     CSV_Observer,
@@ -34,6 +40,7 @@ from inv_proj import (
     StatisticalObserver,
     build_correlation_matrix,
     cholesky_decomposition,
+    cv,
     ps,
 )
 
@@ -91,6 +98,11 @@ class SimulationConfig:
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_CORRELATION)
     )
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
+    viva_source: Optional[str] = None
+    contributions_from_period: int = 1
+    contributions_to_period: int = 15
+    withdrawals_from_period: int = 1
+    withdrawals_to_period: int = 15
 
 
 @dataclass
@@ -178,13 +190,15 @@ def validate_correlation(
 
 
 def find_config_problems(config: SimulationConfig) -> list[Exception]:
-    '''
+    """
     Find problems with the configuration.
     Returns a list of exceptions that occurred during validation.
-    '''
+    """
     problems = []
+
     def v1():
         validate_allocation(config.risk_mix, config.asset_catalog)
+
     def v2():
         validate_correlation(config.risk_param, config.risk_correlation)
 
@@ -193,9 +207,8 @@ def find_config_problems(config: SimulationConfig) -> list[Exception]:
             validator()
         except Exception as e:
             problems.append(e)
-            
-    return problems
 
+    return problems
 
 
 def success_rate(observer: StatisticalObserver, threshold: float = 0.0) -> float:
@@ -226,6 +239,12 @@ def _define_observers(
     simulation: Projection,
     config: SimulationConfig,
 ) -> tuple[Dict[str, StatisticalObserver], NavFanObserver]:
+    """
+    Define the observers for the simulation.
+    simulation: the simulation to observe
+    config: the configuration for the simulation
+    """
+
     nav: Dict[str, StatisticalObserver] = {}
     nav_years = nav_observer_years(config.max_year)
 
@@ -266,10 +285,86 @@ def _call_progress_callback(
         callback(current, total)
 
 
+
+
+def _positive_amount(amount: str) -> float:
+    try:
+        return max(cv(amount), 0.0)
+    except ValueError:
+        return 0.0
+
+
+def _clamp_period_range(from_period: int, to_period: int, max_year: int) -> tuple[int, int]:
+    from_p = max(1, min(int(from_period), max_year))
+    to_p = max(from_p, min(int(to_period), max_year))
+    return from_p, to_p
+
+
+def _compose_flow_engine_source(config: SimulationConfig) -> str:
+    """Build a Viva program from flat flows, period ranges, and optional extra source."""
+    lines: list[str] = []
+
+    if _positive_amount(config.contributions) > 0:
+        from_p, to_p = _clamp_period_range(
+            config.contributions_from_period,
+            config.contributions_to_period,
+            config.max_year,
+        )
+        lines.append(
+            "flow: contributions, "
+            f"{config.contributions.strip()} per year, "
+            f"from year {from_p}, "
+            f"to year {to_p}"
+        )
+
+    if _positive_amount(config.withdrawals) > 0:
+        from_p, to_p = _clamp_period_range(
+            config.withdrawals_from_period,
+            config.withdrawals_to_period,
+            config.max_year,
+        )
+        withdrawal_amount = config.withdrawals.strip().lstrip("-")
+        lines.append(
+            "flow: withdrawals, "
+            f"-{withdrawal_amount} per year, "
+            f"from year {from_p}, "
+            f"to year {to_p}"
+        )
+
+    extra = (config.viva_source or "").strip()
+    if extra:
+        lines.append(extra)
+
+    if not lines:
+        lines.append(f"flow: none, 0 per year, for {config.max_year} years")
+
+    return "\n".join(lines)
+
+
+def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
+    if not HAS_VIVA:
+        raise ImportError(
+            "Viva cash-flow model is configured but viva is not installed. "
+            "Install with: pip install -r requirements-gui.txt"
+        )
+    viva_source = _compose_flow_engine_source(config)
+    flow_engine = VivaFlowEngine.build(
+        viva_source,
+        start_year=default_viva_start_year(),
+        horizon_years=config.max_year,
+    )
+    return flow_engine
+
+
 def run_simulation(
     config: SimulationConfig,
     progress_callback: Optional[Callable[..., None]] = None,
 ) -> RunResult:
+    """
+    Run a simulation.
+    config: the configuration for the simulation
+    progress_callback: the callback to call to update the progress bar
+    """
     sync_config_with_catalog(config)
     config.asset_catalog.validate()
     validate_allocation(config.risk_mix, config.asset_catalog)
@@ -283,10 +378,12 @@ def run_simulation(
         asset_names=config.asset_catalog.name_map(),
     )
 
+    engine = _build_flow_engine(config) 
+    flows0 = [0.0] * config.max_year
+
     simulation = Projection(
         initial_capital=config.initial_capital,
-        contributions=config.contributions,
-        withdrawals=config.withdrawals,
+        flows=flows0,
         cashBuffer=config.cash_buffer,
         risk_mix=config.risk_mix,
         risk_distrib=distributions,
@@ -299,6 +396,12 @@ def run_simulation(
     nav, nav_fan = _define_observers(simulation, config)
 
     for i in range(config.nb_projections):
+        if engine is not None:
+            flow_structure = engine.draw_flows(seed=i + 1)
+            flows = flow_structure.flows
+            simulation.set_flows(flows)
+        else:
+            simulation.set_flows(flows0)
         simulation.run(i + 1)
         _call_progress_callback(
             progress_callback, i + 1, config.nb_projections, nav_fan

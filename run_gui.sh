@@ -4,7 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-if command -v python3 &>/dev/null; then
+if command -v python3.13 &>/dev/null; then
+  SYSTEM_PYTHON=python3.13
+elif command -v python3 &>/dev/null; then
   SYSTEM_PYTHON=python3
 elif command -v python &>/dev/null; then
   SYSTEM_PYTHON=python

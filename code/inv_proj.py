@@ -438,8 +438,7 @@ class Projection(Observable):
     def __init__(
         self,
         initial_capital,
-        contributions,
-        withdrawals,
+        flows:list[float],
         cashBuffer,
         risk_mix,
         risk_distrib,
@@ -450,17 +449,15 @@ class Projection(Observable):
     ):
         '''
         arguments:
-            capital:        the initial amount of capital
-            contributions:  the amount of money contributed in each period
-            withdrawals:    the amount of money spent in each period
+            initial_capital:        the initial amount of capital
+            flows:            the flows of money in and out of the portfolio
             cashBuffer:     the target amount of cash that needs to be held when possible
             risk_mix:       the allocation of capital by asset id
-            risk_distrib:   the risk distributions keyed by asset id
+            risk_distrib:   the risk distributions keyed by asset id  
             nb_years:       the number of years to run
             nb_projections: the number of projections to run
-            asset_catalog:  asset definitions and role mapping
+            asset_catalog:  asset definitions and role mapping  
             correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
-
         '''
 
         super().__init__()
@@ -469,17 +466,27 @@ class Projection(Observable):
         self.shortfall_asset_id = asset_catalog.shortfall_id()
         self.replenishment_asset_id = asset_catalog.replenishment_id()
         self.initial_capital = cv(initial_capital)
-        self.contributions = cv(contributions)
-        self.withdrawals = cv(withdrawals)
+        self.nb_years = nb_years
+        if len(flows) != nb_years:
+            self.set_flows([0.0] * nb_years)
+        else:
+            self.set_flows(flows)
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
         self.correlated_returns = CorrelatedReturns(risk_distrib, correlations=correlations)
-        self.nb_years = nb_years
         self.nb_projections = nb_projections
-        
+
+    def set_flows(self, flows:list[float]):
+        if len(flows) != self.nb_years:
+            raise ValueError(f"Number of flows ({len(flows)}) does not match number of years ({self.nb_years})")
+        self.flows = flows
+
     def run(self,id):
-        '''Method to run a single projection'''
+        '''
+        Method to run a single projection
+        id: the id of the projection to run
+        '''
 
         # init simulation
         self.start(id)
@@ -518,6 +525,11 @@ class Projection(Observable):
 
         # retrieve period
         self.period = period
+        flow = self.flows[period - 1]
+        self.contributions = max(flow, 0)
+        self.withdrawals = max(-flow, 0)
+        contributions = self.contributions
+        withdrawals = self.withdrawals
 
         # notify observers
         self.notifyObservers(step=ps.BOP)
@@ -526,14 +538,15 @@ class Projection(Observable):
         self.ptf_bop = self.ptf_eop.dup()
 
         # determine how much cash is available
+        self.ptf_bop.lines[self.liquidity_asset_id] += contributions
         self.availableCash = self.ptf_bop.lines[self.liquidity_asset_id]
-        self.cashDepletion = min(self.withdrawals-self.contributions, self.availableCash)
+        self.cashDepletion = min(withdrawals, self.availableCash)
         self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
         
         self.ptf1 = self.ptf_bop.dup()
-        self.shortfall = self.withdrawals - self.contributions - self.cashDepletion
+        self.shortfall = withdrawals - self.cashDepletion
         self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
         if self.shortfall_asset_id not in self.ptf1.lines:
             self.ptf1.lines[self.shortfall_asset_id] = 0.0
@@ -758,7 +771,7 @@ class CSV_Observer(Observer):
         self.file_name = file_name
         self.lines =[]
         self.ptfs =['ptf_bop','ptf_eop',     'ptf1', 'ptf2', 'ptf3', 'ptf4', 'ptf5']
-        self.vars = [ 'withdrawals', 'availableCash', 'cashBuffer', 'cashDepletion','shortfall', 'cashReplenishment','financialGainLoss']
+        self.vars = [ 'contributions', 'withdrawals', 'availableCash', 'cashBuffer', 'cashDepletion','shortfall', 'cashReplenishment','financialGainLoss']
 
     def _addLine(self, items):
         line = ",".join(items)
@@ -791,7 +804,6 @@ class CSV_Observer(Observer):
         for var in self.vars:
             newLine(var,'',observed.__dict__[var])
         
-        pass
 
     def save(self, observed):
 

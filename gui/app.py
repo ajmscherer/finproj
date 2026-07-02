@@ -43,7 +43,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "code"))
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
 from asset_classes import AssetCatalog, default_asset_catalog, slugify  # noqa: E402
 from inv_proj import cv  # noqa: E402
-from theme import inject_theme  # noqa: E402
+from theme import THEME, inject_theme, step1_edit_layout_css  # noqa: E402
 from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
 from charts import (  # noqa: E402
     build_mu_sigma_range_figure,
@@ -67,6 +67,12 @@ from inv_proj_runner import (  # noqa: E402
     validate_correlation,
     find_config_problems,
 )
+from viva_adapter import HAS_VIVA  # noqa: E402
+import viva_summary as _viva_summary_module  # noqa: E402
+
+importlib.reload(_viva_summary_module)
+try_summarize_viva_source = _viva_summary_module.try_summarize_viva_source
+format_viva_program_summary_lines = _viva_summary_module.format_viva_program_summary_lines
 import inv_proj  # noqa: E402
 import inv_proj_runner  # noqa: E402
 
@@ -162,6 +168,11 @@ PORTFOLIO_FIELD_DEFAULTS = {
     "cash_buffer": "150k",
     "max_year": 20,
     "nb_projections": 2000,
+    "viva_source": "",
+    "contributions_from_period": 1,
+    "contributions_to_period": 20,
+    "withdrawals_from_period": 1,
+    "withdrawals_to_period": 20,
 }
 
 PORTFOLIO_FIELD_HELP = {
@@ -195,6 +206,78 @@ PORTFOLIO_FIELD_HELP = {
         "Counts above 5,000 can take several minutes."
     ),
 }
+
+VIVA_FIELD_HELP = {
+    "viva_source": (
+        "Optional [Viva](https://github.com/ajmscherer/viva) DSL program describing "
+        "portfolio contributions and withdrawals. Positive amounts are contributions. "
+        "Note: Probabilistic Viva features require a Viva Pro license after "
+        "the 30-day evaluation period. Deterministic flows remain MIT-licensed. "
+        "(e.g. `flow: insurance, 100k, upon death`); negative amounts are withdrawals."
+    ),
+}
+
+VIVA_JULIAN_EXAMPLE = (
+    "life: Julian, man, born 2000\n"
+    "event: wedding, year 2030, probability 50%\n"
+    "flow: party, -100k, upon wedding\n"
+    "flow: insurance_premium, -2k per year, until Julian's death\n"
+    "flow: insurance, 1 million, upon Julian's death\n"
+)
+
+
+def _clear_viva_syntax_result() -> None:
+    st.session_state.pop("viva_syntax_result", None)
+    st.session_state.pop("viva_syntax_checked_source", None)
+
+
+def _load_viva_julian_example() -> None:
+    st.session_state.portfolio_edit_viva_source = VIVA_JULIAN_EXAMPLE
+    _clear_viva_syntax_result()
+
+
+def _clear_viva_source() -> None:
+    st.session_state.portfolio_edit_viva_source = ""
+    _clear_viva_syntax_result()
+
+
+def _test_viva_syntax() -> None:
+    source = st.session_state.get("portfolio_edit_viva_source", "")
+    st.session_state.viva_syntax_checked_source = source
+    summary, error = try_summarize_viva_source(source)
+    if error or summary is None:
+        st.session_state.viva_syntax_result = ("error", error or "Could not parse Viva program.")
+        return
+    message = " · ".join(format_viva_program_summary_lines(summary))
+    st.session_state.viva_syntax_result = ("success", message)
+
+
+def _viva_syntax_result_for_display() -> tuple[str, str] | None:
+    checked = st.session_state.get("viva_syntax_checked_source")
+    current = st.session_state.get("portfolio_edit_viva_source", "")
+    if checked != current:
+        _clear_viva_syntax_result()
+        return None
+    result = st.session_state.get("viva_syntax_result")
+    if not result:
+        return None
+    level, message = result
+    return level, message
+
+
+def _render_viva_program_summary(source: str) -> None:
+    summary, error = try_summarize_viva_source(source)
+    if error or summary is None:
+        st.caption(f"Viva syntax error: {error or 'Could not parse Viva program.'}")
+        return
+    lines = format_viva_program_summary_lines(summary)
+    st.markdown(
+        '<div class="fp-viva-summary">'
+        + "<br>".join(html.escape(line) for line in lines)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
 
 RETURN_ASSUMPTION_HELP = {
     "mu": (
@@ -245,6 +328,52 @@ def _validate_portfolio_amount_inputs() -> list[str]:
     return errors
 
 
+def _simulation_projection_years() -> list[int]:
+    max_year = max(1, int(st.session_state.get("portfolio_edit_max_year", 20)))
+    return list(range(1, max_year + 1))
+
+
+def _format_flow_amount_with_period(
+    amount: str,
+    from_period: int,
+    to_period: int,
+    horizon: int,
+) -> tuple[str, str|None]:
+    from_p = max(1, min(int(from_period), int(horizon)))
+    to_p = max(from_p, min(int(to_period), int(horizon)))
+    if from_p == 1 and to_p == horizon:
+        return (f"{amount} per year", None)
+    if from_p == 1:
+        return (f"{amount} per year", f"thru Y{to_p}")
+    if to_p == horizon:
+        return (f"{amount} per year", f"from year {from_p}")
+    return (f"{amount} per year", f"from Y{from_p} through Y{to_p}")
+
+
+def _init_flow_period_edit_widgets(max_year: int) -> None:
+    horizon = max(1, int(max_year))
+    portfolio = st.session_state.portfolio
+    for slug in ("contributions", "withdrawals"):
+        portfolio.setdefault(f"{slug}_from_period", 1)
+        portfolio.setdefault(f"{slug}_to_period", horizon)
+        prefix = f"portfolio_edit_{slug}"
+        st.session_state[f"{prefix}_from_period"] = int(portfolio[f"{slug}_from_period"])
+        st.session_state[f"{prefix}_to_period"] = int(portfolio[f"{slug}_to_period"])
+        st.session_state[f"{prefix}_periods_initialized"] = True
+
+
+def _ensure_flow_period_defaults(base_key: str, horizon: int) -> tuple[str, str]:
+    from_key = f"{base_key}_from_period"
+    to_key = f"{base_key}_to_period"
+    init_key = f"{base_key}_periods_initialized"
+    horizon = max(1, int(horizon))
+    if not st.session_state.get(init_key):
+        st.session_state[from_key] = 1
+        st.session_state[to_key] = horizon
+        st.session_state[init_key] = True
+    return from_key, to_key
+
+
 def _init_portfolio_fields() -> None:
     if "portfolio" not in st.session_state:
         st.session_state.portfolio = copy.deepcopy(PORTFOLIO_FIELD_DEFAULTS)
@@ -258,6 +387,10 @@ def _sync_portfolio_to_edit_widgets() -> None:
     st.session_state.portfolio_edit_cash_buffer = portfolio["cash_buffer"]
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
+    st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
+   
+    
+    _init_flow_period_edit_widgets(int(portfolio["max_year"]))
 
 
 def _sync_edit_widgets_to_portfolio() -> None:
@@ -268,6 +401,11 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["cash_buffer"] = st.session_state.portfolio_edit_cash_buffer
     portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
     portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
+    portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
+    for slug in ("contributions", "withdrawals"):
+        prefix = f"portfolio_edit_{slug}"
+        portfolio[f"{slug}_from_period"] = int(st.session_state[f"{prefix}_from_period"])
+        portfolio[f"{slug}_to_period"] = int(st.session_state[f"{prefix}_to_period"])
 
 
 def _exit_portfolio_edit(*, force: bool = False) -> None:
@@ -336,7 +474,12 @@ def _request_simulation_run() -> None:
 
 
 def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
-    """Run Monte Carlo simulation. Returns True on success."""
+    """
+    Run Monte Carlo simulation. Returns True on success.
+    
+    live_charts_placeholder: the placeholder for the live charts
+    """
+
     live_charts_placeholder.empty()
     try:
         assumptions = _collect_assumptions()    
@@ -379,6 +522,7 @@ def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
         )
 
         live_charts_placeholder.empty()
+
         progress.progress(1.0, text="Simulation complete.")
         status.success(
             f"Finished {config.nb_projections:,} projections over {config.max_year} years."
@@ -464,6 +608,15 @@ def _collect_assumptions() -> Assumptions:
         allocation=dict(st.session_state.allocation),
         mu_sigma=_read_mu_sigma(catalog),
         correlation_values=_read_correlation_values(catalog),
+        viva_source=portfolio.get("viva_source", ""),
+        contributions_from_period=int(portfolio.get("contributions_from_period", 1)),
+        contributions_to_period=int(
+            portfolio.get("contributions_to_period", portfolio["max_year"])
+        ),
+        withdrawals_from_period=int(portfolio.get("withdrawals_from_period", 1)),
+        withdrawals_to_period=int(
+            portfolio.get("withdrawals_to_period", portfolio["max_year"])
+        ),
     )
     return assumptions
 
@@ -493,6 +646,11 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         "cash_buffer": assumptions.cash_buffer,
         "max_year": assumptions.max_year,
         "nb_projections": assumptions.nb_projections,
+        "viva_source": assumptions.viva_source,
+        "contributions_from_period": assumptions.contributions_from_period,
+        "contributions_to_period": assumptions.contributions_to_period,
+        "withdrawals_from_period": assumptions.withdrawals_from_period,
+        "withdrawals_to_period": assumptions.withdrawals_to_period,
     }
     st.session_state.output_dir = assumptions.output_dir
     st.session_state.mix_preset = assumptions.mix_preset
@@ -895,7 +1053,9 @@ def _render_live_charts(
 
 
 def _render_step_1_readonly() -> None:
+    _clear_viva_syntax_result()
     portfolio = st.session_state.portfolio
+    horizon = int(portfolio["max_year"])
     with st.container(border=False, key="portfolio_section2"):
         summary_cols = st.columns(6)
         summary_cols[0].metric(
@@ -903,16 +1063,29 @@ def _render_step_1_readonly() -> None:
             portfolio["initial_capital"],
             help=PORTFOLIO_FIELD_HELP["initial_capital"],
         )
-        summary_cols[1].metric(
-            "Annual contributions",
-            portfolio["contributions"],
-            help=PORTFOLIO_FIELD_HELP["contributions"],
-        )
-        summary_cols[2].metric(
-            "Annual withdrawals",
-            portfolio["withdrawals"],
-            help=PORTFOLIO_FIELD_HELP["withdrawals"],
-        )
+        with summary_cols[1].container(border=False, gap=None):
+            line1, line2 = _format_flow_amount_with_period(
+                portfolio["contributions"],
+                portfolio.get("contributions_from_period", 1),
+                portfolio.get("contributions_to_period", horizon),
+                horizon,
+            )
+            st.metric("Contributions", line1,help=PORTFOLIO_FIELD_HELP["contributions"],
+            )
+            if line2:
+                st.caption(line2)
+        with summary_cols[2].container(border=False, gap=None):
+            line1, line2 = _format_flow_amount_with_period(
+                portfolio["withdrawals"],
+                portfolio.get("withdrawals_from_period", 1),
+                portfolio.get("withdrawals_to_period", horizon),
+                horizon,
+            )
+            st.metric("Withdrawals", line1,help=PORTFOLIO_FIELD_HELP["withdrawals"],
+            )
+            if line2:
+                st.caption(line2)
+        
         summary_cols[3].metric(
             "Cash buffer",
             portfolio["cash_buffer"],
@@ -928,6 +1101,9 @@ def _render_step_1_readonly() -> None:
             f"{int(portfolio['nb_projections']):,}",
             help=PORTFOLIO_FIELD_HELP["nb_projections"],
         )
+        viva_source = portfolio.get("viva_source", "").strip()
+        if viva_source:
+            _render_viva_program_summary(viva_source)
 
 
 def _render_step_1_edit() -> None:
@@ -935,50 +1111,135 @@ def _render_step_1_edit() -> None:
     with st.container(border=False, key="portfolio_section2"):
         if "portfolio_edit_initial_capital" not in st.session_state:
             _sync_portfolio_to_edit_widgets()
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.text_input(
-                "Initial capital",
-                key="portfolio_edit_initial_capital",
-                help=PORTFOLIO_FIELD_HELP["initial_capital"],
+        st.markdown(step1_edit_layout_css(), unsafe_allow_html=True)
+        with st.container(horizontal=True, gap=None, key="portfolio_step1_layout"):
+            main_side = st.container(width="stretch", key="portfolio_step1_main")
+            divider = st.container(width=10, key="portfolio_step1_divider")
+            narrow_side = st.container(
+                width=int(THEME["step1_left_column_width_px"]),
+                key="portfolio_step1_side",
             )
-            st.text_input(
-                "Annual contributions",
-                key="portfolio_edit_contributions",
-                help=PORTFOLIO_FIELD_HELP["contributions"],
-            )
-            st.text_input(
-                "Annual withdrawals",
-                key="portfolio_edit_withdrawals",
-                help=PORTFOLIO_FIELD_HELP["withdrawals"],
-            )
-        with col2:
-            st.text_input(
-                "Cash buffer",
-                key="portfolio_edit_cash_buffer",
-                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-            )
-            st.number_input(
-                "Horizon (years)",
-                min_value=1,
-                max_value=50,
-                step=1,
-                key="portfolio_edit_max_year",
-                help=PORTFOLIO_FIELD_HELP["max_year"],
-            )
-        with col3:
-            st.number_input(
-                "Number of projections",
-                min_value=10,
-                max_value=20000,
-                step=10,
-                key="portfolio_edit_nb_projections",
-                help=PORTFOLIO_FIELD_HELP["nb_projections"],
-            )
-            if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-                st.warning("Large projection counts can take several minutes.")
-        for message in _validate_portfolio_amount_inputs():
-            st.error(message)
+
+            with main_side:
+                def period_block(name: str, help: str, key: str | None = None) -> None:
+                    slug = name.lower().replace(" ", "_")
+                    if not key:
+                        key = f"portfolio_edit_{slug}"
+                    years = _simulation_projection_years()
+                    horizon = years[-1]
+                    from_key, to_key = _ensure_flow_period_defaults(key, horizon)
+                    if int(st.session_state[from_key]) not in years:
+                        st.session_state[from_key] = years[0]
+                    if int(st.session_state[to_key]) not in years:
+                        st.session_state[to_key] = horizon
+                    from_period = int(st.session_state[from_key])
+                    to_years = list(range(from_period, years[-1] + 1))
+                    if int(st.session_state[to_key]) not in to_years:
+                        st.session_state[to_key] = to_years[-1]
+                    if int(st.session_state[to_key]) < from_period:
+                        st.session_state[to_key] = from_period
+
+                    container = st.container(
+                        border=True,
+                        horizontal=True,
+                        key=f"{key}_block",
+                    )
+                    with container:
+                        st.text_input(
+                            name,
+                            key=key,
+                            help=help,
+                        )
+                        st.selectbox(
+                            label="From period",
+                            options=years,
+                            key=from_key,
+                            label_visibility="visible",
+                        )
+                        st.selectbox(
+                            label="To period",
+                            options=to_years,
+                            key=to_key,
+                            label_visibility="visible",
+                        )
+
+                period_block("Contributions", PORTFOLIO_FIELD_HELP["contributions"])
+                period_block("Withdrawals", PORTFOLIO_FIELD_HELP["withdrawals"])
+
+                if not HAS_VIVA:
+                    st.warning(
+                        "Viva is not installed in this environment. "
+                        "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
+                    )
+                with st.container(border=True, horizontal=True):
+                    st.text_area(
+                        "Additional flows",
+                        key="portfolio_edit_viva_source",
+                        height=180,
+                        help=VIVA_FIELD_HELP["viva_source"],
+                        placeholder="Enter your additional flows here. Click the 'load example' button to load a sample program.",
+                    )
+                    with st.container(border=False, horizontal=False, width=150, height="stretch", vertical_alignment="bottom"):
+                        st.button(
+                            "clear",
+                            width="stretch",
+                            key="viva_clear",
+                            on_click=_clear_viva_source,
+                        )
+                        st.button(
+                            "load example",
+                            width="stretch",
+                            key="viva_load_example",
+                            on_click=_load_viva_julian_example,
+                        )
+                        st.button(
+                            "test syntax",
+                            width="stretch",
+                            key="viva_test_syntax",
+                            on_click=_test_viva_syntax,
+                        )
+                syntax_result = _viva_syntax_result_for_display()
+                if syntax_result:
+                    level, message = syntax_result
+                    if level == "error":
+                        st.error(message)
+                    else:
+                        st.success(message)
+
+            with divider:
+                st.caption("")
+
+            with narrow_side:
+                st.text_input(
+                    "Initial capital",
+                    key="portfolio_edit_initial_capital",
+                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
+                )
+                st.text_input(
+                    "Cash buffer",
+                    key="portfolio_edit_cash_buffer",
+                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                )
+                st.number_input(
+                    "Horizon (years)",
+                    min_value=1,
+                    max_value=50,
+                    step=1,
+                    key="portfolio_edit_max_year",
+                    help=PORTFOLIO_FIELD_HELP["max_year"],
+                )
+                st.number_input(
+                    "Number of projections",
+                    min_value=10,
+                    max_value=20000,
+                    step=10,
+                    key="portfolio_edit_nb_projections",
+                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
+                )
+                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+                    st.warning("Large projection counts can take several minutes.")
+                for message in _validate_portfolio_amount_inputs():
+                    st.error(message)
 
         _sync_edit_widgets_to_portfolio()
 
@@ -1453,7 +1714,7 @@ def _render_step_4_content() -> None:
 
 section1 = SectionContentEditable(
     name="Step 1",
-    title="Projection Assumptions",
+    title="Contributions, Withdrawals, and projection parameters",
     edit_form=_render_step_1_edit,
     readonly_form=_render_step_1_readonly,
 )
