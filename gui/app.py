@@ -1177,7 +1177,7 @@ def _render_step_1_edit() -> None:
                         key="portfolio_edit_viva_source",
                         height=180,
                         help=VIVA_FIELD_HELP["viva_source"],
-                        placeholder=VIVA_JULIAN_EXAMPLE,
+                        placeholder="Enter your additional flows here. Click the 'load example' button to load a sample program.",
                     )
                     with st.container(border=False, horizontal=False, width=150, height="stretch", vertical_alignment="bottom"):
                         st.button(
