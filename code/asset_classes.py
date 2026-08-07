@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import copy
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Set
 
 
 class AssetRole:
@@ -58,14 +58,14 @@ def slugify(name: str) -> str:
 
 @dataclass
 class AssetCatalog:
-    assets: List[AssetClass] = field(default_factory=list)
+    assets: list[AssetClass] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.assets:
             self.assets = default_asset_classes()
 
     @property
-    def ids(self) -> List[str]:
+    def ids(self) -> list[str]:
         return [asset.id for asset in self.assets]
 
     def get(self, asset_id: str) -> AssetClass:
@@ -77,7 +77,7 @@ class AssetCatalog:
     def name(self, asset_id: str) -> str:
         return self.get(asset_id).name
 
-    def name_map(self) -> Dict[str, str]:
+    def name_map(self) -> dict[str, str]:
         return {asset.id: asset.name for asset in self.assets}
 
     def liquidity_id(self) -> str:
@@ -89,13 +89,13 @@ class AssetCatalog:
     def replenishment_id(self) -> str:
         return self._single_role_id(AssetRole.REPLENISHMENT, 'cash replenishment source')
 
-    def investable_ids(self) -> List[str]:
+    def investable_ids(self) -> list[str]:
         return [asset.id for asset in self.assets if asset.has_role(AssetRole.INVESTABLE)]
 
-    def return_model_ids(self) -> List[str]:
+    def return_model_ids(self) -> list[str]:
         return self.ids[:]
 
-    def required_ids(self) -> Set[str]:
+    def required_ids(self) -> set[str]:
         return {asset.id for asset in self.assets if asset.required}
 
     def _single_role_id(self, role: str, label: str) -> str:
@@ -116,8 +116,8 @@ class AssetCatalog:
         if not self.investable_ids():
             raise ValueError('At least one investable asset is required.')
 
-        seen_ids: Set[str] = set()
-        seen_names: Set[str] = set()
+        seen_ids: set[str] = set()
+        seen_names: set[str] = set()
         for asset in self.assets:
             if asset.id in seen_ids:
                 raise ValueError(f'Duplicate asset id: {asset.id}')
@@ -140,7 +140,7 @@ class AssetCatalog:
             roles=asset.roles,
         )
 
-    def add(self, name: str, roles: Optional[Iterable[str]] = None) -> AssetClass:
+    def add(self, name: str, roles: Iterable[str] | None = None) -> AssetClass:
         name = name.strip()
         if not name:
             raise ValueError('Asset name cannot be empty.')
@@ -170,7 +170,7 @@ class AssetCatalog:
         return AssetCatalog(assets=[copy.deepcopy(asset) for asset in self.assets])
 
 
-def default_asset_classes() -> List[AssetClass]:
+def default_asset_classes() -> list[AssetClass]:
     return [
         AssetClass('cash', 'Cash', required=True, roles=frozenset({AssetRole.LIQUIDITY})),
         AssetClass('money_market', 'Money Market', required=True, roles=frozenset({AssetRole.INVESTABLE})),

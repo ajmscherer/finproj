@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime
 
 try:
-    import viva  # noqa: F401
+    import viva
 
     HAS_VIVA = True
 except ImportError:
@@ -70,7 +70,7 @@ class VivaFlowEngine(FlowEngine):
         date_key = "date"
         name_key = "name"
         currency_key = "currency"
-        currency = set([flow[currency_key] for flow in vflows])
+        currency = {flow[currency_key] for flow in vflows}
         if len(currency) > 1:
             raise ValueError("Multiple currencies are not supported")
 
@@ -84,7 +84,7 @@ class VivaFlowEngine(FlowEngine):
             flows.append(sum(year_flows))
 
         audit = {}
-        for name in set([flow[name_key] for flow in vflows]):
+        for name in {flow[name_key] for flow in vflows}:
             audit[name] = []
             for year in range(self.horizon_years):
                 year_flows = [
@@ -107,4 +107,4 @@ class VivaFlowEngine(FlowEngine):
 
 
 def default_viva_start_year() -> int:
-    return date.today().year
+    return datetime.now().astimezone().year

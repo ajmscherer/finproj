@@ -23,7 +23,6 @@ import copy
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from asset_classes import AssetCatalog, AssetClass, default_asset_catalog
 from inv_proj_runner import (
@@ -37,7 +36,7 @@ ASSUMPTIONS_FORMAT_VERSION = 1
 DEFAULT_ASSUMPTIONS_DIR = Path(__file__).resolve().parent.parent / 'assumptions'
 
 
-def catalog_to_dict(catalog: AssetCatalog) -> List[dict]:
+def catalog_to_dict(catalog: AssetCatalog) -> list[dict]:
     return [
         {
             'id': asset.id,
@@ -49,7 +48,7 @@ def catalog_to_dict(catalog: AssetCatalog) -> List[dict]:
     ]
 
 
-def catalog_from_dict(items: List[dict]) -> AssetCatalog:
+def catalog_from_dict(items: list[dict]) -> AssetCatalog:
     assets = [
         AssetClass(
             id=item['id'],
@@ -68,7 +67,7 @@ def _correlation_key(left: str, right: str) -> str:
     return f'{left}|{right}'
 
 
-def _correlation_from_key(key: str) -> Tuple[str, str]:
+def _correlation_from_key(key: str) -> tuple[str, str]:
     left, right = key.split('|', 1)
     return left, right
 
@@ -85,9 +84,9 @@ class Assumptions:
     output_dir: str = field(default_factory=lambda: str(DEFAULT_OUTPUT_DIR))
     mix_preset: str = 'performance'
     asset_catalog: AssetCatalog = field(default_factory=default_asset_catalog)
-    allocation: Dict[str, float] = field(default_factory=dict)
-    mu_sigma: Dict[str, Dict[str, float]] = field(default_factory=dict)
-    correlations: Dict[str, float] = field(default_factory=dict)
+    allocation: dict[str, float] = field(default_factory=dict)
+    mu_sigma: dict[str, dict[str, float]] = field(default_factory=dict)
+    correlations: dict[str, float] = field(default_factory=dict)
     format_version: int = ASSUMPTIONS_FORMAT_VERSION
     viva_source: str = ''
     contributions_from_period: int = 1
@@ -117,9 +116,9 @@ class Assumptions:
         output_dir: str,
         mix_preset: str,
         asset_catalog: AssetCatalog,
-        allocation: Dict[str, float],
-        mu_sigma: Dict[str, Tuple[float, float]],
-        correlation_values: Dict[Tuple[str, str], float],
+        allocation: dict[str, float],
+        mu_sigma: dict[str, tuple[float, float]],
+        correlation_values: dict[tuple[str, str], float],
         viva_source: str = '',
         contributions_from_period: int = 1,
         contributions_to_period: int = 15,
@@ -156,16 +155,16 @@ class Assumptions:
             withdrawals_to_period=int(withdrawals_to_period),
         )
 
-    def correlation_values(self) -> Dict[Tuple[str, str], float]:
+    def correlation_values(self) -> dict[tuple[str, str], float]:
         asset_order = self.asset_catalog.return_model_ids()
-        values: Dict[Tuple[str, str], float] = {}
+        values: dict[tuple[str, str], float] = {}
         for key, rho in self.correlations.items():
             left, right = _correlation_from_key(key)
             canonical = normalize_correlation_pair(left, right, asset_order)
             values[canonical] = rho
         return values
 
-    def mu_sigma_tuples(self) -> Dict[str, Tuple[float, float]]:
+    def mu_sigma_tuples(self) -> dict[str, tuple[float, float]]:
         return {
             asset_id: (params['mu'], params['sigma'])
             for asset_id, params in self.mu_sigma.items()

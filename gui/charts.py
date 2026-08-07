@@ -9,10 +9,9 @@ from __future__ import annotations
 import math
 
 import matplotlib.pyplot as plt
+from formatting import format_compact_amount
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, MaxNLocator
-
-from formatting import format_compact_amount
 
 
 def histogram_bins(count: int) -> int:

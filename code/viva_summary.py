@@ -125,5 +125,5 @@ def try_summarize_viva_source(
         return VivaProgramSummary(lives=(), events=(), flows=()), None
     try:
         return summarize_viva_source(source), None
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError) as exc:
         return None, str(exc)

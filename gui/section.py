@@ -9,9 +9,10 @@ from __future__ import annotations
 import html
 from collections.abc import Callable
 from dataclasses import dataclass
+
 import streamlit as st
-from streamlit.delta_generator import DeltaGenerator
 from click_panel import ClickPanelRegistry, click_panel
+from streamlit.delta_generator import DeltaGenerator
 from theme import THEME
 
 

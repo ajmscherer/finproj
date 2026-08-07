@@ -27,11 +27,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import matplotlib
 
 # from click_panel import ClickPanelRegistry
-from section import SectionContentEditable, Section
-
-import matplotlib
+from section import Section, SectionContentEditable
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -40,41 +39,47 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
 
-from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions  # noqa: E402
-from asset_classes import AssetCatalog, default_asset_catalog, slugify  # noqa: E402
-from inv_proj import cv  # noqa: E402
-from theme import THEME, inject_theme, step1_edit_layout_css  # noqa: E402
-from formatting import format_compact_amount, render_summary_statistics_table  # noqa: E402
-from charts import (  # noqa: E402
+import viva_summary as _viva_summary_module
+from asset_classes import AssetCatalog, default_asset_catalog, slugify
+from charts import (
     build_mu_sigma_range_figure,
     build_nav_distribution_figure,
     build_nav_fan_figure,
     build_pie_chart,
     extract_latest_projection_curve,
 )
-from inv_proj_runner import (  # noqa: E402
+from formatting import (
+    format_compact_amount,
+    render_summary_statistics_table,
+)
+from inv_proj import cv
+from inv_proj_runner import (
     DEFAULT_NEW_ASSET_RISK,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_RISK_CORRELATION,
     DEFAULT_RISK_MIX_PRESETS,
     DEFAULT_RISK_PARAM,
     RunResult,
+    find_config_problems,
     investable_asset_ids,
     normalize_correlation_pair,
     return_model_asset_ids,
     success_rate,
     validate_allocation,
     validate_correlation,
-    find_config_problems,
 )
-from viva_adapter import HAS_VIVA  # noqa: E402
-import viva_summary as _viva_summary_module  # noqa: E402
+from theme import THEME, inject_theme, step1_edit_layout_css
+from viva_adapter import HAS_VIVA
+
+from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions
 
 importlib.reload(_viva_summary_module)
 try_summarize_viva_source = _viva_summary_module.try_summarize_viva_source
-format_viva_program_summary_lines = _viva_summary_module.format_viva_program_summary_lines
-import inv_proj  # noqa: E402
-import inv_proj_runner  # noqa: E402
+format_viva_program_summary_lines = (
+    _viva_summary_module.format_viva_program_summary_lines
+)
+import inv_proj
+import inv_proj_runner
 
 
 def _nav_key(year: int) -> str:
@@ -246,7 +251,10 @@ def _test_viva_syntax() -> None:
     st.session_state.viva_syntax_checked_source = source
     summary, error = try_summarize_viva_source(source)
     if error or summary is None:
-        st.session_state.viva_syntax_result = ("error", error or "Could not parse Viva program.")
+        st.session_state.viva_syntax_result = (
+            "error",
+            error or "Could not parse Viva program.",
+        )
         return
     message = " · ".join(format_viva_program_summary_lines(summary))
     st.session_state.viva_syntax_result = ("success", message)
@@ -338,7 +346,7 @@ def _format_flow_amount_with_period(
     from_period: int,
     to_period: int,
     horizon: int,
-) -> tuple[str, str|None]:
+) -> tuple[str, str | None]:
     from_p = max(1, min(int(from_period), int(horizon)))
     to_p = max(from_p, min(int(to_period), int(horizon)))
     if from_p == 1 and to_p == horizon:
@@ -357,7 +365,9 @@ def _init_flow_period_edit_widgets(max_year: int) -> None:
         portfolio.setdefault(f"{slug}_from_period", 1)
         portfolio.setdefault(f"{slug}_to_period", horizon)
         prefix = f"portfolio_edit_{slug}"
-        st.session_state[f"{prefix}_from_period"] = int(portfolio[f"{slug}_from_period"])
+        st.session_state[f"{prefix}_from_period"] = int(
+            portfolio[f"{slug}_from_period"]
+        )
         st.session_state[f"{prefix}_to_period"] = int(portfolio[f"{slug}_to_period"])
         st.session_state[f"{prefix}_periods_initialized"] = True
 
@@ -388,8 +398,7 @@ def _sync_portfolio_to_edit_widgets() -> None:
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
     st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
-   
-    
+
     _init_flow_period_edit_widgets(int(portfolio["max_year"]))
 
 
@@ -404,7 +413,9 @@ def _sync_edit_widgets_to_portfolio() -> None:
     portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
     for slug in ("contributions", "withdrawals"):
         prefix = f"portfolio_edit_{slug}"
-        portfolio[f"{slug}_from_period"] = int(st.session_state[f"{prefix}_from_period"])
+        portfolio[f"{slug}_from_period"] = int(
+            st.session_state[f"{prefix}_from_period"]
+        )
         portfolio[f"{slug}_to_period"] = int(st.session_state[f"{prefix}_to_period"])
 
 
@@ -453,9 +464,11 @@ def _finish_return_assumptions_edit() -> None:
 
 
 def _read_portfolio_fields() -> dict:
-    if st.session_state.get("portfolio_assumptions_editing"):
-        if not _validate_portfolio_amount_inputs():
-            _sync_edit_widgets_to_portfolio()
+    if (
+        st.session_state.get("portfolio_assumptions_editing")
+        and not _validate_portfolio_amount_inputs()
+    ):
+        _sync_edit_widgets_to_portfolio()
     return st.session_state.portfolio
 
 
@@ -476,13 +489,13 @@ def _request_simulation_run() -> None:
 def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
     """
     Run Monte Carlo simulation. Returns True on success.
-    
+
     live_charts_placeholder: the placeholder for the live charts
     """
 
     live_charts_placeholder.empty()
     try:
-        assumptions = _collect_assumptions()    
+        assumptions = _collect_assumptions()
         config = assumptions.to_simulation_config()
         validate_allocation(config.risk_mix, config.asset_catalog)
         validate_correlation(config.risk_param, config.risk_correlation)
@@ -533,7 +546,7 @@ def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
     except ValueError as exc:
         st.error(str(exc))
         return False
-    except Exception as exc:
+    except (RuntimeError, OSError, ImportError, TypeError, KeyError) as exc:
         st.error(f"Simulation failed: {exc}")
         return False
 
@@ -619,6 +632,7 @@ def _collect_assumptions() -> Assumptions:
         ),
     )
     return assumptions
+
 
 def _queue_assumptions_load(
     assumptions: Assumptions, file_path: Path | None = None
@@ -1070,7 +1084,10 @@ def _render_step_1_readonly() -> None:
                 portfolio.get("contributions_to_period", horizon),
                 horizon,
             )
-            st.metric("Contributions", line1,help=PORTFOLIO_FIELD_HELP["contributions"],
+            st.metric(
+                "Contributions",
+                line1,
+                help=PORTFOLIO_FIELD_HELP["contributions"],
             )
             if line2:
                 st.caption(line2)
@@ -1081,11 +1098,14 @@ def _render_step_1_readonly() -> None:
                 portfolio.get("withdrawals_to_period", horizon),
                 horizon,
             )
-            st.metric("Withdrawals", line1,help=PORTFOLIO_FIELD_HELP["withdrawals"],
+            st.metric(
+                "Withdrawals",
+                line1,
+                help=PORTFOLIO_FIELD_HELP["withdrawals"],
             )
             if line2:
                 st.caption(line2)
-        
+
         summary_cols[3].metric(
             "Cash buffer",
             portfolio["cash_buffer"],
@@ -1121,6 +1141,7 @@ def _render_step_1_edit() -> None:
             )
 
             with main_side:
+
                 def period_block(name: str, help: str, key: str | None = None) -> None:
                     slug = name.lower().replace(" ", "_")
                     if not key:
@@ -1179,7 +1200,13 @@ def _render_step_1_edit() -> None:
                         help=VIVA_FIELD_HELP["viva_source"],
                         placeholder="Enter your additional flows here. Click the 'load example' button to load a sample program.",
                     )
-                    with st.container(border=False, horizontal=False, width=150, height="stretch", vertical_alignment="bottom"):
+                    with st.container(
+                        border=False,
+                        horizontal=False,
+                        width=150,
+                        height="stretch",
+                        vertical_alignment="bottom",
+                    ):
                         st.button(
                             "clear",
                             width="stretch",
@@ -1333,22 +1360,21 @@ def _render_step_2_edit() -> None:
                         label_visibility="collapsed",
                     )
                 with cols[2]:
-                    if not asset.required:
-                        if st.button(
-                            "×", help="Remove asset", key=f"delete_{asset.id}"
-                        ):
-                            try:
-                                catalog.remove(asset.id)
-                                st.session_state.asset_catalog = catalog
-                                st.session_state.allocation.pop(asset.id, None)
-                                st.session_state.correlation_values = (
-                                    _default_correlation_values(catalog)
-                                )
-                                _init_mu_sigma_keys(catalog)
-                                _init_correlation_keys(catalog)
-                                st.rerun()
-                            except ValueError as exc:
-                                st.error(str(exc))
+                    if not asset.required and st.button(
+                        "×", help="Remove asset", key=f"delete_{asset.id}"
+                    ):
+                        try:
+                            catalog.remove(asset.id)
+                            st.session_state.asset_catalog = catalog
+                            st.session_state.allocation.pop(asset.id, None)
+                            st.session_state.correlation_values = (
+                                _default_correlation_values(catalog)
+                            )
+                            _init_mu_sigma_keys(catalog)
+                            _init_correlation_keys(catalog)
+                            st.rerun()
+                        except ValueError as exc:
+                            st.error(str(exc))
 
             # render table with headers and assets
             with st.container(
@@ -1386,66 +1412,64 @@ def _render_step_2_edit() -> None:
                     else:
                         st.success(f"{alloc_total:.1f}%")
 
-        with center_part:
-            with st.container(
-                border=show_border,
-                key="portfolio_allocation_section_center_part",
-                vertical_alignment="center",
-                horizontal_alignment="center",
-                height="stretch",
-            ):
-                if st.button("Add asset", width="stretch"):
-                    new_asset_name = "new asset"
-                    k = 0
-                    while slugify(new_asset_name) in st.session_state.asset_catalog.ids:
-                        k += 1
-                        new_asset_name = f"new asset {k + 1}"
-                    else:
-                        try:
-                            added = catalog.add(new_asset_name)
-                            st.session_state.asset_catalog = catalog
-                            st.session_state.allocation.setdefault(added.id, 0.0)
-                            st.session_state.correlation_values = (
-                                _default_correlation_values(catalog)
-                            )
-                            _init_mu_sigma_keys(catalog)
-                            _init_correlation_keys(catalog)
-                            st.rerun()
-                        except ValueError as exc:
-                            st.error(str(exc))
-                if st.button(
-                    "Normalize",
-                    width="stretch",
-                    help="Modify the allocation percentages proportionally to sum to 100%",
-                ):
-                    total = sum(allocation.values())
-                    if total > 0:
-                        st.session_state.allocation = {
-                            asset_id: weight / total * 100.0
-                            for asset_id, weight in allocation.items()
-                        }
-                        _request_allocation_widget_sync()
-                        st.rerun()
-                if st.button(
-                    "Reset",
-                    width="stretch",
-                    help="Reset the allocation percentages to the defaults",
-                ):
-                    fresh_catalog = default_asset_catalog()
-                    st.session_state.asset_catalog = fresh_catalog
-                    preset = st.session_state.get("mix_preset", "performance")
-                    defaults = DEFAULT_RISK_MIX_PRESETS.get(
-                        preset, DEFAULT_RISK_MIX_PRESETS.get("performance", {})
+        with center_part, st.container(
+            border=show_border,
+            key="portfolio_allocation_section_center_part",
+            vertical_alignment="center",
+            horizontal_alignment="center",
+            height="stretch",
+        ):
+            if st.button("Add asset", width="stretch"):
+                new_asset_name = "new asset"
+                k = 0
+                while slugify(new_asset_name) in st.session_state.asset_catalog.ids:
+                    k += 1
+                    new_asset_name = f"new asset {k + 1}"
+                try:
+                    added = catalog.add(new_asset_name)
+                    st.session_state.asset_catalog = catalog
+                    st.session_state.allocation.setdefault(added.id, 0.0)
+                    st.session_state.correlation_values = (
+                        _default_correlation_values(catalog)
                     )
+                    _init_mu_sigma_keys(catalog)
+                    _init_correlation_keys(catalog)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+            if st.button(
+                "Normalize",
+                width="stretch",
+                help="Modify the allocation percentages proportionally to sum to 100%",
+            ):
+                total = sum(allocation.values())
+                if total > 0:
                     st.session_state.allocation = {
-                        asset.id: float(defaults.get(asset.id, 0.0))
-                        for asset in _investable_assets(fresh_catalog)
+                        asset_id: weight / total * 100.0
+                        for asset_id, weight in allocation.items()
                     }
-                    _init_mu_sigma_keys(fresh_catalog)
-                    _init_correlation_keys(fresh_catalog)
-
                     _request_allocation_widget_sync()
                     st.rerun()
+            if st.button(
+                "Reset",
+                width="stretch",
+                help="Reset the allocation percentages to the defaults",
+            ):
+                fresh_catalog = default_asset_catalog()
+                st.session_state.asset_catalog = fresh_catalog
+                preset = st.session_state.get("mix_preset", "performance")
+                defaults = DEFAULT_RISK_MIX_PRESETS.get(
+                    preset, DEFAULT_RISK_MIX_PRESETS.get("performance", {})
+                )
+                st.session_state.allocation = {
+                    asset.id: float(defaults.get(asset.id, 0.0))
+                    for asset in _investable_assets(fresh_catalog)
+                }
+                _init_mu_sigma_keys(fresh_catalog)
+                _init_correlation_keys(fresh_catalog)
+
+                _request_allocation_widget_sync()
+                st.rerun()
         with right_part:
             # render here a pie chart of the allocation
             pie_fig = build_pie_chart(
@@ -1510,49 +1534,48 @@ def _render_step_3_edit() -> None:
 
         left_part, right_part = st.columns(2, gap="small")
 
-        with left_part:
-            with st.container(border=True, height="stretch"):
-                colWidths = [3, 1.5, 1.5]
-                header_cols = st.columns(colWidths)
-                with header_cols[0]:
-                    st.markdown(
-                        "**Asset**",
-                        help="Go to Portfolio Allocation section to add or remove assets.",
-                    )
-                with header_cols[1]:
-                    st.markdown(
-                        "**μ (%)**",
-                        help="Expected return in percent. Returns are understood to be net of any and all applicable expenses and deductions.",
-                    )
-                with header_cols[2]:
-                    st.markdown(
-                        "**σ (%)**",
-                        help="Volatility in percent. Volatility is a measure of the risk of the asset. It is calculated as the standard deviation of the asset's returns.",
-                    )
+        with left_part, st.container(border=True, height="stretch"):
+            colWidths = [3, 1.5, 1.5]
+            header_cols = st.columns(colWidths)
+            with header_cols[0]:
+                st.markdown(
+                    "**Asset**",
+                    help="Go to Portfolio Allocation section to add or remove assets.",
+                )
+            with header_cols[1]:
+                st.markdown(
+                    "**μ (%)**",
+                    help="Expected return in percent. Returns are understood to be net of any and all applicable expenses and deductions.",
+                )
+            with header_cols[2]:
+                st.markdown(
+                    "**σ (%)**",
+                    help="Volatility in percent. Volatility is a measure of the risk of the asset. It is calculated as the standard deviation of the asset's returns.",
+                )
 
-                for asset_id in return_model_asset_ids(catalog):
-                    cols = st.columns(colWidths)
-                    with cols[0]:
-                        st.markdown(catalog.name(asset_id))
-                    with cols[1]:
-                        st.number_input(
-                            "μ (%)",
-                            label_visibility="collapsed",
-                            format="%.1f",
-                            step=1.0,
-                            key=f"return_edit_mu_{asset_id}",
-                            help=RETURN_ASSUMPTION_HELP["mu"],
-                        )
-                    with cols[2]:
-                        st.number_input(
-                            "σ (%)",
-                            min_value=0.0,
-                            label_visibility="collapsed",
-                            format="%.1f",
-                            step=1.0,
-                            key=f"return_edit_sigma_{asset_id}",
-                            help=RETURN_ASSUMPTION_HELP["sigma"],
-                        )
+            for asset_id in return_model_asset_ids(catalog):
+                cols = st.columns(colWidths)
+                with cols[0]:
+                    st.markdown(catalog.name(asset_id))
+                with cols[1]:
+                    st.number_input(
+                        "μ (%)",
+                        label_visibility="collapsed",
+                        format="%.1f",
+                        step=1.0,
+                        key=f"return_edit_mu_{asset_id}",
+                        help=RETURN_ASSUMPTION_HELP["mu"],
+                    )
+                with cols[2]:
+                    st.number_input(
+                        "σ (%)",
+                        min_value=0.0,
+                        label_visibility="collapsed",
+                        format="%.1f",
+                        step=1.0,
+                        key=f"return_edit_sigma_{asset_id}",
+                        help=RETURN_ASSUMPTION_HELP["sigma"],
+                    )
         with right_part:
             return_ids = return_model_asset_ids(catalog)
             mu_sigma_chart = {
@@ -1692,7 +1715,7 @@ def _render_step_4_content() -> None:
                 )
             else:
                 problems = st.session_state.config_problems
-                msg = "\n".join([f"- {str(problem)}" for problem in problems])
+                msg = "\n".join([f"- {problem!s}" for problem in problems])
                 msg = f"Invalid configuration. Please check the assumptions and try again.\n{msg}"
                 st.error(msg)
             if st.button(
@@ -1707,9 +1730,6 @@ def _render_step_4_content() -> None:
     with bottom_part:
         _process_pending_simulation_run()
 
-    return
-
-  
 
 
 section1 = SectionContentEditable(

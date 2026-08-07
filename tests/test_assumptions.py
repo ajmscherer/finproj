@@ -8,8 +8,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'code'))
 
+from inv_proj_runner import (
+    DEFAULT_RISK_MIX_PRESETS,
+    default_config,
+    validate_allocation,
+    validate_correlation,
+)
+
 from assumptions import Assumptions
-from inv_proj_runner import DEFAULT_RISK_MIX_PRESETS, default_config, validate_allocation, validate_correlation
 
 
 class AssumptionsTest(unittest.TestCase):

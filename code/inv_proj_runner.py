@@ -20,17 +20,11 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
 
 from asset_classes import AssetCatalog, default_asset_catalog
-from viva_adapter import (
-    HAS_VIVA,
-    FlowEngine,
-    VivaFlowEngine,
-    default_viva_start_year,
-)
 from inv_proj import (
     AuditObserver,
     CSV_Observer,
@@ -43,11 +37,17 @@ from inv_proj import (
     cv,
     ps,
 )
+from viva_adapter import (
+    HAS_VIVA,
+    FlowEngine,
+    VivaFlowEngine,
+    default_viva_start_year,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 
-DEFAULT_RISK_MIX_PRESETS: Dict[str, Dict[str, float]] = {
+DEFAULT_RISK_MIX_PRESETS: dict[str, dict[str, float]] = {
     "safe": {"bonds": 80, "stocks": 20, "pmetal": 1, "crypto": 0, "real_estate": 0},
     "moderate": {"bonds": 45, "stocks": 45, "pmetal": 8, "crypto": 2, "real_estate": 0},
     "performance": {
@@ -69,7 +69,7 @@ DEFAULT_RISK_PARAM = {
     "real_estate": [{"from_year": 1, "rv": "norm", "mu": 3.0, "sigma": 15.0}],
 }
 
-DEFAULT_RISK_CORRELATION: Dict[Tuple[str, str], float] = {
+DEFAULT_RISK_CORRELATION: dict[tuple[str, str], float] = {
     ("money_market", "bonds"): 0.50,
     ("stocks", "bonds"): -0.20,
     ("stocks", "real_estate"): 0.30,
@@ -90,15 +90,15 @@ class SimulationConfig:
     max_year: int = 15
     nb_projections: int = 2000
     asset_catalog: AssetCatalog = field(default_factory=default_asset_catalog)
-    risk_mix: Dict[str, float] = field(
+    risk_mix: dict[str, float] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_MIX_PRESETS["performance"])
     )
     risk_param: dict = field(default_factory=lambda: copy.deepcopy(DEFAULT_RISK_PARAM))
-    risk_correlation: Dict[Tuple[str, str], float] = field(
+    risk_correlation: dict[tuple[str, str], float] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_CORRELATION)
     )
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
-    viva_source: Optional[str] = None
+    viva_source: str | None = None
     contributions_from_period: int = 1
     contributions_to_period: int = 15
     withdrawals_from_period: int = 1
@@ -107,7 +107,7 @@ class SimulationConfig:
 
 @dataclass
 class RunResult:
-    nav_observers: Dict[str, StatisticalObserver]
+    nav_observers: dict[str, StatisticalObserver]
     nav_fan: NavFanObserver
     output_csv: Path
     audit_path: Path
@@ -119,17 +119,17 @@ def default_config() -> SimulationConfig:
     return config
 
 
-def investable_asset_ids(catalog: AssetCatalog) -> List[str]:
+def investable_asset_ids(catalog: AssetCatalog) -> list[str]:
     return catalog.investable_ids()
 
 
-def return_model_asset_ids(catalog: AssetCatalog) -> List[str]:
+def return_model_asset_ids(catalog: AssetCatalog) -> list[str]:
     return catalog.return_model_ids()
 
 
 def normalize_correlation_pair(
-    left: str, right: str, asset_order: List[str]
-) -> Tuple[str, str]:
+    left: str, right: str, asset_order: list[str]
+) -> tuple[str, str]:
     if asset_order.index(left) <= asset_order.index(right):
         return left, right
     return right, left
@@ -169,7 +169,7 @@ def sync_config_with_catalog(config: SimulationConfig) -> None:
     }
 
 
-def validate_allocation(risk_mix: Dict[str, float], catalog: AssetCatalog) -> None:
+def validate_allocation(risk_mix: dict[str, float], catalog: AssetCatalog) -> None:
     investable = set(catalog.investable_ids())
     unknown = set(risk_mix.keys()) - investable
     if unknown:
@@ -182,7 +182,7 @@ def validate_allocation(risk_mix: Dict[str, float], catalog: AssetCatalog) -> No
 
 
 def validate_correlation(
-    risk_param: dict, correlations: Dict[Tuple[str, str], float]
+    risk_param: dict, correlations: dict[tuple[str, str], float]
 ) -> None:
     risk_classes = list(risk_param.keys())
     matrix = build_correlation_matrix(risk_classes, correlations)
@@ -205,7 +205,7 @@ def find_config_problems(config: SimulationConfig) -> list[Exception]:
     for validator in [v1, v2]:
         try:
             validator()
-        except Exception as e:
+        except ValueError as e:
             problems.append(e)
 
     return problems
@@ -238,14 +238,16 @@ def nav_observer_years(max_year: int) -> list[int]:
 def _define_observers(
     simulation: Projection,
     config: SimulationConfig,
-) -> tuple[Dict[str, StatisticalObserver], NavFanObserver]:
+    audit_out,
+) -> tuple[dict[str, StatisticalObserver], NavFanObserver]:
     """
     Define the observers for the simulation.
     simulation: the simulation to observe
     config: the configuration for the simulation
+    audit_out: open text file handle for the audit log
     """
 
-    nav: Dict[str, StatisticalObserver] = {}
+    nav: dict[str, StatisticalObserver] = {}
     nav_years = nav_observer_years(config.max_year)
 
     for year in nav_years:
@@ -261,8 +263,7 @@ def _define_observers(
     nav_fan = NavFanObserver(config.max_year)
     simulation.registerObserver(nav_fan)
 
-    audit_path = config.output_dir / "audit.txt"
-    audit_observer = AuditObserver(out=open(audit_path, mode="w"))
+    audit_observer = AuditObserver(out=audit_out)
     simulation.registerObserver(audit_observer)
 
     csv_observer = CSV_Observer(str(config.output_dir / "output.csv"))
@@ -358,7 +359,7 @@ def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
 
 def run_simulation(
     config: SimulationConfig,
-    progress_callback: Optional[Callable[..., None]] = None,
+    progress_callback: Callable[..., None] | None = None,
 ) -> RunResult:
     """
     Run a simulation.
@@ -393,23 +394,25 @@ def run_simulation(
         correlations=config.risk_correlation,
     )
 
-    nav, nav_fan = _define_observers(simulation, config)
+    audit_path = config.output_dir / "audit.txt"
+    with open(audit_path, mode="w", encoding="utf-8") as audit_out:
+        nav, nav_fan = _define_observers(simulation, config, audit_out)
 
-    for i in range(config.nb_projections):
-        if engine is not None:
-            flow_structure = engine.draw_flows(seed=i + 1)
-            flows = flow_structure.flows
-            simulation.set_flows(flows)
-        else:
-            simulation.set_flows(flows0)
-        simulation.run(i + 1)
-        _call_progress_callback(
-            progress_callback, i + 1, config.nb_projections, nav_fan
-        )
+        for i in range(config.nb_projections):
+            if engine is not None:
+                flow_structure = engine.draw_flows(seed=i + 1)
+                flows = flow_structure.flows
+                simulation.set_flows(flows)
+            else:
+                simulation.set_flows(flows0)
+            simulation.run(i + 1)
+            _call_progress_callback(
+                progress_callback, i + 1, config.nb_projections, nav_fan
+            )
 
     return RunResult(
         nav_observers=nav,
         nav_fan=nav_fan,
         output_csv=config.output_dir / "output.csv",
-        audit_path=config.output_dir / "audit.txt",
+        audit_path=audit_path,
     )

@@ -17,12 +17,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from enum import Enum
-from abc import abstractmethod, ABC
+import math
 import random
 import re
-import math
 import sys
+from abc import ABC, abstractmethod
+from enum import Enum
 
 
 class rc(Enum):
@@ -110,7 +110,7 @@ def cv(value_str):
     if isinstance(value_str, (int, float)):
         return float(value_str)
     elif not isinstance(value_str, str):
-        raise ValueError("Input must be a string.")
+        raise TypeError("Input must be a string.")
 
     s = value_str.replace(',', '').strip().lower()
 
@@ -289,7 +289,7 @@ def init_distrib(distrib_info_list, max_year):
         if rvn == 'norm':
             rv = Norm(mu=distrib_info['mu'], sigma=distrib_info['sigma'])
         else:
-            raise Exception(f"Unknown random variable class '{rvn}'")
+            raise ValueError(f"Unknown random variable class '{rvn}'")
         y1 = distrib_info['from_year']
         items ={y:rv for y in range(y1,y2)}
         y2=y1
@@ -322,7 +322,7 @@ class Portfolio:
         '''
 
         # get the key of the first risk 
-        k=list(risk_mix.keys())[0]
+        k=next(iter(risk_mix.keys()))
 
         # create non cash with all capital on the first risk
         p = Portfolio.create(amount=amount,composition={k:1})
@@ -348,7 +348,7 @@ class Portfolio:
         keys = set(keys1+keys2)
         s = {}
         for key in keys:
-            t=lines1[key] if key in lines1 else 0.0
+            t=lines1.get(key, 0.0)
             if key in lines2:
                 t+=lines2[key]
             s[key]=t
@@ -356,28 +356,35 @@ class Portfolio:
         return Portfolio.create(amount=1.0, composition=s)
         
 
-    def applyReturns(self, returns={}):
+    def applyReturns(self, returns=None):
+        if returns is None:
+            returns = {}
         for risk_class in returns:
             if risk_class in self.lines:
                 self.lines[risk_class] *= 1 + returns[risk_class]
 
-    def growByPeriodMovement(self, movements={}):
+    def growByPeriodMovement(self, movements=None):
+        if movements is None:
+            movements = {}
         for risk_class in movements:
             if risk_class in self.lines:
                 self.lines[risk_class] += movements[risk_class]
 
-    def rebalance(self, targetMix={}):
+    def rebalance(self, targetMix=None):
+        if targetMix is None:
+            targetMix = {}
         v = self.value(targetMix.keys())
         total_weight = sum(targetMix.values())
         for risk_class in targetMix:
             self.lines[risk_class] = v * targetMix[risk_class] / total_weight
 
-
-    def value(self, lines={}):
+    def value(self, lines=None):
+        if lines is None:
+            lines = {}
         v = 0.0
         for line in lines:
             if line in self.lines:
-                v+= self.lines[line]
+                v += self.lines[line]
         return v
     
     def total_value(self):
@@ -626,7 +633,7 @@ class StatisticalObserver(Observer):
             if v:
                 self.values.append(v)
             else:
-                raise(Exception("Value not defined"))
+                raise ValueError("Value not defined")
 
     def mean(self):
         if 'mean' not in self._mdata:
@@ -761,7 +768,7 @@ class AuditObserver(Observer):
         elif step == ps.WRAPUP:
             print("\n"*2, file=out)
         else:
-            raise(Exception(f'No code for step {step}'))
+            raise ValueError(f'No code for step {step}')
 
 
 class CSV_Observer(Observer):
@@ -809,11 +816,9 @@ class CSV_Observer(Observer):
 
         # check if current projection is the last
         if observed.id == observed.nb_projections:
-
-            f = open(self.file_name, 'w')
-            for line in self.lines:
-                print(line, file=f)
-            f.close()
+            with open(self.file_name, 'w') as f:
+                for line in self.lines:
+                    print(line, file=f)
 
     def processNotification(self, observed, **params):
         step = params['step']
@@ -824,4 +829,7 @@ class CSV_Observer(Observer):
             indirection[step](observed)
 
 if __name__ == '__main__':
-    raise(Exception('This code is meant to be used as a library, not to be run. Run code/inv_proj_run.py instead.'))
+    raise RuntimeError(
+        'This code is meant to be used as a library, not to be run. '
+        'Run code/inv_proj_run.py instead.'
+    )
