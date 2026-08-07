@@ -23,6 +23,7 @@ import copy
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from asset_classes import AssetCatalog, AssetClass, default_asset_catalog
 from inv_proj_runner import (
@@ -36,7 +37,7 @@ ASSUMPTIONS_FORMAT_VERSION = 1
 DEFAULT_ASSUMPTIONS_DIR = Path(__file__).resolve().parent.parent / 'assumptions'
 
 
-def catalog_to_dict(catalog: AssetCatalog) -> list[dict]:
+def catalog_to_dict(catalog: AssetCatalog) -> list[dict[str, Any]]:
     return [
         {
             'id': asset.id,
@@ -48,7 +49,7 @@ def catalog_to_dict(catalog: AssetCatalog) -> list[dict]:
     ]
 
 
-def catalog_from_dict(items: list[dict]) -> AssetCatalog:
+def catalog_from_dict(items: list[dict[str, Any]]) -> AssetCatalog:
     assets = [
         AssetClass(
             id=item['id'],
@@ -201,7 +202,7 @@ class Assumptions:
         sync_config_with_catalog(config)
         return config
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'format_version': self.format_version,
             'name': self.name,
@@ -225,7 +226,7 @@ class Assumptions:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> Assumptions:
+    def from_dict(cls, data: dict[str, Any]) -> Assumptions:
         version = data.get('format_version', 1)
         if version != ASSUMPTIONS_FORMAT_VERSION:
             raise ValueError(

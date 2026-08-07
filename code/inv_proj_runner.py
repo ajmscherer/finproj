@@ -23,6 +23,7 @@ import copy
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from asset_classes import AssetCatalog, default_asset_catalog
 from inv_proj import (
@@ -93,7 +94,9 @@ class SimulationConfig:
     risk_mix: dict[str, float] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_MIX_PRESETS["performance"])
     )
-    risk_param: dict = field(default_factory=lambda: copy.deepcopy(DEFAULT_RISK_PARAM))
+    risk_param: dict[str, list[dict[str, Any]]] = field(
+        default_factory=lambda: copy.deepcopy(DEFAULT_RISK_PARAM)
+    )
     risk_correlation: dict[tuple[str, str], float] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_RISK_CORRELATION)
     )
@@ -182,7 +185,8 @@ def validate_allocation(risk_mix: dict[str, float], catalog: AssetCatalog) -> No
 
 
 def validate_correlation(
-    risk_param: dict, correlations: dict[tuple[str, str], float]
+    risk_param: dict[str, list[dict[str, Any]]],
+    correlations: dict[tuple[str, str], float],
 ) -> None:
     risk_classes = list(risk_param.keys())
     matrix = build_correlation_matrix(risk_classes, correlations)

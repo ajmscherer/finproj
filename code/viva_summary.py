@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from viva_adapter import HAS_VIVA
 
@@ -29,7 +30,7 @@ def _format_viva_amount(value: float) -> str:
     return f"{sign}{amount:g}"
 
 
-def _format_viva_time_window(time_window: dict | None) -> str:
+def _format_viva_time_window(time_window: dict[str, Any] | None) -> str:
     if not time_window:
         return ""
     kind = time_window.get("kind")
@@ -38,7 +39,7 @@ def _format_viva_time_window(time_window: dict | None) -> str:
     return str(time_window)
 
 
-def _format_viva_probability(probability: dict | None) -> str:
+def _format_viva_probability(probability: dict[str, Any] | None) -> str:
     if not probability:
         return ""
     if probability.get("kind") == "simple":

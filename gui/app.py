@@ -40,7 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
 
 import viva_summary as _viva_summary_module
-from asset_classes import AssetCatalog, default_asset_catalog, slugify
+from asset_classes import AssetCatalog, AssetClass, default_asset_catalog, slugify
 from charts import (
     build_mu_sigma_range_figure,
     build_nav_distribution_figure,
@@ -124,7 +124,7 @@ def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
     return pairs
 
 
-def _investable_assets(catalog: AssetCatalog) -> list:
+def _investable_assets(catalog: AssetCatalog) -> list[AssetClass]:
     """Investable assets shown in section 2 (excludes Cash / liquidity buffer)."""
     liquidity_id = catalog.liquidity_id()
     return [
@@ -463,7 +463,7 @@ def _finish_return_assumptions_edit() -> None:
     _exit_return_assumptions_edit()
 
 
-def _read_portfolio_fields() -> dict:
+def _read_portfolio_fields() -> dict[str, Any]:
     if (
         st.session_state.get("portfolio_assumptions_editing")
         and not _validate_portfolio_amount_inputs()
@@ -1604,7 +1604,7 @@ def _render_step_3_edit() -> None:
         with ccor0:
             ccor1 = st.container(border=False, horizontal=True)
             ccor2 = st.container(border=False, width=150)
-        for idx, (left, right) in enumerate(_correlation_pairs(catalog)):
+        for left, right in _correlation_pairs(catalog):
             label = f"{catalog.name(left)} \n\n {catalog.name(right)}"
             canonical = normalize_correlation_pair(left, right, asset_order)
             edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
