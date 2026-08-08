@@ -66,6 +66,9 @@ class SectionContentEditable(Section):
     readonly_form: Callable[[], None] = _need_to_be_implemented
     done_button_text: str = "Done"
     edit_button_text: str = "Edit"
+    # Optional lifecycle hooks (run from button/panel callbacks, before widgets render).
+    on_enter_edit: Callable[[], None] | None = None
+    on_exit_edit: Callable[[], None] | None = None
 
     @property
     def _slug(self) -> str:
@@ -94,7 +97,20 @@ class SectionContentEditable(Section):
         st.session_state.result = None
 
     def on_click(self) -> None:
-        self.editing = not self.editing
+        """Toggle edit mode, running enter/exit hooks around the transition.
+
+        Callbacks run before the script body, so widget-bound session keys from
+        the previous run are still available for commit on exit, and safe to
+        force-seed on enter (widgets have not been created yet this run).
+        """
+        if self.editing:
+            if self.on_exit_edit is not None:
+                self.on_exit_edit()
+            self.editing = False
+        else:
+            if self.on_enter_edit is not None:
+                self.on_enter_edit()
+            self.editing = True
 
     def _handle_panel_click(self) -> None:
         self.on_click()

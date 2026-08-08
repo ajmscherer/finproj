@@ -68,7 +68,7 @@ from inv_proj_runner import (
     validate_allocation,
     validate_correlation,
 )
-from theme import THEME, inject_theme, step1_edit_layout_css
+from theme import inject_theme
 from viva_adapter import HAS_VIVA
 
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions
@@ -167,6 +167,7 @@ def _init_correlation_keys(catalog: AssetCatalog) -> None:
 
 
 PORTFOLIO_FIELD_DEFAULTS = {
+    "description": "",
     "initial_capital": "1M",
     "contributions": "0k",
     "withdrawals": "50k",
@@ -181,6 +182,10 @@ PORTFOLIO_FIELD_DEFAULTS = {
 }
 
 PORTFOLIO_FIELD_HELP = {
+    "description": (
+        "Optional free-text description of this simulation scenario: "
+        "what you are testing, who it is for, or notes for later reference."
+    ),
     "initial_capital": (
         "Total portfolio value at the start of each simulation projection. "
         "The cash buffer is set aside first; the rest is invested per your allocation. "
@@ -298,19 +303,31 @@ RETURN_ASSUMPTION_HELP = {
     ),
 }
 
-PORTFOLIO_AMOUNT_FIELDS = (
+PORTFOLIO_SETUP_AMOUNT_FIELDS = (
     ("Initial capital", "portfolio_edit_initial_capital"),
+    ("Cash buffer", "portfolio_edit_cash_buffer"),
+)
+PORTFOLIO_FLOW_AMOUNT_FIELDS = (
     ("Annual contributions", "portfolio_edit_contributions"),
     ("Annual withdrawals", "portfolio_edit_withdrawals"),
-    ("Cash buffer", "portfolio_edit_cash_buffer"),
+)
+PORTFOLIO_AMOUNT_FIELDS = (
+    *PORTFOLIO_SETUP_AMOUNT_FIELDS,
+    *PORTFOLIO_FLOW_AMOUNT_FIELDS,
 )
 
 
-def _validate_portfolio_amount_inputs() -> list[str]:
+def _validate_amount_fields(
+    fields: tuple[tuple[str, str], ...],
+    *,
+    check_cash_vs_capital: bool = False,
+) -> list[str]:
     errors: list[str] = []
     parsed: dict[str, float] = {}
 
-    for label, key in PORTFOLIO_AMOUNT_FIELDS:
+    for label, key in fields:
+        if key not in st.session_state:
+            continue
         raw = str(st.session_state.get(key, "")).strip()
         if not raw:
             errors.append(f"{label}: enter an amount (e.g. 1M or 40k).")
@@ -328,12 +345,29 @@ def _validate_portfolio_amount_inputs() -> list[str]:
             continue
         parsed[label] = value
 
-    capital = parsed.get("Initial capital")
-    cash_buffer = parsed.get("Cash buffer")
-    if capital is not None and cash_buffer is not None and cash_buffer >= capital:
-        errors.append("Cash buffer must be less than initial capital.")
+    if check_cash_vs_capital:
+        capital = parsed.get("Initial capital")
+        cash_buffer = parsed.get("Cash buffer")
+        if capital is not None and cash_buffer is not None and cash_buffer >= capital:
+            errors.append("Cash buffer must be less than initial capital.")
 
     return errors
+
+
+def _validate_setup_amount_inputs() -> list[str]:
+    return _validate_amount_fields(
+        PORTFOLIO_SETUP_AMOUNT_FIELDS, check_cash_vs_capital=True
+    )
+
+
+def _validate_flow_amount_inputs() -> list[str]:
+    return _validate_amount_fields(PORTFOLIO_FLOW_AMOUNT_FIELDS)
+
+
+def _validate_portfolio_amount_inputs() -> list[str]:
+    return _validate_amount_fields(
+        PORTFOLIO_AMOUNT_FIELDS, check_cash_vs_capital=True
+    )
 
 
 def _simulation_projection_years() -> list[int]:
@@ -358,9 +392,98 @@ def _format_flow_amount_with_period(
     return (f"{amount} per year", f"from Y{from_p} through Y{to_p}")
 
 
-def _init_flow_period_edit_widgets(max_year: int) -> None:
-    horizon = max(1, int(max_year))
+STEP_1A_EDIT_KEYS = (
+    "portfolio_edit_description",
+    "portfolio_edit_initial_capital",
+    "portfolio_edit_cash_buffer",
+    "portfolio_edit_max_year",
+    "portfolio_edit_nb_projections",
+)
+STEP_1B_EDIT_KEYS = (
+    "portfolio_edit_contributions",
+    "portfolio_edit_withdrawals",
+    "portfolio_edit_viva_source",
+    "portfolio_edit_contributions_from_period",
+    "portfolio_edit_contributions_to_period",
+    "portfolio_edit_contributions_periods_initialized",
+    "portfolio_edit_withdrawals_from_period",
+    "portfolio_edit_withdrawals_to_period",
+    "portfolio_edit_withdrawals_periods_initialized",
+)
+
+
+def _init_portfolio_fields() -> None:
+    if "portfolio" not in st.session_state:
+        st.session_state.portfolio = copy.deepcopy(PORTFOLIO_FIELD_DEFAULTS)
+    else:
+        # Keep older sessions compatible with newly added portfolio fields.
+        for key, value in PORTFOLIO_FIELD_DEFAULTS.items():
+            st.session_state.portfolio.setdefault(key, value)
+
+
+def _clear_edit_keys(keys: tuple[str, ...]) -> None:
+    for key in keys:
+        st.session_state.pop(key, None)
+
+
+def _clear_portfolio_edit_widget_keys() -> None:
+    """Drop all step 1a/1b edit keys (e.g. after loading assumptions)."""
+    _clear_edit_keys(STEP_1A_EDIT_KEYS)
+    _clear_edit_keys(STEP_1B_EDIT_KEYS)
+
+
+def _commit_step_1a_edit_to_portfolio() -> None:
+    """Copy step 1a widget keys into portfolio (safe in on_exit callbacks)."""
     portfolio = st.session_state.portfolio
+    if "portfolio_edit_description" in st.session_state:
+        portfolio["description"] = st.session_state.portfolio_edit_description
+    if "portfolio_edit_initial_capital" in st.session_state:
+        portfolio["initial_capital"] = st.session_state.portfolio_edit_initial_capital
+    if "portfolio_edit_cash_buffer" in st.session_state:
+        portfolio["cash_buffer"] = st.session_state.portfolio_edit_cash_buffer
+    if "portfolio_edit_max_year" in st.session_state:
+        portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
+    if "portfolio_edit_nb_projections" in st.session_state:
+        portfolio["nb_projections"] = int(
+            st.session_state.portfolio_edit_nb_projections
+        )
+
+
+def _commit_step_1b_edit_to_portfolio() -> None:
+    """Copy step 1b widget keys into portfolio (safe in on_exit callbacks)."""
+    portfolio = st.session_state.portfolio
+    if "portfolio_edit_contributions" in st.session_state:
+        portfolio["contributions"] = st.session_state.portfolio_edit_contributions
+    if "portfolio_edit_withdrawals" in st.session_state:
+        portfolio["withdrawals"] = st.session_state.portfolio_edit_withdrawals
+    if "portfolio_edit_viva_source" in st.session_state:
+        portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
+    for slug in ("contributions", "withdrawals"):
+        prefix = f"portfolio_edit_{slug}"
+        from_key = f"{prefix}_from_period"
+        to_key = f"{prefix}_to_period"
+        if from_key in st.session_state and to_key in st.session_state:
+            portfolio[f"{slug}_from_period"] = int(st.session_state[from_key])
+            portfolio[f"{slug}_to_period"] = int(st.session_state[to_key])
+
+
+def _seed_step_1a_edit_from_portfolio() -> None:
+    """Force-load step 1a edit keys from portfolio (call only before widgets exist)."""
+    portfolio = st.session_state.portfolio
+    st.session_state.portfolio_edit_description = portfolio.get("description", "")
+    st.session_state.portfolio_edit_initial_capital = portfolio["initial_capital"]
+    st.session_state.portfolio_edit_cash_buffer = portfolio["cash_buffer"]
+    st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
+    st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
+
+
+def _seed_step_1b_edit_from_portfolio() -> None:
+    """Force-load step 1b edit keys from portfolio (call only before widgets exist)."""
+    portfolio = st.session_state.portfolio
+    horizon = max(1, int(portfolio["max_year"]))
+    st.session_state.portfolio_edit_contributions = portfolio["contributions"]
+    st.session_state.portfolio_edit_withdrawals = portfolio["withdrawals"]
+    st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
     for slug in ("contributions", "withdrawals"):
         portfolio.setdefault(f"{slug}_from_period", 1)
         portfolio.setdefault(f"{slug}_to_period", horizon)
@@ -372,103 +495,61 @@ def _init_flow_period_edit_widgets(max_year: int) -> None:
         st.session_state[f"{prefix}_periods_initialized"] = True
 
 
+def _on_enter_step_1a_edit() -> None:
+    _seed_step_1a_edit_from_portfolio()
+
+
+def _on_exit_step_1a_edit() -> None:
+    _commit_step_1a_edit_to_portfolio()
+    _clear_edit_keys(STEP_1A_EDIT_KEYS)
+
+
+def _on_enter_step_1b_edit() -> None:
+    _seed_step_1b_edit_from_portfolio()
+
+
+def _on_exit_step_1b_edit() -> None:
+    _commit_step_1b_edit_to_portfolio()
+    _clear_edit_keys(STEP_1B_EDIT_KEYS)
+
+
 def _ensure_flow_period_defaults(base_key: str, horizon: int) -> tuple[str, str]:
+    """Return period widget keys; values must already be seeded on enter-edit."""
     from_key = f"{base_key}_from_period"
     to_key = f"{base_key}_to_period"
-    init_key = f"{base_key}_periods_initialized"
     horizon = max(1, int(horizon))
-    if not st.session_state.get(init_key):
+    # Defensive seed if enter-hook was skipped (should not happen in normal flow).
+    if from_key not in st.session_state:
         st.session_state[from_key] = 1
+    if to_key not in st.session_state:
         st.session_state[to_key] = horizon
-        st.session_state[init_key] = True
     return from_key, to_key
 
 
-def _init_portfolio_fields() -> None:
-    if "portfolio" not in st.session_state:
-        st.session_state.portfolio = copy.deepcopy(PORTFOLIO_FIELD_DEFAULTS)
-
-
-def _sync_portfolio_to_edit_widgets() -> None:
-    portfolio = st.session_state.portfolio
-    st.session_state.portfolio_edit_initial_capital = portfolio["initial_capital"]
-    st.session_state.portfolio_edit_contributions = portfolio["contributions"]
-    st.session_state.portfolio_edit_withdrawals = portfolio["withdrawals"]
-    st.session_state.portfolio_edit_cash_buffer = portfolio["cash_buffer"]
-    st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
-    st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
-    st.session_state.portfolio_edit_viva_source = portfolio.get("viva_source", "")
-
-    _init_flow_period_edit_widgets(int(portfolio["max_year"]))
-
-
 def _sync_edit_widgets_to_portfolio() -> None:
-    portfolio = st.session_state.portfolio
-    portfolio["initial_capital"] = st.session_state.portfolio_edit_initial_capital
-    portfolio["contributions"] = st.session_state.portfolio_edit_contributions
-    portfolio["withdrawals"] = st.session_state.portfolio_edit_withdrawals
-    portfolio["cash_buffer"] = st.session_state.portfolio_edit_cash_buffer
-    portfolio["max_year"] = int(st.session_state.portfolio_edit_max_year)
-    portfolio["nb_projections"] = int(st.session_state.portfolio_edit_nb_projections)
-    portfolio["viva_source"] = st.session_state.portfolio_edit_viva_source
-    for slug in ("contributions", "withdrawals"):
-        prefix = f"portfolio_edit_{slug}"
-        portfolio[f"{slug}_from_period"] = int(
-            st.session_state[f"{prefix}_from_period"]
-        )
-        portfolio[f"{slug}_to_period"] = int(st.session_state[f"{prefix}_to_period"])
+    """Commit whichever step 1a/1b edit keys are currently present."""
+    _commit_step_1a_edit_to_portfolio()
+    _commit_step_1b_edit_to_portfolio()
 
 
-def _exit_portfolio_edit(*, force: bool = False) -> None:
-    if not st.session_state.get("portfolio_assumptions_editing"):
-        return
-    if not _validate_portfolio_amount_inputs():
-        _sync_edit_widgets_to_portfolio()
-    elif not force:
-        return
-    st.session_state.portfolio_assumptions_editing = False
-
-
-def _exit_asset_allocation_edit() -> None:
-    if not st.session_state.get("asset_allocation_editing"):
-        return
-    _sync_edit_widgets_to_catalog()
-    st.session_state.asset_allocation_editing = False
-
-
-def _exit_return_assumptions_edit() -> None:
-    if not st.session_state.get("return_assumptions_editing"):
-        return
-    _sync_edit_widgets_to_return_assumptions(st.session_state.asset_catalog)
-    st.session_state.return_assumptions_editing = False
-
-
-def _exit_other_section_edits(active: str) -> None:
-    if active != "portfolio":
-        _exit_portfolio_edit(force=True)
-    if active != "asset_allocation":
-        _exit_asset_allocation_edit()
-    if active != "return_assumptions":
-        _exit_return_assumptions_edit()
-
-
-def _enter_return_assumptions_edit() -> None:
-    _exit_other_section_edits("return_assumptions")
-    catalog: AssetCatalog = st.session_state.asset_catalog
-    _sync_return_assumptions_to_edit_widgets(catalog)
-    st.session_state.return_assumptions_editing = True
-
-
-def _finish_return_assumptions_edit() -> None:
-    _exit_return_assumptions_edit()
+def _section_is_editing(section_name: str) -> bool:
+    slug = section_name.lower().replace(" ", "_")
+    return bool(st.session_state.get(f"section_{slug}_editing", False))
 
 
 def _read_portfolio_fields() -> dict[str, Any]:
-    if (
-        st.session_state.get("portfolio_assumptions_editing")
-        and not _validate_portfolio_amount_inputs()
+    editing_setup = _section_is_editing("Step 1a")
+    editing_flows = _section_is_editing("Step 1b")
+    if editing_setup or editing_flows or st.session_state.get(
+        "portfolio_assumptions_editing"
     ):
-        _sync_edit_widgets_to_portfolio()
+        errors: list[str] = []
+        if editing_setup or st.session_state.get("portfolio_assumptions_editing"):
+            errors.extend(_validate_setup_amount_inputs())
+        if editing_flows or st.session_state.get("portfolio_assumptions_editing"):
+            errors.extend(_validate_flow_amount_inputs())
+        if not errors:
+            _sync_edit_widgets_to_portfolio()
     return st.session_state.portfolio
 
 
@@ -580,8 +661,8 @@ def _init_session_state() -> None:
 
 
 def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
-    if st.session_state.get("return_assumptions_editing"):
-        _sync_edit_widgets_to_return_assumptions(catalog)
+    if _section_is_editing("Step 3"):
+        _commit_step_3_edit_to_session(catalog)
     mu_sigma: dict[str, tuple[float, float]] = {}
     for asset_id in return_model_asset_ids(catalog):
         mu_sigma[asset_id] = (
@@ -592,8 +673,8 @@ def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
 
 
 def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
-    if st.session_state.get("return_assumptions_editing"):
-        _sync_edit_widgets_to_return_assumptions(catalog)
+    if _section_is_editing("Step 3"):
+        _commit_step_3_edit_to_session(catalog)
     asset_order = return_model_asset_ids(catalog)
     values: dict[tuple[str, str], float] = {}
     for left, right in _correlation_pairs(catalog):
@@ -609,6 +690,7 @@ def _collect_assumptions() -> Assumptions:
     portfolio = _read_portfolio_fields()
     assumptions = Assumptions.from_gui_state(
         name=st.session_state.assumptions_name.strip() or "Untitled",
+        description=str(portfolio.get("description", "") or ""),
         initial_capital=portfolio["initial_capital"],
         contributions=portfolio["contributions"],
         withdrawals=portfolio["withdrawals"],
@@ -654,6 +736,7 @@ def _process_pending_assumptions() -> None:
 
 def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) -> None:
     st.session_state.portfolio = {
+        "description": assumptions.description,
         "initial_capital": assumptions.initial_capital,
         "contributions": assumptions.contributions,
         "withdrawals": assumptions.withdrawals,
@@ -677,6 +760,13 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.portfolio_assumptions_editing = False
     st.session_state.asset_allocation_editing = False
     st.session_state.return_assumptions_editing = False
+    st.session_state.pop("section_step_1a_editing", None)
+    st.session_state.pop("section_step_1b_editing", None)
+    st.session_state.pop("section_step_2_editing", None)
+    st.session_state.pop("section_step_3_editing", None)
+    _clear_portfolio_edit_widget_keys()
+    _clear_step_2_edit_keys(assumptions.asset_catalog)
+    _clear_step_3_edit_keys(assumptions.asset_catalog)
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f"asset_name_{asset.id}"] = asset.name
@@ -748,54 +838,165 @@ def _render_assumptions_file_controls() -> None:
         )
 
 
-def _sync_catalog_to_edit_widgets(catalog: AssetCatalog) -> None:
+def _step_2_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
+    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    keys: list[str] = []
+    for asset in _investable_assets(cat):
+        keys.append(f"asset_name_{asset.id}")
+        keys.append(f"alloc_{asset.id}")
+    return keys
+
+
+def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
+    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    keys: list[str] = []
+    for asset_id in return_model_asset_ids(cat):
+        keys.append(f"return_edit_mu_{asset_id}")
+        keys.append(f"return_edit_sigma_{asset_id}")
+    asset_order = return_model_asset_ids(cat)
+    for left, right in _correlation_pairs(cat):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        keys.append(f"return_edit_corr_{canonical[0]}_{canonical[1]}")
+    return keys
+
+
+def _seed_step_2_edit_from_session() -> None:
+    """Force-load step 2 edit keys from catalog/allocation (before widgets exist)."""
+    catalog: AssetCatalog = st.session_state.asset_catalog
+    allocation = st.session_state.allocation
     for asset in _investable_assets(catalog):
         st.session_state[f"asset_name_{asset.id}"] = asset.name
-    st.session_state.setdefault("asset_classes_edit_new_name", "")
+        st.session_state[f"alloc_{asset.id}"] = float(allocation.get(asset.id, 0.0))
 
 
-def _sync_edit_widgets_to_catalog() -> None:
+def _commit_step_2_edit_to_session() -> None:
+    """Copy step 2 widget keys into catalog + allocation."""
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
-    for asset in _investable_assets(catalog):
+    allocation: dict[str, float] = {}
+    for asset in list(_investable_assets(catalog)):
         name_key = f"asset_name_{asset.id}"
+        alloc_key = f"alloc_{asset.id}"
         if name_key in st.session_state:
             new_name = str(st.session_state[name_key]).strip()
             if new_name and new_name != asset.name:
-                catalog.rename(asset.id, new_name)
+                try:
+                    catalog.rename(asset.id, new_name)
+                except ValueError:
+                    pass
+        if alloc_key in st.session_state:
+            allocation[asset.id] = float(st.session_state[alloc_key])
+        else:
+            allocation[asset.id] = float(
+                st.session_state.allocation.get(asset.id, 0.0)
+            )
     st.session_state.asset_catalog = catalog
+    if allocation:
+        st.session_state.allocation = allocation
+
+
+def _clear_step_2_edit_keys(catalog: AssetCatalog | None = None) -> None:
+    for key in _step_2_edit_keys(catalog):
+        st.session_state.pop(key, None)
+    # Also drop orphan alloc_/asset_name_ keys no longer in the catalog.
+    for key in list(st.session_state.keys()):
+        if isinstance(key, str) and key.startswith(("asset_name_", "alloc_")):
+            st.session_state.pop(key, None)
+
+
+def _on_enter_step_2_edit() -> None:
+    _seed_step_2_edit_from_session()
+
+
+def _on_exit_step_2_edit() -> None:
+    _commit_step_2_edit_to_session()
+    _clear_step_2_edit_keys()
 
 
 def _read_asset_catalog() -> AssetCatalog:
-    if st.session_state.get("asset_allocation_editing"):
-        _sync_edit_widgets_to_catalog()
+    if _section_is_editing("Step 2"):
+        _commit_step_2_edit_to_session()
     return st.session_state.asset_catalog
 
 
-def _sync_allocation_to_edit_widgets(investable_ids: list[str]) -> None:
-    for asset_id in investable_ids:
-        st.session_state[f"alloc_{asset_id}"] = float(
-            st.session_state.allocation.get(asset_id, 0.0)
-        )
-
-
 def _request_allocation_widget_sync() -> None:
+    """After mid-edit normalize/reset, re-seed alloc widgets on next render."""
     st.session_state["_pending_allocation_widget_sync"] = True
+
+
+def _seed_step_3_edit_from_session(catalog: AssetCatalog | None = None) -> None:
+    """Force-load step 3 edit keys from mu/sigma/correlation canonical state."""
+    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    for asset_id in return_model_asset_ids(cat):
+        st.session_state[f"return_edit_mu_{asset_id}"] = float(
+            st.session_state.get(
+                f"mu_{asset_id}",
+                float(DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]["mu"]),
+            )
+        )
+        st.session_state[f"return_edit_sigma_{asset_id}"] = float(
+            st.session_state.get(
+                f"sigma_{asset_id}",
+                float(
+                    DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0][
+                        "sigma"
+                    ]
+                ),
+            )
+        )
+    asset_order = return_model_asset_ids(cat)
+    correlation_values = st.session_state.get("correlation_values") or {}
+    for left, right in _correlation_pairs(cat):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
+        st.session_state[edit_key] = float(correlation_values.get(canonical, 0.0))
+
+
+def _commit_step_3_edit_to_session(catalog: AssetCatalog | None = None) -> None:
+    """Copy step 3 widget keys into mu/sigma/correlation canonical state."""
+    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    for asset_id in return_model_asset_ids(cat):
+        mu_key = f"return_edit_mu_{asset_id}"
+        sigma_key = f"return_edit_sigma_{asset_id}"
+        if mu_key in st.session_state:
+            st.session_state[f"mu_{asset_id}"] = float(st.session_state[mu_key])
+        if sigma_key in st.session_state:
+            st.session_state[f"sigma_{asset_id}"] = float(st.session_state[sigma_key])
+
+    asset_order = return_model_asset_ids(cat)
+    values: dict[tuple[str, str], float] = {}
+    for left, right in _correlation_pairs(cat):
+        canonical = normalize_correlation_pair(left, right, asset_order)
+        edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
+        if edit_key in st.session_state:
+            rho = float(st.session_state[edit_key])
+        else:
+            rho = float(st.session_state.correlation_values.get(canonical, 0.0))
+        values[canonical] = rho
+        st.session_state[f"corr_{canonical[0]}_{canonical[1]}"] = rho
+    st.session_state.correlation_values = values
+
+
+def _clear_step_3_edit_keys(catalog: AssetCatalog | None = None) -> None:
+    for key in _step_3_edit_keys(catalog):
+        st.session_state.pop(key, None)
+    for key in list(st.session_state.keys()):
+        if isinstance(key, str) and key.startswith("return_edit_"):
+            st.session_state.pop(key, None)
+
+
+def _on_enter_step_3_edit() -> None:
+    _seed_step_3_edit_from_session()
+
+
+def _on_exit_step_3_edit() -> None:
+    _commit_step_3_edit_to_session()
+    _clear_step_3_edit_keys()
 
 
 def _reset_correlation_assumptions_to_defaults() -> None:
     catalog = st.session_state.asset_catalog
     st.session_state.correlation_values = _default_correlation_values(catalog)
-    _sync_return_assumptions_to_edit_widgets(catalog)
-
-
-def _sync_return_assumptions_to_edit_widgets(catalog: AssetCatalog) -> None:
-    for asset_id in return_model_asset_ids(catalog):
-        st.session_state[f"return_edit_mu_{asset_id}"] = float(
-            st.session_state[f"mu_{asset_id}"]
-        )
-        st.session_state[f"return_edit_sigma_{asset_id}"] = float(
-            st.session_state[f"sigma_{asset_id}"]
-        )
+    # Re-seed only correlation edit keys (callback runs before widgets this run).
     asset_order = return_model_asset_ids(catalog)
     for left, right in _correlation_pairs(catalog):
         canonical = normalize_correlation_pair(left, right, asset_order)
@@ -805,24 +1006,17 @@ def _sync_return_assumptions_to_edit_widgets(catalog: AssetCatalog) -> None:
         )
 
 
-def _sync_edit_widgets_to_return_assumptions(catalog: AssetCatalog) -> None:
-    for asset_id in return_model_asset_ids(catalog):
-        mu_key = f"return_edit_mu_{asset_id}"
-        sigma_key = f"return_edit_sigma_{asset_id}"
-        if mu_key in st.session_state:
-            st.session_state[f"mu_{asset_id}"] = float(st.session_state[mu_key])
-        if sigma_key in st.session_state:
-            st.session_state[f"sigma_{asset_id}"] = float(st.session_state[sigma_key])
-
+def _set_no_correlations() -> None:
+    catalog = st.session_state.asset_catalog
+    st.session_state.correlation_values = {
+        (left, right): 0.0 for left, right in _correlation_pairs(catalog)
+    }
     asset_order = return_model_asset_ids(catalog)
-    values: dict[tuple[str, str], float] = {}
     for left, right in _correlation_pairs(catalog):
         canonical = normalize_correlation_pair(left, right, asset_order)
         edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
-        rho = float(st.session_state.get(edit_key, 0.0))
-        values[canonical] = rho
-        st.session_state[f"corr_{canonical[0]}_{canonical[1]}"] = rho
-    st.session_state.correlation_values = values
+        st.session_state[edit_key] = 0.0
+        st.session_state[f"corr_{canonical[0]}_{canonical[1]}"] = 0.0
 
 
 def _format_correlation_summary(
@@ -839,14 +1033,6 @@ def _format_correlation_summary(
     if not pairs:
         return "Correlations: none set"
     return "Correlations: " + ", ".join(pairs)
-
-
-def _set_no_correlations() -> None:
-    catalog = st.session_state.asset_catalog
-    st.session_state.correlation_values = {
-        (left, right): 0.0 for left, right in _correlation_pairs(catalog)
-    }
-    _sync_return_assumptions_to_edit_widgets(catalog)
 
 
 def _install_section_click_handlers() -> None:
@@ -1066,18 +1252,133 @@ def _render_live_charts(
         )
 
 
-def _render_step_1_readonly() -> None:
-    _clear_viva_syntax_result()
+def _render_step_1a_readonly() -> None:
     portfolio = st.session_state.portfolio
-    horizon = int(portfolio["max_year"])
-    with st.container(border=False, key="portfolio_section2"):
-        summary_cols = st.columns(6)
+    description = str(portfolio.get("description", "") or "").strip()
+    with st.container(border=False, key="portfolio_section_1a"):
+        if description:
+            st.markdown(description)
+        summary_cols = st.columns(4)
         summary_cols[0].metric(
             "Initial capital",
             portfolio["initial_capital"],
             help=PORTFOLIO_FIELD_HELP["initial_capital"],
         )
-        with summary_cols[1].container(border=False, gap=None):
+        summary_cols[1].metric(
+            "Cash buffer",
+            portfolio["cash_buffer"],
+            help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+        )
+        summary_cols[2].metric(
+            "Horizon",
+            f"{int(portfolio['max_year'])} yrs",
+            help=PORTFOLIO_FIELD_HELP["max_year"],
+        )
+        summary_cols[3].metric(
+            "Projections",
+            f"{int(portfolio['nb_projections']):,}",
+            help=PORTFOLIO_FIELD_HELP["nb_projections"],
+        )
+
+
+def _render_step_1a_edit() -> None:
+    # Edit keys are force-seeded in on_enter_edit before this form runs.
+    with st.container(border=False, key="portfolio_section_1a"):
+        st.text_area(
+            "Simulation description",
+            key="portfolio_edit_description",
+            height=100,
+            help=PORTFOLIO_FIELD_HELP["description"],
+            placeholder="Describe what this simulation is about…",
+        )
+        cols = st.columns(2)
+        with cols[0]:
+            st.text_input(
+                "Initial capital",
+                key="portfolio_edit_initial_capital",
+                help=PORTFOLIO_FIELD_HELP["initial_capital"],
+            )
+            st.number_input(
+                "Horizon (years)",
+                min_value=1,
+                max_value=50,
+                step=1,
+                key="portfolio_edit_max_year",
+                help=PORTFOLIO_FIELD_HELP["max_year"],
+            )
+        with cols[1]:
+            st.text_input(
+                "Cash buffer",
+                key="portfolio_edit_cash_buffer",
+                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+            )
+            st.number_input(
+                "Number of projections",
+                min_value=10,
+                max_value=20000,
+                step=10,
+                key="portfolio_edit_nb_projections",
+                help=PORTFOLIO_FIELD_HELP["nb_projections"],
+            )
+        if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+            st.warning("Large projection counts can take several minutes.")
+        for message in _validate_setup_amount_inputs():
+            st.error(message)
+        # Keep portfolio in sync on every rerun while editing (blur/change).
+        _commit_step_1a_edit_to_portfolio()
+
+
+def _render_flow_period_block(name: str, help: str, key: str | None = None) -> None:
+    slug = name.lower().replace(" ", "_")
+    if not key:
+        key = f"portfolio_edit_{slug}"
+    years = _simulation_projection_years()
+    horizon = years[-1]
+    from_key, to_key = _ensure_flow_period_defaults(key, horizon)
+
+    # Clamp period keys to the current horizon *before* creating widgets.
+    from_period = int(st.session_state[from_key])
+    to_period = int(st.session_state[to_key])
+    if from_period not in years:
+        from_period = years[0]
+        st.session_state[from_key] = from_period
+    to_years = list(range(from_period, years[-1] + 1))
+    if to_period not in to_years:
+        to_period = to_years[-1]
+        st.session_state[to_key] = to_period
+
+    container = st.container(
+        border=True,
+        horizontal=True,
+        key=f"{key}_block",
+    )
+    with container:
+        st.text_input(
+            name,
+            key=key,
+            help=help,
+        )
+        st.selectbox(
+            label="From period",
+            options=years,
+            key=from_key,
+            label_visibility="visible",
+        )
+        st.selectbox(
+            label="To period",
+            options=to_years,
+            key=to_key,
+            label_visibility="visible",
+        )
+
+
+def _render_step_1b_readonly() -> None:
+    _clear_viva_syntax_result()
+    portfolio = st.session_state.portfolio
+    horizon = int(portfolio["max_year"])
+    with st.container(border=False, key="portfolio_section_1b"):
+        summary_cols = st.columns(2)
+        with summary_cols[0].container(border=False, gap=None):
             line1, line2 = _format_flow_amount_with_period(
                 portfolio["contributions"],
                 portfolio.get("contributions_from_period", 1),
@@ -1091,7 +1392,7 @@ def _render_step_1_readonly() -> None:
             )
             if line2:
                 st.caption(line2)
-        with summary_cols[2].container(border=False, gap=None):
+        with summary_cols[1].container(border=False, gap=None):
             line1, line2 = _format_flow_amount_with_period(
                 portfolio["withdrawals"],
                 portfolio.get("withdrawals_from_period", 1),
@@ -1105,170 +1406,74 @@ def _render_step_1_readonly() -> None:
             )
             if line2:
                 st.caption(line2)
-
-        summary_cols[3].metric(
-            "Cash buffer",
-            portfolio["cash_buffer"],
-            help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-        )
-        summary_cols[4].metric(
-            "Horizon",
-            f"{int(portfolio['max_year'])} yrs",
-            help=PORTFOLIO_FIELD_HELP["max_year"],
-        )
-        summary_cols[5].metric(
-            "Projections",
-            f"{int(portfolio['nb_projections']):,}",
-            help=PORTFOLIO_FIELD_HELP["nb_projections"],
-        )
         viva_source = portfolio.get("viva_source", "").strip()
         if viva_source:
             _render_viva_program_summary(viva_source)
+        else:
+            st.caption("No additional Viva flows configured.")
 
 
-def _render_step_1_edit() -> None:
+def _render_step_1b_edit() -> None:
+    # Edit keys are force-seeded in on_enter_edit before this form runs.
+    with st.container(border=False, key="portfolio_section_1b"):
+        _render_flow_period_block(
+            "Contributions", PORTFOLIO_FIELD_HELP["contributions"]
+        )
+        _render_flow_period_block("Withdrawals", PORTFOLIO_FIELD_HELP["withdrawals"])
 
-    with st.container(border=False, key="portfolio_section2"):
-        if "portfolio_edit_initial_capital" not in st.session_state:
-            _sync_portfolio_to_edit_widgets()
-        st.markdown(step1_edit_layout_css(), unsafe_allow_html=True)
-        with st.container(horizontal=True, gap=None, key="portfolio_step1_layout"):
-            main_side = st.container(width="stretch", key="portfolio_step1_main")
-            divider = st.container(width=10, key="portfolio_step1_divider")
-            narrow_side = st.container(
-                width=int(THEME["step1_left_column_width_px"]),
-                key="portfolio_step1_side",
+        if not HAS_VIVA:
+            st.warning(
+                "Viva is not installed in this environment. "
+                "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
             )
-
-            with main_side:
-
-                def period_block(name: str, help: str, key: str | None = None) -> None:
-                    slug = name.lower().replace(" ", "_")
-                    if not key:
-                        key = f"portfolio_edit_{slug}"
-                    years = _simulation_projection_years()
-                    horizon = years[-1]
-                    from_key, to_key = _ensure_flow_period_defaults(key, horizon)
-                    if int(st.session_state[from_key]) not in years:
-                        st.session_state[from_key] = years[0]
-                    if int(st.session_state[to_key]) not in years:
-                        st.session_state[to_key] = horizon
-                    from_period = int(st.session_state[from_key])
-                    to_years = list(range(from_period, years[-1] + 1))
-                    if int(st.session_state[to_key]) not in to_years:
-                        st.session_state[to_key] = to_years[-1]
-                    if int(st.session_state[to_key]) < from_period:
-                        st.session_state[to_key] = from_period
-
-                    container = st.container(
-                        border=True,
-                        horizontal=True,
-                        key=f"{key}_block",
-                    )
-                    with container:
-                        st.text_input(
-                            name,
-                            key=key,
-                            help=help,
-                        )
-                        st.selectbox(
-                            label="From period",
-                            options=years,
-                            key=from_key,
-                            label_visibility="visible",
-                        )
-                        st.selectbox(
-                            label="To period",
-                            options=to_years,
-                            key=to_key,
-                            label_visibility="visible",
-                        )
-
-                period_block("Contributions", PORTFOLIO_FIELD_HELP["contributions"])
-                period_block("Withdrawals", PORTFOLIO_FIELD_HELP["withdrawals"])
-
-                if not HAS_VIVA:
-                    st.warning(
-                        "Viva is not installed in this environment. "
-                        "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
-                    )
-                with st.container(border=True, horizontal=True):
-                    st.text_area(
-                        "Additional flows",
-                        key="portfolio_edit_viva_source",
-                        height=180,
-                        help=VIVA_FIELD_HELP["viva_source"],
-                        placeholder="Enter your additional flows here. Click the 'load example' button to load a sample program.",
-                    )
-                    with st.container(
-                        border=False,
-                        horizontal=False,
-                        width=150,
-                        height="stretch",
-                        vertical_alignment="bottom",
-                    ):
-                        st.button(
-                            "clear",
-                            width="stretch",
-                            key="viva_clear",
-                            on_click=_clear_viva_source,
-                        )
-                        st.button(
-                            "load example",
-                            width="stretch",
-                            key="viva_load_example",
-                            on_click=_load_viva_julian_example,
-                        )
-                        st.button(
-                            "test syntax",
-                            width="stretch",
-                            key="viva_test_syntax",
-                            on_click=_test_viva_syntax,
-                        )
-                syntax_result = _viva_syntax_result_for_display()
-                if syntax_result:
-                    level, message = syntax_result
-                    if level == "error":
-                        st.error(message)
-                    else:
-                        st.success(message)
-
-            with divider:
-                st.caption("")
-
-            with narrow_side:
-                st.text_input(
-                    "Initial capital",
-                    key="portfolio_edit_initial_capital",
-                    help=PORTFOLIO_FIELD_HELP["initial_capital"],
+        with st.container(border=True, horizontal=True):
+            st.text_area(
+                "Additional flows",
+                key="portfolio_edit_viva_source",
+                height=180,
+                help=VIVA_FIELD_HELP["viva_source"],
+                placeholder=(
+                    "Enter your additional flows here. "
+                    "Click the 'load example' button to load a sample program."
+                ),
+            )
+            with st.container(
+                border=False,
+                horizontal=False,
+                width=150,
+                height="stretch",
+                vertical_alignment="bottom",
+            ):
+                st.button(
+                    "clear",
+                    width="stretch",
+                    key="viva_clear",
+                    on_click=_clear_viva_source,
                 )
-                st.text_input(
-                    "Cash buffer",
-                    key="portfolio_edit_cash_buffer",
-                    help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                st.button(
+                    "load example",
+                    width="stretch",
+                    key="viva_load_example",
+                    on_click=_load_viva_julian_example,
                 )
-                st.number_input(
-                    "Horizon (years)",
-                    min_value=1,
-                    max_value=50,
-                    step=1,
-                    key="portfolio_edit_max_year",
-                    help=PORTFOLIO_FIELD_HELP["max_year"],
+                st.button(
+                    "test syntax",
+                    width="stretch",
+                    key="viva_test_syntax",
+                    on_click=_test_viva_syntax,
                 )
-                st.number_input(
-                    "Number of projections",
-                    min_value=10,
-                    max_value=20000,
-                    step=10,
-                    key="portfolio_edit_nb_projections",
-                    help=PORTFOLIO_FIELD_HELP["nb_projections"],
-                )
-                if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-                    st.warning("Large projection counts can take several minutes.")
-                for message in _validate_portfolio_amount_inputs():
-                    st.error(message)
+        syntax_result = _viva_syntax_result_for_display()
+        if syntax_result:
+            level, message = syntax_result
+            if level == "error":
+                st.error(message)
+            else:
+                st.success(message)
 
-        _sync_edit_widgets_to_portfolio()
+        for message in _validate_flow_amount_inputs():
+            st.error(message)
+        # Keep portfolio in sync on every rerun while editing (blur/change).
+        _commit_step_1b_edit_to_portfolio()
 
 
 def _render_step_2_readonly() -> None:
@@ -1291,18 +1496,11 @@ def _render_step_2_readonly() -> None:
 
 
 def _render_step_2_edit() -> None:
-    catalog = _read_asset_catalog()
-    investable_ids = investable_asset_ids(catalog)
-    investable = _investable_assets(catalog)
-
+    # Edit keys are force-seeded in on_enter_edit; re-seed after normalize/reset.
     if st.session_state.pop("_pending_allocation_widget_sync", False):
-        _sync_allocation_to_edit_widgets(investable_ids)
-    elif investable and f"asset_name_{investable[0].id}" not in st.session_state:
-        _sync_catalog_to_edit_widgets(catalog)
-        _sync_allocation_to_edit_widgets(investable_ids)
+        _seed_step_2_edit_from_session()
 
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
-
     show_border = False  # TODO: make this dynamic based on the section mode
 
     with st.container(border=False, key="portfolio_allocation_section", gap="small"):
@@ -1334,7 +1532,8 @@ def _render_step_2_edit() -> None:
 
                 with cols[0]:
                     name_key = f"asset_name_{asset.id}"
-                    st.session_state.setdefault(name_key, asset.name)
+                    if name_key not in st.session_state:
+                        st.session_state[name_key] = asset.name
 
                     new_name = st.text_input(
                         "Asset",
@@ -1348,8 +1547,10 @@ def _render_step_2_edit() -> None:
 
                 with cols[1]:
                     alloc_key = f"alloc_{asset.id}"
-                    cp = st.session_state.allocation.get(asset.id, 0.0)
-                    st.session_state.setdefault(alloc_key, cp)
+                    if alloc_key not in st.session_state:
+                        st.session_state[alloc_key] = float(
+                            st.session_state.allocation.get(asset.id, 0.0)
+                        )
                     allocation[asset.id] = st.number_input(
                         "Allocation %",
                         min_value=0.0,
@@ -1367,6 +1568,8 @@ def _render_step_2_edit() -> None:
                             catalog.remove(asset.id)
                             st.session_state.asset_catalog = catalog
                             st.session_state.allocation.pop(asset.id, None)
+                            st.session_state.pop(f"asset_name_{asset.id}", None)
+                            st.session_state.pop(f"alloc_{asset.id}", None)
                             st.session_state.correlation_values = (
                                 _default_correlation_values(catalog)
                             )
@@ -1429,6 +1632,8 @@ def _render_step_2_edit() -> None:
                     added = catalog.add(new_asset_name)
                     st.session_state.asset_catalog = catalog
                     st.session_state.allocation.setdefault(added.id, 0.0)
+                    st.session_state[f"asset_name_{added.id}"] = added.name
+                    st.session_state[f"alloc_{added.id}"] = 0.0
                     st.session_state.correlation_values = (
                         _default_correlation_values(catalog)
                     )
@@ -1467,7 +1672,7 @@ def _render_step_2_edit() -> None:
                 }
                 _init_mu_sigma_keys(fresh_catalog)
                 _init_correlation_keys(fresh_catalog)
-
+                _clear_step_2_edit_keys(fresh_catalog)
                 _request_allocation_widget_sync()
                 st.rerun()
         with right_part:
@@ -1486,9 +1691,10 @@ def _render_step_2_edit() -> None:
                 ):
                     st.pyplot(pie_fig, transparent=True)
 
-    # update session state
+    # Keep canonical session state in sync while editing.
     st.session_state.asset_catalog = catalog
     st.session_state.allocation = allocation
+    _commit_step_2_edit_to_session()
 
 
 def _render_step_3_readonly() -> None:
@@ -1514,11 +1720,10 @@ def _render_step_3_readonly() -> None:
 
 
 def _render_step_3_edit() -> None:
+    # Edit keys are force-seeded in on_enter_edit before this form runs.
     with st.container(border=False, key="assets_performance_and_vol"):
         catalog = st.session_state.asset_catalog
         return_ids = return_model_asset_ids(catalog)
-        if return_ids and f"return_edit_mu_{return_ids[0]}" not in st.session_state:
-            _sync_return_assumptions_to_edit_widgets(catalog)
 
         with st.container(border=False):
             st.markdown(
@@ -1577,7 +1782,6 @@ def _render_step_3_edit() -> None:
                         help=RETURN_ASSUMPTION_HELP["sigma"],
                     )
         with right_part:
-            return_ids = return_model_asset_ids(catalog)
             mu_sigma_chart = {
                 asset_id: (
                     float(st.session_state.get(f"return_edit_mu_{asset_id}", 0.0)),
@@ -1608,10 +1812,10 @@ def _render_step_3_edit() -> None:
             label = f"{catalog.name(left)} \n\n {catalog.name(right)}"
             canonical = normalize_correlation_pair(left, right, asset_order)
             edit_key = f"return_edit_corr_{canonical[0]}_{canonical[1]}"
-            st.session_state.setdefault(
-                edit_key,
-                float(st.session_state.correlation_values.get(canonical, 0.0)),
-            )
+            if edit_key not in st.session_state:
+                st.session_state[edit_key] = float(
+                    st.session_state.correlation_values.get(canonical, 0.0)
+                )
             with ccor1:
                 st.number_input(
                     label,
@@ -1637,7 +1841,7 @@ def _render_step_3_edit() -> None:
                 on_click=_set_no_correlations,
             )
 
-        _sync_edit_widgets_to_return_assumptions(catalog)
+        _commit_step_3_edit_to_session(catalog)
 
 
 def _render_step_4_results(result: RunResult, result_year: int) -> None:
@@ -1732,11 +1936,22 @@ def _render_step_4_content() -> None:
 
 
 
-section1 = SectionContentEditable(
-    name="Step 1",
-    title="Contributions, Withdrawals, and projection parameters",
-    edit_form=_render_step_1_edit,
-    readonly_form=_render_step_1_readonly,
+section1a = SectionContentEditable(
+    name="Step 1a",
+    title="Simulation setup",
+    edit_form=_render_step_1a_edit,
+    readonly_form=_render_step_1a_readonly,
+    on_enter_edit=_on_enter_step_1a_edit,
+    on_exit_edit=_on_exit_step_1a_edit,
+)
+
+section1b = SectionContentEditable(
+    name="Step 1b",
+    title="Contributions, withdrawals, and additional flows",
+    edit_form=_render_step_1b_edit,
+    readonly_form=_render_step_1b_readonly,
+    on_enter_edit=_on_enter_step_1b_edit,
+    on_exit_edit=_on_exit_step_1b_edit,
 )
 
 section2 = SectionContentEditable(
@@ -1744,6 +1959,8 @@ section2 = SectionContentEditable(
     title="Portfolio Allocation",
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
+    on_enter_edit=_on_enter_step_2_edit,
+    on_exit_edit=_on_exit_step_2_edit,
 )
 
 section3 = SectionContentEditable(
@@ -1751,6 +1968,8 @@ section3 = SectionContentEditable(
     title="Assets Performance",
     edit_form=_render_step_3_edit,
     readonly_form=_render_step_3_readonly,
+    on_enter_edit=_on_enter_step_3_edit,
+    on_exit_edit=_on_exit_step_3_edit,
 )
 
 section4 = Section(
@@ -1793,7 +2012,8 @@ def _process_pending_simulation_run() -> None:
 
 
 def _render_workflow_sections() -> None:
-    section1.render()
+    section1a.render()
+    section1b.render()
     section2.render()
     section3.render()
     section4.render()
