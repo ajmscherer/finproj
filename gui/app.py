@@ -392,14 +392,14 @@ def _format_flow_amount_with_period(
     return (f"{amount} per year", f"from Y{from_p} through Y{to_p}")
 
 
-STEP_1A_EDIT_KEYS = (
+STEP_1_EDIT_KEYS = (
     "portfolio_edit_description",
     "portfolio_edit_initial_capital",
     "portfolio_edit_cash_buffer",
     "portfolio_edit_max_year",
     "portfolio_edit_nb_projections",
 )
-STEP_1B_EDIT_KEYS = (
+STEP_2_EDIT_KEYS = (
     "portfolio_edit_contributions",
     "portfolio_edit_withdrawals",
     "portfolio_edit_viva_source",
@@ -427,13 +427,13 @@ def _clear_edit_keys(keys: tuple[str, ...]) -> None:
 
 
 def _clear_portfolio_edit_widget_keys() -> None:
-    """Drop all step 1a/1b edit keys (e.g. after loading assumptions)."""
-    _clear_edit_keys(STEP_1A_EDIT_KEYS)
-    _clear_edit_keys(STEP_1B_EDIT_KEYS)
+    """Drop all steps 1–2 edit keys (e.g. after loading assumptions)."""
+    _clear_edit_keys(STEP_1_EDIT_KEYS)
+    _clear_edit_keys(STEP_2_EDIT_KEYS)
 
 
-def _commit_step_1a_edit_to_portfolio() -> None:
-    """Copy step 1a widget keys into portfolio (safe in on_exit callbacks)."""
+def _commit_step_1_edit_to_portfolio() -> None:
+    """Copy step 1 widget keys into portfolio (safe in on_exit callbacks)."""
     portfolio = st.session_state.portfolio
     if "portfolio_edit_description" in st.session_state:
         portfolio["description"] = st.session_state.portfolio_edit_description
@@ -449,8 +449,8 @@ def _commit_step_1a_edit_to_portfolio() -> None:
         )
 
 
-def _commit_step_1b_edit_to_portfolio() -> None:
-    """Copy step 1b widget keys into portfolio (safe in on_exit callbacks)."""
+def _commit_step_2_edit_to_portfolio() -> None:
+    """Copy step 2 widget keys into portfolio (safe in on_exit callbacks)."""
     portfolio = st.session_state.portfolio
     if "portfolio_edit_contributions" in st.session_state:
         portfolio["contributions"] = st.session_state.portfolio_edit_contributions
@@ -467,8 +467,8 @@ def _commit_step_1b_edit_to_portfolio() -> None:
             portfolio[f"{slug}_to_period"] = int(st.session_state[to_key])
 
 
-def _seed_step_1a_edit_from_portfolio() -> None:
-    """Force-load step 1a edit keys from portfolio (call only before widgets exist)."""
+def _seed_step_1_edit_from_portfolio() -> None:
+    """Force-load step 1 edit keys from portfolio (call only before widgets exist)."""
     portfolio = st.session_state.portfolio
     st.session_state.portfolio_edit_description = portfolio.get("description", "")
     st.session_state.portfolio_edit_initial_capital = portfolio["initial_capital"]
@@ -477,8 +477,8 @@ def _seed_step_1a_edit_from_portfolio() -> None:
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
 
 
-def _seed_step_1b_edit_from_portfolio() -> None:
-    """Force-load step 1b edit keys from portfolio (call only before widgets exist)."""
+def _seed_step_2_edit_from_portfolio() -> None:
+    """Force-load step 2 edit keys from portfolio (call only before widgets exist)."""
     portfolio = st.session_state.portfolio
     horizon = max(1, int(portfolio["max_year"]))
     st.session_state.portfolio_edit_contributions = portfolio["contributions"]
@@ -495,22 +495,22 @@ def _seed_step_1b_edit_from_portfolio() -> None:
         st.session_state[f"{prefix}_periods_initialized"] = True
 
 
-def _on_enter_step_1a_edit() -> None:
-    _seed_step_1a_edit_from_portfolio()
+def _on_enter_step_1_edit() -> None:
+    _seed_step_1_edit_from_portfolio()
 
 
-def _on_exit_step_1a_edit() -> None:
-    _commit_step_1a_edit_to_portfolio()
-    _clear_edit_keys(STEP_1A_EDIT_KEYS)
+def _on_exit_step_1_edit() -> None:
+    _commit_step_1_edit_to_portfolio()
+    _clear_edit_keys(STEP_1_EDIT_KEYS)
 
 
-def _on_enter_step_1b_edit() -> None:
-    _seed_step_1b_edit_from_portfolio()
+def _on_enter_step_2_edit() -> None:
+    _seed_step_2_edit_from_portfolio()
 
 
-def _on_exit_step_1b_edit() -> None:
-    _commit_step_1b_edit_to_portfolio()
-    _clear_edit_keys(STEP_1B_EDIT_KEYS)
+def _on_exit_step_2_edit() -> None:
+    _commit_step_2_edit_to_portfolio()
+    _clear_edit_keys(STEP_2_EDIT_KEYS)
 
 
 def _ensure_flow_period_defaults(base_key: str, horizon: int) -> tuple[str, str]:
@@ -527,9 +527,9 @@ def _ensure_flow_period_defaults(base_key: str, horizon: int) -> tuple[str, str]
 
 
 def _sync_edit_widgets_to_portfolio() -> None:
-    """Commit whichever step 1a/1b edit keys are currently present."""
-    _commit_step_1a_edit_to_portfolio()
-    _commit_step_1b_edit_to_portfolio()
+    """Commit whichever steps 1–2 edit keys are currently present."""
+    _commit_step_1_edit_to_portfolio()
+    _commit_step_2_edit_to_portfolio()
 
 
 def _section_is_editing(section_name: str) -> bool:
@@ -538,8 +538,8 @@ def _section_is_editing(section_name: str) -> bool:
 
 
 def _read_portfolio_fields() -> dict[str, Any]:
-    editing_setup = _section_is_editing("Step 1a")
-    editing_flows = _section_is_editing("Step 1b")
+    editing_setup = _section_is_editing("Step 1")
+    editing_flows = _section_is_editing("Step 2")
     if editing_setup or editing_flows or st.session_state.get(
         "portfolio_assumptions_editing"
     ):
@@ -661,8 +661,8 @@ def _init_session_state() -> None:
 
 
 def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
-    if _section_is_editing("Step 3"):
-        _commit_step_3_edit_to_session(catalog)
+    if _section_is_editing("Step 4"):
+        _commit_step_4_edit_to_session(catalog)
     mu_sigma: dict[str, tuple[float, float]] = {}
     for asset_id in return_model_asset_ids(catalog):
         mu_sigma[asset_id] = (
@@ -673,8 +673,8 @@ def _read_mu_sigma(catalog: AssetCatalog) -> dict[str, tuple[float, float]]:
 
 
 def _read_correlation_values(catalog: AssetCatalog) -> dict[tuple[str, str], float]:
-    if _section_is_editing("Step 3"):
-        _commit_step_3_edit_to_session(catalog)
+    if _section_is_editing("Step 4"):
+        _commit_step_4_edit_to_session(catalog)
     asset_order = return_model_asset_ids(catalog)
     values: dict[tuple[str, str], float] = {}
     for left, right in _correlation_pairs(catalog):
@@ -760,13 +760,13 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.portfolio_assumptions_editing = False
     st.session_state.asset_allocation_editing = False
     st.session_state.return_assumptions_editing = False
-    st.session_state.pop("section_step_1a_editing", None)
-    st.session_state.pop("section_step_1b_editing", None)
+    st.session_state.pop("section_step_1_editing", None)
     st.session_state.pop("section_step_2_editing", None)
     st.session_state.pop("section_step_3_editing", None)
+    st.session_state.pop("section_step_4_editing", None)
     _clear_portfolio_edit_widget_keys()
-    _clear_step_2_edit_keys(assumptions.asset_catalog)
     _clear_step_3_edit_keys(assumptions.asset_catalog)
+    _clear_step_4_edit_keys(assumptions.asset_catalog)
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f"asset_name_{asset.id}"] = asset.name
@@ -838,7 +838,7 @@ def _render_assumptions_file_controls() -> None:
         )
 
 
-def _step_2_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
+def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
     cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
     keys: list[str] = []
     for asset in _investable_assets(cat):
@@ -847,7 +847,7 @@ def _step_2_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
     return keys
 
 
-def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
+def _step_4_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
     cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
     keys: list[str] = []
     for asset_id in return_model_asset_ids(cat):
@@ -860,7 +860,7 @@ def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
     return keys
 
 
-def _seed_step_2_edit_from_session() -> None:
+def _seed_step_3_edit_from_session() -> None:
     """Force-load step 2 edit keys from catalog/allocation (before widgets exist)."""
     catalog: AssetCatalog = st.session_state.asset_catalog
     allocation = st.session_state.allocation
@@ -869,7 +869,7 @@ def _seed_step_2_edit_from_session() -> None:
         st.session_state[f"alloc_{asset.id}"] = float(allocation.get(asset.id, 0.0))
 
 
-def _commit_step_2_edit_to_session() -> None:
+def _commit_step_3_edit_to_session() -> None:
     """Copy step 2 widget keys into catalog + allocation."""
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
     allocation: dict[str, float] = {}
@@ -894,8 +894,8 @@ def _commit_step_2_edit_to_session() -> None:
         st.session_state.allocation = allocation
 
 
-def _clear_step_2_edit_keys(catalog: AssetCatalog | None = None) -> None:
-    for key in _step_2_edit_keys(catalog):
+def _clear_step_3_edit_keys(catalog: AssetCatalog | None = None) -> None:
+    for key in _step_3_edit_keys(catalog):
         st.session_state.pop(key, None)
     # Also drop orphan alloc_/asset_name_ keys no longer in the catalog.
     for key in list(st.session_state.keys()):
@@ -903,18 +903,18 @@ def _clear_step_2_edit_keys(catalog: AssetCatalog | None = None) -> None:
             st.session_state.pop(key, None)
 
 
-def _on_enter_step_2_edit() -> None:
-    _seed_step_2_edit_from_session()
+def _on_enter_step_3_edit() -> None:
+    _seed_step_3_edit_from_session()
 
 
-def _on_exit_step_2_edit() -> None:
-    _commit_step_2_edit_to_session()
-    _clear_step_2_edit_keys()
+def _on_exit_step_3_edit() -> None:
+    _commit_step_3_edit_to_session()
+    _clear_step_3_edit_keys()
 
 
 def _read_asset_catalog() -> AssetCatalog:
-    if _section_is_editing("Step 2"):
-        _commit_step_2_edit_to_session()
+    if _section_is_editing("Step 3"):
+        _commit_step_3_edit_to_session()
     return st.session_state.asset_catalog
 
 
@@ -923,7 +923,7 @@ def _request_allocation_widget_sync() -> None:
     st.session_state["_pending_allocation_widget_sync"] = True
 
 
-def _seed_step_3_edit_from_session(catalog: AssetCatalog | None = None) -> None:
+def _seed_step_4_edit_from_session(catalog: AssetCatalog | None = None) -> None:
     """Force-load step 3 edit keys from mu/sigma/correlation canonical state."""
     cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
     for asset_id in return_model_asset_ids(cat):
@@ -951,7 +951,7 @@ def _seed_step_3_edit_from_session(catalog: AssetCatalog | None = None) -> None:
         st.session_state[edit_key] = float(correlation_values.get(canonical, 0.0))
 
 
-def _commit_step_3_edit_to_session(catalog: AssetCatalog | None = None) -> None:
+def _commit_step_4_edit_to_session(catalog: AssetCatalog | None = None) -> None:
     """Copy step 3 widget keys into mu/sigma/correlation canonical state."""
     cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
     for asset_id in return_model_asset_ids(cat):
@@ -976,21 +976,21 @@ def _commit_step_3_edit_to_session(catalog: AssetCatalog | None = None) -> None:
     st.session_state.correlation_values = values
 
 
-def _clear_step_3_edit_keys(catalog: AssetCatalog | None = None) -> None:
-    for key in _step_3_edit_keys(catalog):
+def _clear_step_4_edit_keys(catalog: AssetCatalog | None = None) -> None:
+    for key in _step_4_edit_keys(catalog):
         st.session_state.pop(key, None)
     for key in list(st.session_state.keys()):
         if isinstance(key, str) and key.startswith("return_edit_"):
             st.session_state.pop(key, None)
 
 
-def _on_enter_step_3_edit() -> None:
-    _seed_step_3_edit_from_session()
+def _on_enter_step_4_edit() -> None:
+    _seed_step_4_edit_from_session()
 
 
-def _on_exit_step_3_edit() -> None:
-    _commit_step_3_edit_to_session()
-    _clear_step_3_edit_keys()
+def _on_exit_step_4_edit() -> None:
+    _commit_step_4_edit_to_session()
+    _clear_step_4_edit_keys()
 
 
 def _reset_correlation_assumptions_to_defaults() -> None:
@@ -1252,10 +1252,10 @@ def _render_live_charts(
         )
 
 
-def _render_step_1a_readonly() -> None:
+def _render_step_1_readonly() -> None:
     portfolio = st.session_state.portfolio
     description = str(portfolio.get("description", "") or "").strip()
-    with st.container(border=False, key="portfolio_section_1a"):
+    with st.container(border=False, key="portfolio_section_1"):
         if description:
             st.markdown(description)
         summary_cols = st.columns(4)
@@ -1281,9 +1281,9 @@ def _render_step_1a_readonly() -> None:
         )
 
 
-def _render_step_1a_edit() -> None:
+def _render_step_1_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
-    with st.container(border=False, key="portfolio_section_1a"):
+    with st.container(border=False, key="portfolio_section_1"):
         st.text_area(
             "Simulation description",
             key="portfolio_edit_description",
@@ -1325,7 +1325,7 @@ def _render_step_1a_edit() -> None:
         for message in _validate_setup_amount_inputs():
             st.error(message)
         # Keep portfolio in sync on every rerun while editing (blur/change).
-        _commit_step_1a_edit_to_portfolio()
+        _commit_step_1_edit_to_portfolio()
 
 
 def _render_flow_period_block(name: str, help: str, key: str | None = None) -> None:
@@ -1372,11 +1372,11 @@ def _render_flow_period_block(name: str, help: str, key: str | None = None) -> N
         )
 
 
-def _render_step_1b_readonly() -> None:
+def _render_step_2_readonly() -> None:
     _clear_viva_syntax_result()
     portfolio = st.session_state.portfolio
     horizon = int(portfolio["max_year"])
-    with st.container(border=False, key="portfolio_section_1b"):
+    with st.container(border=False, key="portfolio_section_2"):
         summary_cols = st.columns(2)
         with summary_cols[0].container(border=False, gap=None):
             line1, line2 = _format_flow_amount_with_period(
@@ -1413,9 +1413,9 @@ def _render_step_1b_readonly() -> None:
             st.caption("No additional Viva flows configured.")
 
 
-def _render_step_1b_edit() -> None:
+def _render_step_2_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
-    with st.container(border=False, key="portfolio_section_1b"):
+    with st.container(border=False, key="portfolio_section_2"):
         _render_flow_period_block(
             "Contributions", PORTFOLIO_FIELD_HELP["contributions"]
         )
@@ -1473,10 +1473,10 @@ def _render_step_1b_edit() -> None:
         for message in _validate_flow_amount_inputs():
             st.error(message)
         # Keep portfolio in sync on every rerun while editing (blur/change).
-        _commit_step_1b_edit_to_portfolio()
+        _commit_step_2_edit_to_portfolio()
 
 
-def _render_step_2_readonly() -> None:
+def _render_step_3_readonly() -> None:
     catalog = _read_asset_catalog()
     with st.container(border=False, key="portfolio_allocation_section_inner"):
         allocation = st.session_state.allocation
@@ -1495,10 +1495,10 @@ def _render_step_2_readonly() -> None:
             )
 
 
-def _render_step_2_edit() -> None:
+def _render_step_3_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit; re-seed after normalize/reset.
     if st.session_state.pop("_pending_allocation_widget_sync", False):
-        _seed_step_2_edit_from_session()
+        _seed_step_3_edit_from_session()
 
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
     show_border = False  # TODO: make this dynamic based on the section mode
@@ -1672,7 +1672,7 @@ def _render_step_2_edit() -> None:
                 }
                 _init_mu_sigma_keys(fresh_catalog)
                 _init_correlation_keys(fresh_catalog)
-                _clear_step_2_edit_keys(fresh_catalog)
+                _clear_step_3_edit_keys(fresh_catalog)
                 _request_allocation_widget_sync()
                 st.rerun()
         with right_part:
@@ -1694,10 +1694,10 @@ def _render_step_2_edit() -> None:
     # Keep canonical session state in sync while editing.
     st.session_state.asset_catalog = catalog
     st.session_state.allocation = allocation
-    _commit_step_2_edit_to_session()
+    _commit_step_3_edit_to_session()
 
 
-def _render_step_3_readonly() -> None:
+def _render_step_4_readonly() -> None:
     with st.container(border=False, key="assets_performance_and_vol", gap="small"):
         catalog = st.session_state.asset_catalog
         mu_sigma = _read_mu_sigma(catalog)
@@ -1719,7 +1719,7 @@ def _render_step_3_readonly() -> None:
         st.caption(_format_correlation_summary(catalog, correlation_values))
 
 
-def _render_step_3_edit() -> None:
+def _render_step_4_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
     with st.container(border=False, key="assets_performance_and_vol"):
         catalog = st.session_state.asset_catalog
@@ -1841,10 +1841,10 @@ def _render_step_3_edit() -> None:
                 on_click=_set_no_correlations,
             )
 
-        _commit_step_3_edit_to_session(catalog)
+        _commit_step_4_edit_to_session(catalog)
 
 
-def _render_step_4_results(result: RunResult, result_year: int) -> None:
+def _render_step_5_results(result: RunResult, result_year: int) -> None:
     _render_charts(result)
     _render_outcome_probability_metrics(result, result_year)
     _render_summary(result)
@@ -1873,7 +1873,7 @@ def _has_result() -> bool:
     return st.session_state.result is not None
 
 
-def _render_step_4_content() -> None:
+def _render_step_5_content() -> None:
     _check_config_validity()
     can_run = st.session_state.config_problems is None
     running = _simulation_running()
@@ -1885,7 +1885,7 @@ def _render_step_4_content() -> None:
         if running:
             st.info("Monte Carlo simulation is running…")
             charts_slot = st.empty()
-            st.session_state["_step_4_live_charts_placeholder"] = charts_slot
+            st.session_state["_step_5_live_charts_placeholder"] = charts_slot
         elif has_result:
             result: RunResult = st.session_state.result
             result_year = int(
@@ -1896,7 +1896,7 @@ def _render_step_4_content() -> None:
             )
             charts_slot = st.empty()
             with charts_slot.container():
-                _render_step_4_results(result, result_year)
+                _render_step_5_results(result, result_year)
             with st.container(border=True, horizontal=True):
                 if st.button(
                     "Refresh simulation",
@@ -1936,27 +1936,18 @@ def _render_step_4_content() -> None:
 
 
 
-section1a = SectionContentEditable(
-    name="Step 1a",
+section1 = SectionContentEditable(
+    name="Step 1",
     title="Simulation setup",
-    edit_form=_render_step_1a_edit,
-    readonly_form=_render_step_1a_readonly,
-    on_enter_edit=_on_enter_step_1a_edit,
-    on_exit_edit=_on_exit_step_1a_edit,
-)
-
-section1b = SectionContentEditable(
-    name="Step 1b",
-    title="Contributions, withdrawals, and additional flows",
-    edit_form=_render_step_1b_edit,
-    readonly_form=_render_step_1b_readonly,
-    on_enter_edit=_on_enter_step_1b_edit,
-    on_exit_edit=_on_exit_step_1b_edit,
+    edit_form=_render_step_1_edit,
+    readonly_form=_render_step_1_readonly,
+    on_enter_edit=_on_enter_step_1_edit,
+    on_exit_edit=_on_exit_step_1_edit,
 )
 
 section2 = SectionContentEditable(
     name="Step 2",
-    title="Portfolio Allocation",
+    title="Contributions, withdrawals, and additional flows",
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
     on_enter_edit=_on_enter_step_2_edit,
@@ -1965,17 +1956,26 @@ section2 = SectionContentEditable(
 
 section3 = SectionContentEditable(
     name="Step 3",
-    title="Assets Performance",
+    title="Portfolio Allocation",
     edit_form=_render_step_3_edit,
     readonly_form=_render_step_3_readonly,
     on_enter_edit=_on_enter_step_3_edit,
     on_exit_edit=_on_exit_step_3_edit,
 )
 
-section4 = Section(
+section4 = SectionContentEditable(
     name="Step 4",
+    title="Assets Performance",
+    edit_form=_render_step_4_edit,
+    readonly_form=_render_step_4_readonly,
+    on_enter_edit=_on_enter_step_4_edit,
+    on_exit_edit=_on_exit_step_4_edit,
+)
+
+section5 = Section(
+    name="Step 5",
     title="Run and review analysis",
-    content_form=_render_step_4_content,
+    content_form=_render_step_5_content,
 )
 
 
@@ -1997,10 +1997,10 @@ def _render_sidebar() -> None:
 
 
 def _process_pending_simulation_run() -> None:
-    """Run simulation queued by Step 4 (after that section has rendered)."""
+    """Run simulation queued by Step 5 (after that section has rendered)."""
     if not st.session_state.pop("run_simulation_requested", False):
         return
-    charts_placeholder = st.session_state.get("_step_4_live_charts_placeholder")
+    charts_placeholder = st.session_state.get("_step_5_live_charts_placeholder")
     if charts_placeholder is None:
         _set_simulation_running(False)
         return
@@ -2012,11 +2012,11 @@ def _process_pending_simulation_run() -> None:
 
 
 def _render_workflow_sections() -> None:
-    section1a.render()
-    section1b.render()
+    section1.render()
     section2.render()
     section3.render()
     section4.render()
+    section5.render()
 
     SectionContentEditable.install_click_handlers()
 

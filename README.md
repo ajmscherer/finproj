@@ -67,11 +67,11 @@ On Debian or Ubuntu, if virtual-environment creation fails, install: `sudo apt i
 
 The GUI runs on `localhost` only. The main workflow has these sections:
 
-1a. **Simulation setup** — optional simulation description, initial capital, cash buffer, horizon, and projection count (shorthand amounts such as `1M` or `40k`)
-1b. **Contributions, withdrawals, and additional flows** — annual contributions and withdrawals (each with **From period** / **To period**), plus the optional **Additional flows** Viva editor
-2. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
-3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
-4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
+1. **Simulation setup** — optional simulation description, initial capital, cash buffer, horizon, and projection count (shorthand amounts such as `1M` or `40k`)
+2. **Contributions, withdrawals, and additional flows** — annual contributions and withdrawals (each with **From period** / **To period**), plus the optional **Additional flows** Viva editor
+3. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
+4. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
+5. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
    - NAV fan chart (P10 / median / P90 with nested probability-density bands)
    - NAV distribution at the horizon year
    - Probability of negative final NAV and probability of exceeding initial capital
@@ -94,7 +94,7 @@ For additional charts and the scenario navigator, refresh `output/finproj.xlsx` 
 
 ### 5. Change the Financial Assumptions
 
-**GUI (recommended):** use the various sections in the GUI to change description, capital, cash buffer, horizon, and number of runs (section 1a); contributions and withdrawals (including period ranges) and optional Viva flows (section 1b); rename, add, or remove optional assets, and adjust allocation (section 2); and change returns and correlations (section 3). Assumptions can be saved and reloaded from the sidebar.
+**GUI (recommended):** use the various sections in the GUI to change description, capital, cash buffer, horizon, and number of runs (section 1); contributions and withdrawals (including period ranges) and optional Viva flows (section 2); rename, add, or remove optional assets, and adjust allocation (section 3); and change returns and correlations (section 4). Assumptions can be saved and reloaded from the sidebar.
 
 **Command line / code:** defaults live in [code/inv_proj_runner.py](code/inv_proj_runner.py). [code/inv_proj_run.py](code/inv_proj_run.py) is a thin entry point that runs those defaults.
 
