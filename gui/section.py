@@ -92,9 +92,12 @@ class SectionContentEditable(Section):
 
     @editing.setter
     def editing(self, value: bool) -> None:
+        was_editing = bool(st.session_state.get(self._editing_state_key, False))
         st.session_state[self._editing_state_key] = value
-        st.session_state.simulation_running = False
-        st.session_state.result = None
+        # Only invalidate results when *entering* edit (assumptions may change).
+        # Never clear simulation_running here — the run flow owns that flag.
+        if value and not was_editing:
+            st.session_state.result = None
 
     def on_click(self) -> None:
         """Toggle edit mode, running enter/exit hooks around the transition.
@@ -103,6 +106,9 @@ class SectionContentEditable(Section):
         the previous run are still available for commit on exit, and safe to
         force-seed on enter (widgets have not been created yet this run).
         """
+        # Ignore panel/edit clicks while a simulation is in progress.
+        if st.session_state.get("simulation_running"):
+            return
         if self.editing:
             if self.on_exit_edit is not None:
                 self.on_exit_edit()
@@ -117,10 +123,15 @@ class SectionContentEditable(Section):
 
     def render(self) -> tuple[DeltaGenerator, DeltaGenerator]:
         left, right = super().render()
+        # While a simulation runs, force readonly *content* but keep the same
+        # widget skeleton (edit button + click-panel trigger) so Streamlit does
+        # not leave empty frames where removed elements used to be.
+        force_readonly = bool(st.session_state.get("simulation_running"))
+        show_editing = self.editing and not force_readonly
         with right:
             mode_class = (
                 "fp-section-panel-edit"
-                if self.editing
+                if show_editing
                 else "fp-section-panel-readonly"
             )
             st.markdown(
@@ -128,8 +139,9 @@ class SectionContentEditable(Section):
                 unsafe_allow_html=True,
             )
 
-            self._render_inside_panel()
+            self._render_inside_panel(show_editing=show_editing)
 
+            # Always register click panel (handler no-ops while running).
             ClickPanelRegistry.register_handler(
                 self._handler_key,
                 self._handle_panel_click,
@@ -144,28 +156,38 @@ class SectionContentEditable(Section):
     def install_click_handlers(cls) -> None:
         ClickPanelRegistry.install_handlers()
 
-    def _render_inside_panel(self) -> None:
-        hc = st.container(
-            horizontal=not self.editing,
-            vertical_alignment="center",
-            gap="small",
-            horizontal_alignment="right",
-            key=f"{self._slug}_header",
+    def _render_inside_panel(self, *, show_editing: bool | None = None) -> None:
+        if show_editing is None:
+            show_editing = self.editing
+        running = bool(st.session_state.get("simulation_running"))
+        # Always stack form content vertically. Wrapping the readonly form in a
+        # horizontal container next to Edit produced tall empty regions and made
+        # residual click-trigger buttons look like empty frames.
+        # Distinct keys keep edit vs readonly element trees from being reused.
+        body_key = (
+            f"{self._slug}_body_edit" if show_editing else f"{self._slug}_body_ro"
         )
-        with hc:
-            if self.editing:
+        with st.container(key=body_key, gap="small"):
+            if show_editing:
                 self.edit_form()
-                st.button(
-                    self.done_button_text,
-                    key=f"{self._slug}_done",
-                    on_click=self.on_click,
-                    help="Done editing this section",
-                )
             else:
                 self.readonly_form()
-                st.button(
-                    self.edit_button_text,
-                    key=f"{self._slug}_edit",
-                    on_click=self.on_click,
-                    help="Edit the content of this section",
-                )
+
+        # Mode button is always mounted (stable tree) and hidden via theme CSS
+        # unless section_mode_buttons_visible is true. Panel click uses click_panel.
+        if show_editing:
+            st.button(
+                self.done_button_text,
+                key=f"{self._slug}_done",
+                on_click=self.on_click,
+                help="Done editing this section",
+                disabled=running,
+            )
+        else:
+            st.button(
+                self.edit_button_text,
+                key=f"{self._slug}_edit",
+                on_click=self.on_click,
+                help="Edit the content of this section",
+                disabled=running,
+            )

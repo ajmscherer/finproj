@@ -136,6 +136,8 @@ def build_css(theme: Mapping[str, str | int] | None = None) -> str:
     show_section_mode_buttons = t.get("section_mode_buttons_visible", "false") == "true"
     section_mode_button_hide_css = ""
     if not show_section_mode_buttons:
+        # Hide explicit Edit/Done controls; panel click uses click_panel triggers.
+        # Include both legacy keys and SectionContentEditable step_* keys.
         section_mode_button_hide_css = """
 /* Hidden section edit/done triggers (panel click toggles mode; set section_mode_buttons_visible=true to show) */
 .st-key-portfolio_assumptions_edit,
@@ -143,12 +145,39 @@ def build_css(theme: Mapping[str, str | int] | None = None) -> str:
 .st-key-asset_allocation_edit,
 .st-key-asset_allocation_done,
 .st-key-return_assumptions_edit,
-.st-key-return_assumptions_done {
+.st-key-return_assumptions_done,
+.st-key-step_1_edit,
+.st-key-step_1_done,
+.st-key-step_2_edit,
+.st-key-step_2_done,
+.st-key-step_3_edit,
+.st-key-step_3_done {
     display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
+}
+"""
+    # Click-panel trigger buttons must never take layout space (empty-frame bug).
+    # Applied always so hide does not depend on install_handlers() st.html CSS.
+    click_trigger_hide_css = """
+/* Click-panel invisible triggers (JS still locates and clicks them) */
+[class*="st-key-"][class*="_click_trigger"] {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
 }
 """
     return f"""
 <style>
+{click_trigger_hide_css}
 /* App title */
 h1 {{
     font-size: {t["title_font_size"]};
