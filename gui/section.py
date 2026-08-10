@@ -160,34 +160,35 @@ class SectionContentEditable(Section):
         if show_editing is None:
             show_editing = self.editing
         running = bool(st.session_state.get("simulation_running"))
-        # Always stack form content vertically. Wrapping the readonly form in a
-        # horizontal container next to Edit produced tall empty regions and made
-        # residual click-trigger buttons look like empty frames.
-        # Distinct keys keep edit vs readonly element trees from being reused.
+        # Distinct keys for edit vs readonly so Streamlit does not reuse a
+        # horizontal container as a vertical one (empty-frame cause).
+        # Readonly: form + Edit side-by-side. Edit mode: form then Done below.
         body_key = (
             f"{self._slug}_body_edit" if show_editing else f"{self._slug}_body_ro"
         )
-        with st.container(key=body_key, gap="small"):
+        hc = st.container(
+            horizontal=not show_editing,
+            vertical_alignment="center",
+            gap="small",
+            horizontal_alignment="right",
+            key=body_key,
+        )
+        with hc:
             if show_editing:
                 self.edit_form()
+                st.button(
+                    self.done_button_text,
+                    key=f"{self._slug}_done",
+                    on_click=self.on_click,
+                    help="Done editing this section",
+                    disabled=running,
+                )
             else:
                 self.readonly_form()
-
-        # Mode button is always mounted (stable tree) and hidden via theme CSS
-        # unless section_mode_buttons_visible is true. Panel click uses click_panel.
-        if show_editing:
-            st.button(
-                self.done_button_text,
-                key=f"{self._slug}_done",
-                on_click=self.on_click,
-                help="Done editing this section",
-                disabled=running,
-            )
-        else:
-            st.button(
-                self.edit_button_text,
-                key=f"{self._slug}_edit",
-                on_click=self.on_click,
-                help="Edit the content of this section",
-                disabled=running,
-            )
+                st.button(
+                    self.edit_button_text,
+                    key=f"{self._slug}_edit",
+                    on_click=self.on_click,
+                    help="Edit the content of this section",
+                    disabled=running,
+                )

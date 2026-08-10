@@ -73,8 +73,8 @@ THEME: dict[str, str | int] = {
     "panel_background_edit": "#fffbeb",  # edit-mode section background
     "panel_padding": "0.75rem 1rem",
     "panel_margin_bottom": "0.5rem",
-    # Section edit/done icon buttons (hidden by default; click panel to toggle mode)
-    "section_mode_buttons_visible": "false",
+    # Section edit/done buttons (true = show Edit/Done; false = panel-click only)
+    "section_mode_buttons_visible": "true",
     # Metric cards inside panels
     "metric_label_size": "0.8rem",
     "metric_label_color": "#6b7280",

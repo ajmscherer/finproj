@@ -518,7 +518,7 @@ class SectionWiringTest(unittest.TestCase):
         self.assertEqual(gui_app.section3.name, "Step 3")
         self.assertEqual(gui_app.section3.title, "Assets Performance")
         self.assertEqual(gui_app.section4.name, "Step 4")
-        self.assertEqual(gui_app.section4.title, "Setup, run, and review")
+        self.assertEqual(gui_app.section4.title, "Simulation")
         self.assertFalse(hasattr(gui_app, "section5"))
 
     def test_section_is_editing_uses_display_names(self) -> None:
@@ -743,9 +743,8 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         src = inspect.getsource(SectionContentEditable._render_inside_panel)
         self.assertIn("_body_edit", src)
         self.assertIn("_body_ro", src)
-        # Readonly form must not sit in a horizontal row with the Edit control
-        # (that layout produced the tall empty panels with a blank trigger chip).
-        self.assertNotIn("horizontal=", src)
+        # Readonly uses a horizontal row so Edit sits to the right of the form.
+        self.assertIn("horizontal=not show_editing", src)
 
     def test_force_close_then_idle_layout_is_readonly_not_edit(self) -> None:
         """After Run is requested, all sections must be non-editing for next render."""

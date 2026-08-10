@@ -1306,7 +1306,6 @@ def _render_setup_fields() -> None:
     """Always-on simulation setup fields at top of Step 4 (run section)."""
     _ensure_setup_widgets_seeded()
     with st.container(border=False, key="portfolio_section_setup"):
-        st.subheader("Simulation setup")
         st.text_area(
             "Simulation description",
             key="portfolio_edit_description",
@@ -2030,7 +2029,7 @@ section3 = SectionContentEditable(
 
 section4 = Section(
     name="Step 4",
-    title="Setup, run, and review",
+    title="Simulation",
     content_form=_render_step_4_run_content,
 )
 

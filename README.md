@@ -70,7 +70,7 @@ The GUI runs on `localhost` only. The main workflow has these sections:
 1. **Contributions, withdrawals, and additional flows** — annual contributions and withdrawals (each with **From period** / **To period**), plus the optional **Additional flows** Viva editor
 2. **Portfolio** — initial capital and cash buffer; customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
 3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
-4. **Setup, run, and review** — simulation description, horizon, and projection count; then run or refresh the simulation. The **Run simulation** button is at the bottom of this section. Charts update live during the run, then show:
+4. **Simulation** — simulation description, horizon, and projection count; then run or refresh the simulation. The **Run simulation** button is at the bottom of this section. Charts update live during the run, then show:
    - NAV fan chart (P10 / median / P90 with nested probability-density bands)
    - NAV distribution at the horizon year
    - Probability of negative final NAV and probability of exceeding initial capital
