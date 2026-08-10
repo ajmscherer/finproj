@@ -734,17 +734,14 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         import inspect
 
         section = SectionContentEditable(name="Step 2", title="Portfolio")
-        # Mirror key scheme in _render_inside_panel
-        edit_key = f"{section._slug}_body_edit"
-        ro_key = f"{section._slug}_body_ro"
-        self.assertNotEqual(edit_key, ro_key)
-        self.assertEqual(edit_key, "step_2_body_edit")
-        self.assertEqual(ro_key, "step_2_body_ro")
+        # Stable body + mode button keys (same for edit and readonly).
+        body_key = f"{section._slug}_inner_v5"
+        mode_key = f"{section._slug}_mode_btn_v5"
+        self.assertEqual(body_key, "step_2_inner_v5")
+        self.assertEqual(mode_key, "step_2_mode_btn_v5")
         src = inspect.getsource(SectionContentEditable._render_inside_panel)
-        self.assertIn("_body_edit", src)
-        self.assertIn("_body_ro", src)
-        # Readonly uses a horizontal row so Edit sits to the right of the form.
-        self.assertIn("horizontal=not show_editing", src)
+        self.assertIn("_inner_v5", src)
+        self.assertIn("_mode_btn_v5", src)
 
     def test_force_close_then_idle_layout_is_readonly_not_edit(self) -> None:
         """After Run is requested, all sections must be non-editing for next render."""

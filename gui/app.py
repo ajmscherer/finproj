@@ -1303,38 +1303,38 @@ def _ensure_setup_widgets_seeded() -> None:
 
 
 def _render_setup_fields() -> None:
-    """Always-on simulation setup fields at top of Step 4 (run section)."""
+    """Editable simulation setup fields (idle only)."""
     _ensure_setup_widgets_seeded()
-    with st.container(border=False, key="portfolio_section_setup"):
-        st.text_area(
-            "Simulation description",
-            key="portfolio_edit_description",
-            height=100,
-            help=PORTFOLIO_FIELD_HELP["description"],
-            placeholder="Describe what this simulation is about…",
+    st.subheader("Simulation setup")
+    st.text_area(
+        "Simulation description",
+        key="portfolio_edit_description",
+        height=100,
+        help=PORTFOLIO_FIELD_HELP["description"],
+        placeholder="Describe what this simulation is about…",
+    )
+    cols = st.columns(2)
+    with cols[0]:
+        st.number_input(
+            "Horizon (years)",
+            min_value=1,
+            max_value=50,
+            step=1,
+            key="portfolio_edit_max_year",
+            help=PORTFOLIO_FIELD_HELP["max_year"],
         )
-        cols = st.columns(2)
-        with cols[0]:
-            st.number_input(
-                "Horizon (years)",
-                min_value=1,
-                max_value=50,
-                step=1,
-                key="portfolio_edit_max_year",
-                help=PORTFOLIO_FIELD_HELP["max_year"],
-            )
-        with cols[1]:
-            st.number_input(
-                "Number of projections",
-                min_value=10,
-                max_value=20000,
-                step=10,
-                key="portfolio_edit_nb_projections",
-                help=PORTFOLIO_FIELD_HELP["nb_projections"],
-            )
-        if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-            st.warning("Large projection counts can take several minutes.")
-        _commit_step_1_edit_to_portfolio()
+    with cols[1]:
+        st.number_input(
+            "Number of projections",
+            min_value=10,
+            max_value=20000,
+            step=10,
+            key="portfolio_edit_nb_projections",
+            help=PORTFOLIO_FIELD_HELP["nb_projections"],
+        )
+    if int(st.session_state.portfolio_edit_nb_projections) > 5000:
+        st.warning("Large projection counts can take several minutes.")
+    _commit_step_1_edit_to_portfolio()
 
 
 def _render_flow_period_block(name: str, help: str, key: str | None = None) -> None:
@@ -1910,44 +1910,52 @@ def _has_result() -> bool:
     return st.session_state.result is not None
 
 
-def _render_step_4_run_content() -> None:
-    """Step 4: simulation setup + run/results; Run button at the bottom."""
-    running = _simulation_running()
-    # Setup fields stay visible, but skip heavy validation work mid-run.
-    if not running:
-        _render_setup_fields()
-        st.divider()
-        _check_config_validity()
-    else:
-        # Readonly summary of setup while running (no new widget keys).
-        portfolio = st.session_state.portfolio
-        st.subheader("Simulation setup")
-        cols = st.columns(4)
-        cols[0].metric("Initial capital", portfolio["initial_capital"])
-        cols[1].metric("Cash buffer", portfolio["cash_buffer"])
-        cols[2].metric("Horizon", f"{int(portfolio['max_year'])} yrs")
-        cols[3].metric("Projections", f"{int(portfolio['nb_projections']):,}")
-        desc = str(portfolio.get("description", "") or "").strip()
-        if desc:
-            st.caption(desc)
-        st.divider()
+def _config_can_run() -> bool:
+    """True when the last validation found no config problems."""
+    return st.session_state.get("config_problems") is None
 
-    can_run = st.session_state.get("config_problems") is None
-    if not running:
-        can_run = st.session_state.config_problems is None
+
+def _render_setup_summary_readonly() -> None:
+    """Readonly setup metrics while a simulation is running (no widget keys)."""
+    portfolio = st.session_state.portfolio
+    st.subheader("Simulation setup")
+    cols = st.columns(4)
+    cols[0].metric("Initial capital", portfolio["initial_capital"])
+    cols[1].metric("Cash buffer", portfolio["cash_buffer"])
+    cols[2].metric("Horizon", f"{int(portfolio['max_year'])} yrs")
+    cols[3].metric("Projections", f"{int(portfolio['nb_projections']):,}")
+    desc = str(portfolio.get("description", "") or "").strip()
+    if desc:
+        st.caption(desc)
+
+
+def _render_step_4_panel_content() -> None:
+    """Step 4 panel with a *stable* widget skeleton for idle and running.
+
+    Streamlit remaps blocks when the tree shape changes between runs. Conditionally
+    omitting the Run button / ready-info while a simulation runs left those
+    elements orphaned inside Step 3. Always mount the same three slots and only
+    swap their contents.
+    """
+    running = _simulation_running()
     has_result = _has_result()
 
-    # Stable, keyed region so Streamlit does not leave orphan empty frames when
-    # switching between idle / running / results.
-    results_area = st.container(key="step_4_results_area")
-    with results_area:
+    # --- Slot 1: setup (always present) ---
+    with st.container(key="sim_slot_setup_v5"):
+        if running:
+            _render_setup_summary_readonly()
+        else:
+            _render_setup_fields()
+            _check_config_validity()
+
+    st.divider()
+
+    # --- Slot 2: status / results / live charts (always present) ---
+    with st.container(key="sim_slot_status_v5"):
         if running:
             st.info("Monte Carlo simulation is running…")
-            charts_slot = st.container(key="step_4_live_charts")
+            charts_slot = st.container(key="sim_live_charts_v5")
             st.session_state["_step_4_live_charts_placeholder"] = charts_slot
-            # Run immediately after the placeholder exists so progress/charts
-            # stay inside this section (not below the Run button).
-            _process_pending_simulation_run()
         elif has_result:
             result: RunResult = st.session_state.result
             result_year = int(
@@ -1958,6 +1966,7 @@ def _render_step_4_run_content() -> None:
             )
             _render_step_5_results(result, result_year)
         else:
+            can_run = _config_can_run()
             if can_run:
                 st.info(
                     "Configuration is valid. Click **Run simulation** at the bottom "
@@ -1965,41 +1974,58 @@ def _render_step_4_run_content() -> None:
                 )
             else:
                 problems = st.session_state.config_problems or []
-                msg = "\n".join([f"- {problem!s}" for problem in problems])
-                msg = (
+                details = "\n".join(f"- {problem!s}" for problem in problems)
+                st.error(
                     "Invalid configuration. Please check the assumptions and try again.\n"
-                    f"{msg}"
+                    f"{details}"
                 )
-                st.error(msg)
 
-    if not running:
-        st.divider()
-        run_label = (
-            "Refresh simulation" if has_result else "Run simulation"
-        )
+    st.divider()
+
+    # --- Slot 3: run controls (always present; disabled while running) ---
+    with st.container(key="sim_slot_controls_v5"):
+        can_run = _config_can_run() and not running
+        run_label = "Refresh simulation" if has_result else "Run simulation"
         st.button(
             run_label,
-            key="run_simulation",
+            key="sim_run_btn_v5",
             type="primary",
             disabled=not can_run,
             width="stretch",
             on_click=_request_simulation_run,
         )
-        if has_result:
+        # Always mount discard so the control tree shape stays fixed; hide when
+        # there is nothing to discard via disabled + empty label is awkward, so
+        # only create when has_result OR running (stable enough: after first run
+        # the button stays for the session).
+        if has_result or running:
             if st.button(
                 "Discard simulation",
-                key="discard_simulation",
+                key="sim_discard_btn_v5",
                 width="stretch",
+                disabled=running,
             ):
-                st.session_state.result = None
-                st.rerun()
+                if not running:
+                    st.session_state.result = None
+                    st.rerun()
+
+
+def _render_simulation_section() -> None:
+    """Render Step 4 (Simulation) as a pure vertical stack (no side columns)."""
+    st.markdown(
+        '<p class="fp-section-title">Step 4</p>',
+        unsafe_allow_html=True,
+    )
+    st.header("Simulation")
+    with st.container(width="stretch", border=True, key="sim_section_panel_v5"):
+        _render_step_4_panel_content()
 
 
 # Section numbering (display):
 #   Step 1 = flows (internal step_2 helpers)
 #   Step 2 = allocation (internal step_3 helpers)
 #   Step 3 = returns (internal step_4 helpers)
-#   Step 4 = setup + run
+#   Step 4 = setup + run (via _render_simulation_section)
 section1 = SectionContentEditable(
     name="Step 1",
     title="Contributions, withdrawals, and additional flows",
@@ -2027,10 +2053,12 @@ section3 = SectionContentEditable(
     on_exit_edit=_on_exit_step_4_edit,
 )
 
+# Kept for tests / API compatibility (name/title only).
 section4 = Section(
     name="Step 4",
     title="Simulation",
-    content_form=_render_step_4_run_content,
+    content_form=_render_step_4_panel_content,
+    panel_key="sim_section_panel_v5",
 )
 
 
@@ -2070,11 +2098,21 @@ def _render_workflow_sections() -> None:
     from click_panel import ClickPanelRegistry
 
     ClickPanelRegistry.reset()
+
+    # Pure sequential vertical render — no pre-allocated horizontal scaffolding.
+    # Simulation uses a fixed three-slot skeleton (setup / status / controls) so
+    # Streamlit never tears down the Run button between idle and running frames
+    # (that teardown was remapping it into the Step 3 panel).
     section1.render()
     section2.render()
     section3.render()
-    section4.render()
-    # Always install handlers; section on_click no-ops while simulation_running.
+    _render_simulation_section()
+
+    # Run the Monte Carlo *after* the full layout exists so long work does not
+    # interleave with section mounting.
+    if _simulation_running() and st.session_state.get("run_simulation_requested"):
+        _process_pending_simulation_run()
+
     SectionContentEditable.install_click_handlers()
 
 

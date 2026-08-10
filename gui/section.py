@@ -11,8 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import streamlit as st
-from click_panel import ClickPanelRegistry, click_panel
-from streamlit.delta_generator import DeltaGenerator
+from click_panel import ClickPanelRegistry, bind_panel_click
 from theme import THEME
 
 
@@ -29,36 +28,45 @@ class SectionBaseLayout:
     def _slug(self) -> str:
         return self.name.lower().replace(" ", "_")
 
-    def renderLayout(self) -> tuple[DeltaGenerator, DeltaGenerator]:
-        with st.container(
-            horizontal=True,
-            gap="small", 
-            vertical_alignment="center",
-            key=f"section_{self._slug}_main_container",
-        ):
-            left=st.container(width=self.left_column_width, key=f"{self._slug}_left_column", gap="small")
-            right=st.container(width="stretch", key=f"{self._slug}_right_column", gap="small")
-            return left, right
-@dataclass           
+
+@dataclass
 class Section(SectionBaseLayout):
     title: str = "No Title"
-    content_form: Callable[[], None]|None = None
-    
+    content_form: Callable[[], None] | None = None
+    footer_form: Callable[[], None] | None = None
+    panel_key: str | None = None
+
     @property
     def _content_container_key(self) -> str:
-        return f"{self._slug}_panel"
+        if self.panel_key:
+            return self.panel_key
+        return f"{self._slug}_panel_v5"
 
-    def render(self) -> tuple[DeltaGenerator, DeltaGenerator]:
-        left, right0 =  super().renderLayout()
-        with left:
-            st.markdown(f'<p class="fp-section-title">{html.escape(self.name)}</p>', unsafe_allow_html=True)
-        with right0:
-            st.header(self.title)
-            right = st.container(width="stretch", border=True, key=self._content_container_key)
-            with right:
-                if self.content_form:
-                    self.content_form()
-        return left, right
+    def _render_panel_body(self) -> None:
+        if self.content_form:
+            self.content_form()
+
+    def render(self) -> None:
+        """Render step label, title, and bordered panel as a pure vertical stack.
+
+        No horizontal containers — nested horizontal/column layouts were
+        corrupting Streamlit's element tree so later widgets appeared inside
+        earlier section panels.
+        """
+        st.markdown(
+            f'<p class="fp-section-title">{html.escape(self.name)}</p>',
+            unsafe_allow_html=True,
+        )
+        st.header(self.title)
+        with st.container(
+            width="stretch",
+            border=True,
+            key=self._content_container_key,
+        ):
+            self._render_panel_body()
+        if self.footer_form is not None:
+            self.footer_form()
+
 
 @dataclass
 class SectionContentEditable(Section):
@@ -66,17 +74,12 @@ class SectionContentEditable(Section):
     readonly_form: Callable[[], None] = _need_to_be_implemented
     done_button_text: str = "Done"
     edit_button_text: str = "Edit"
-    # Optional lifecycle hooks (run from button/panel callbacks, before widgets render).
     on_enter_edit: Callable[[], None] | None = None
     on_exit_edit: Callable[[], None] | None = None
 
     @property
     def _slug(self) -> str:
         return self.name.lower().replace(" ", "_")
-
-    @property
-    def _frame_key(self) -> str:
-        return f"section_{self._slug}"
 
     @property
     def _handler_key(self) -> str:
@@ -94,19 +97,10 @@ class SectionContentEditable(Section):
     def editing(self, value: bool) -> None:
         was_editing = bool(st.session_state.get(self._editing_state_key, False))
         st.session_state[self._editing_state_key] = value
-        # Only invalidate results when *entering* edit (assumptions may change).
-        # Never clear simulation_running here — the run flow owns that flag.
         if value and not was_editing:
             st.session_state.result = None
 
     def on_click(self) -> None:
-        """Toggle edit mode, running enter/exit hooks around the transition.
-
-        Callbacks run before the script body, so widget-bound session keys from
-        the previous run are still available for commit on exit, and safe to
-        force-seed on enter (widgets have not been created yet this run).
-        """
-        # Ignore panel/edit clicks while a simulation is in progress.
         if st.session_state.get("simulation_running"):
             return
         if self.editing:
@@ -118,77 +112,52 @@ class SectionContentEditable(Section):
                 self.on_enter_edit()
             self.editing = True
 
-    def _handle_panel_click(self) -> None:
-        self.on_click()
-
-    def render(self) -> tuple[DeltaGenerator, DeltaGenerator]:
-        left, right = super().render()
-        # While a simulation runs, force readonly *content* but keep the same
-        # widget skeleton (edit button + click-panel trigger) so Streamlit does
-        # not leave empty frames where removed elements used to be.
+    def _render_panel_body(self) -> None:
         force_readonly = bool(st.session_state.get("simulation_running"))
         show_editing = self.editing and not force_readonly
-        with right:
-            mode_class = (
-                "fp-section-panel-edit"
-                if show_editing
-                else "fp-section-panel-readonly"
-            )
-            st.markdown(
-                f'<span class="{mode_class}" aria-hidden="true"></span>',
-                unsafe_allow_html=True,
-            )
-
-            self._render_inside_panel(show_editing=show_editing)
-
-            # Always register click panel (handler no-ops while running).
-            ClickPanelRegistry.register_handler(
-                self._handler_key,
-                self._handle_panel_click,
-            )
-            click_panel(
-                panel_key=self._content_container_key,
-                handler_key=self._handler_key,
-            )
-            return left, right
+        mode_class = (
+            "fp-section-panel-edit" if show_editing else "fp-section-panel-readonly"
+        )
+        st.markdown(
+            f'<span class="{mode_class}" aria-hidden="true"></span>',
+            unsafe_allow_html=True,
+        )
+        mode_button_key = self._render_inside_panel(show_editing=show_editing)
+        ClickPanelRegistry.register_handler(self._handler_key, self.on_click)
+        bind_panel_click(
+            panel_key=self._content_container_key,
+            trigger_key=mode_button_key,
+        )
 
     @classmethod
     def install_click_handlers(cls) -> None:
         ClickPanelRegistry.install_handlers()
 
-    def _render_inside_panel(self, *, show_editing: bool | None = None) -> None:
+    def _render_inside_panel(self, *, show_editing: bool | None = None) -> str:
         if show_editing is None:
             show_editing = self.editing
         running = bool(st.session_state.get("simulation_running"))
-        # Distinct keys for edit vs readonly so Streamlit does not reuse a
-        # horizontal container as a vertical one (empty-frame cause).
-        # Readonly: form + Edit side-by-side. Edit mode: form then Done below.
-        body_key = (
-            f"{self._slug}_body_edit" if show_editing else f"{self._slug}_body_ro"
+        # Keep ONE stable body key for both modes so Streamlit does not tear
+        # down / remount the whole panel when toggling edit (empty-frame source).
+        body_key = f"{self._slug}_inner_v5"
+        mode_key = f"{self._slug}_mode_btn_v5"
+        mode_label = self.done_button_text if show_editing else self.edit_button_text
+        mode_help = (
+            "Done editing this section"
+            if show_editing
+            else "Edit the content of this section"
         )
-        hc = st.container(
-            horizontal=not show_editing,
-            vertical_alignment="center",
-            gap="small",
-            horizontal_alignment="right",
-            key=body_key,
-        )
-        with hc:
+
+        with st.container(key=body_key, gap="small"):
             if show_editing:
                 self.edit_form()
-                st.button(
-                    self.done_button_text,
-                    key=f"{self._slug}_done",
-                    on_click=self.on_click,
-                    help="Done editing this section",
-                    disabled=running,
-                )
             else:
                 self.readonly_form()
-                st.button(
-                    self.edit_button_text,
-                    key=f"{self._slug}_edit",
-                    on_click=self.on_click,
-                    help="Edit the content of this section",
-                    disabled=running,
-                )
+            st.button(
+                mode_label,
+                key=mode_key,
+                on_click=self.on_click,
+                help=mode_help,
+                disabled=running,
+            )
+        return mode_key
