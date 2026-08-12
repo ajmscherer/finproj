@@ -53,19 +53,28 @@ class Section(SectionBaseLayout):
         corrupting Streamlit's element tree so later widgets appeared inside
         earlier section panels.
         """
-        st.markdown(
-            f'<p class="fp-section-title">{html.escape(self.name)}</p>',
-            unsafe_allow_html=True,
-        )
-        st.header(self.title)
-        with st.container(
-            width="stretch",
-            border=True,
-            key=self._content_container_key,
+
+        left_column, right_column = st.columns([1, 4])
+        with (
+            left_column,
+            st.container(
+                width=self.left_column_width,
+                border=True,
+                height="stretch",
+                vertical_alignment="center",
+            ),
         ):
-            self._render_panel_body()
-        if self.footer_form is not None:
-            self.footer_form()
+            st.caption(self.name)
+        with right_column:
+            st.header(self.title)
+            with st.container(
+                width="stretch",
+                border=True,
+                key=self._content_container_key,
+            ):
+                self._render_panel_body()
+            if self.footer_form is not None:
+                self.footer_form()
 
 
 @dataclass

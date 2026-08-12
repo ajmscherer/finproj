@@ -707,6 +707,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         self.assertEqual(state.portfolio["contributions"], "77k")
         self.assertTrue(state.get("run_simulation_requested"))
         self.assertTrue(state.get("simulation_running"))
+        self.assertTrue(state.get("sim_overlay_open"))
 
     def test_show_editing_false_while_running_even_if_flag_set(self) -> None:
         """If edit flag is stuck True during a run, UI must still force readonly."""

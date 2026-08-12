@@ -603,10 +603,24 @@ def _force_close_all_section_edits() -> None:
 
 
 def _request_simulation_run() -> None:
+    """Queue a run and open the simulation overlay (live charts + results)."""
     _force_close_all_section_edits()
     st.session_state.run_simulation_requested = True
+    st.session_state.sim_overlay_open = True
     _set_simulation_running(True)
     st.rerun()
+
+
+def _close_sim_overlay() -> None:
+    st.session_state.sim_overlay_open = False
+
+
+def _sim_overlay_should_open() -> bool:
+    return bool(
+        st.session_state.get("sim_overlay_open")
+        or st.session_state.get("run_simulation_requested")
+        or _simulation_running()
+    )
 
 
 def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
@@ -683,6 +697,7 @@ def _init_session_state() -> None:
     st.session_state.setdefault("result", None)
     st.session_state.setdefault("simulation_running", False)
     st.session_state.setdefault("run_simulation_requested", False)
+    st.session_state.setdefault("sim_overlay_open", False)
     _init_portfolio_fields()
     st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault("assumptions_name", "Untitled")
@@ -1929,13 +1944,66 @@ def _render_setup_summary_readonly() -> None:
         st.caption(desc)
 
 
-def _render_step_4_panel_content() -> None:
-    """Step 4 panel with a *stable* widget skeleton for idle and running.
+def _result_year() -> int:
+    return int(
+        st.session_state.get(
+            "result_max_year",
+            _read_portfolio_fields()["max_year"],
+        )
+    )
 
-    Streamlit remaps blocks when the tree shape changes between runs. Conditionally
-    omitting the Run button / ready-info while a simulation runs left those
-    elements orphaned inside Step 3. Always mount the same three slots and only
-    swap their contents.
+
+@st.dialog("Monte Carlo simulation", width="large", dismissible=False)
+def _simulation_overlay() -> None:
+    """Overlay: live progress/charts while running, then final results.
+
+    Option A: heavy charts live here; Step 4 stays minimal during the run.
+    Not dismissible via click-outside so a long run cannot be closed by accident.
+    """
+    pending = bool(st.session_state.get("run_simulation_requested"))
+
+    if pending:
+        st.caption("Live progress — charts update as projections complete.")
+        charts_host = st.container()
+        st.session_state.run_simulation_requested = False
+        try:
+            ok = _execute_simulation_run(charts_host)
+        finally:
+            _set_simulation_running(False)
+        if ok:
+            st.session_state.sim_overlay_open = True
+            st.rerun()
+        # Failure: errors already rendered inside the host; offer close.
+        if st.button(
+            "Close",
+            key="sim_overlay_close_error_v5",
+            width="stretch",
+        ):
+            _close_sim_overlay()
+            st.rerun()
+        return
+
+    if _has_result():
+        st.success("Simulation complete.")
+        _render_step_5_results(st.session_state.result, _result_year())
+    else:
+        st.info("No simulation result to display.")
+
+    if st.button(
+        "Close",
+        key="sim_overlay_close_v5",
+        type="primary",
+        width="stretch",
+    ):
+        _close_sim_overlay()
+        st.rerun()
+
+
+def _render_step_4_panel_content() -> None:
+    """Step 4 panel: setup + status/controls; charts live in the overlay (option A).
+
+    Stable three-slot skeleton so Streamlit does not remap widgets into Steps 1–3
+    when switching idle ↔ running.
     """
     running = _simulation_running()
     has_result = _has_result()
@@ -1950,54 +2018,41 @@ def _render_step_4_panel_content() -> None:
 
     st.divider()
 
-    # --- Slot 2: status / results / live charts (always present) ---
+    # --- Slot 2: status / persistent results (no live charts — those are overlay) ---
     with st.container(key="sim_slot_status_v5"):
         if running:
-            st.info("Monte Carlo simulation is running…")
-            charts_slot = st.container(key="sim_live_charts_v5")
-            st.session_state["_step_4_live_charts_placeholder"] = charts_slot
-        elif has_result:
-            result: RunResult = st.session_state.result
-            result_year = int(
-                st.session_state.get(
-                    "result_max_year",
-                    _read_portfolio_fields()["max_year"],
-                )
+            st.info(
+                "Simulation is running in the overlay window. "
+                "Live charts and progress appear there."
             )
-            _render_step_5_results(result, result_year)
-        else:
-            can_run = _config_can_run()
-            if can_run:
-                st.info(
-                    "Configuration is valid. Click **Run simulation** at the bottom "
-                    "to start."
-                )
-            else:
-                problems = st.session_state.config_problems or []
-                details = "\n".join(f"- {problem!s}" for problem in problems)
-                st.error(
-                    "Invalid configuration. Please check the assumptions and try again.\n"
-                    f"{details}"
-                )
+        elif has_result:
+            # Persistent record on the main page after the run finishes.
+            _render_step_5_results(st.session_state.result, _result_year())
+        elif not _config_can_run():
+            problems = st.session_state.config_problems or []
+            details = "\n".join(f"- {problem!s}" for problem in problems)
+            st.error(
+                "Invalid configuration. Please check the assumptions and try again.\n"
+                f"{details}"
+            )
+        # Valid idle config: no status message — Run simulation is enough.
 
     st.divider()
 
-    # --- Slot 3: run controls (always present; disabled while running) ---
+    # --- Slot 3: run controls ---
     with st.container(key="sim_slot_controls_v5"):
-        can_run = _config_can_run() and not running
-        run_label = "Refresh simulation" if has_result else "Run simulation"
-        st.button(
-            run_label,
-            key="sim_run_btn_v5",
-            type="primary",
-            disabled=not can_run,
-            width="stretch",
-            on_click=_request_simulation_run,
-        )
-        # Always mount discard so the control tree shape stays fixed; hide when
-        # there is nothing to discard via disabled + empty label is awkward, so
-        # only create when has_result OR running (stable enough: after first run
-        # the button stays for the session).
+        config_ok = _config_can_run()
+        # Hide Run when configuration is invalid; show (disabled) while running.
+        if config_ok or running:
+            run_label = "Refresh simulation" if has_result else "Run simulation"
+            st.button(
+                run_label,
+                key="sim_run_btn_v5",
+                type="primary",
+                disabled=running or not config_ok,
+                width="stretch",
+                on_click=_request_simulation_run,
+            )
         if has_result or running:
             if st.button(
                 "Discard simulation",
@@ -2007,6 +2062,7 @@ def _render_step_4_panel_content() -> None:
             ):
                 if not running:
                     st.session_state.result = None
+                    _close_sim_overlay()
                     st.rerun()
 
 
@@ -2025,7 +2081,7 @@ def _render_simulation_section() -> None:
 #   Step 1 = flows (internal step_2 helpers)
 #   Step 2 = allocation (internal step_3 helpers)
 #   Step 3 = returns (internal step_4 helpers)
-#   Step 4 = setup + run (via _render_simulation_section)
+#   Step 4 = setup + run (via _render_simulation_section); charts in overlay
 section1 = SectionContentEditable(
     name="Step 1",
     title="Contributions, withdrawals, and additional flows",
@@ -2079,39 +2135,21 @@ def _render_sidebar() -> None:
         )
 
 
-def _process_pending_simulation_run() -> None:
-    """Run simulation queued by Step 4 (after that section has rendered)."""
-    if not st.session_state.pop("run_simulation_requested", False):
-        return
-    charts_placeholder = st.session_state.get("_step_4_live_charts_placeholder")
-    if charts_placeholder is None:
-        _set_simulation_running(False)
-        return
-    try:
-        if _execute_simulation_run(charts_placeholder):
-            st.rerun()
-    finally:
-        _set_simulation_running(False)
-
-
 def _render_workflow_sections() -> None:
     from click_panel import ClickPanelRegistry
 
     ClickPanelRegistry.reset()
 
-    # Pure sequential vertical render — no pre-allocated horizontal scaffolding.
-    # Simulation uses a fixed three-slot skeleton (setup / status / controls) so
-    # Streamlit never tears down the Run button between idle and running frames
-    # (that teardown was remapping it into the Step 3 panel).
     section1.render()
     section2.render()
     section3.render()
     _render_simulation_section()
 
-    # Run the Monte Carlo *after* the full layout exists so long work does not
-    # interleave with section mounting.
-    if _simulation_running() and st.session_state.get("run_simulation_requested"):
-        _process_pending_simulation_run()
+    # Option A: live charts + final results open in a modal overlay.
+    # The Monte Carlo work runs inside the dialog so progress widgets stay there.
+    if _sim_overlay_should_open():
+        st.session_state.sim_overlay_open = True
+        _simulation_overlay()
 
     SectionContentEditable.install_click_handlers()
 
