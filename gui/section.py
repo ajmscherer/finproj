@@ -166,7 +166,8 @@ class SectionContentEditable(Section):
             else "Edit the content of this section"
         )
 
-        with st.container(key=body_key, gap="small"):
+        with st.container(key=body_key, gap="small", horizontal=True):
+            
             if show_editing:
                 self.edit_form()
             else:

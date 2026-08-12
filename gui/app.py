@@ -278,18 +278,14 @@ def _viva_syntax_result_for_display() -> tuple[str, str] | None:
     return level, message
 
 
-def _render_viva_program_summary(source: str) -> None:
+def _render_viva_program_summary(source: str) -> str:
     summary, error = try_summarize_viva_source(source)
     if error or summary is None:
-        st.caption(f"Viva syntax error: {error or 'Could not parse Viva program.'}")
-        return
-    lines = format_viva_program_summary_lines(summary)
-    st.markdown(
-        '<div class="fp-viva-summary">'
-        + "<br>".join(html.escape(line) for line in lines)
-        + "</div>",
-        unsafe_allow_html=True,
-    )
+        result = f"Viva syntax error: {error or 'Could not parse Viva program.'}"
+    else:
+        lines = format_viva_program_summary_lines(summary)
+        result = " | ".join(html.escape(line) for line in lines)
+    return result
 
 
 RETURN_ASSUMPTION_HELP = {
@@ -365,9 +361,7 @@ def _validate_flow_amount_inputs() -> list[str]:
 
 
 def _validate_portfolio_amount_inputs() -> list[str]:
-    return _validate_amount_fields(
-        PORTFOLIO_AMOUNT_FIELDS, check_cash_vs_capital=True
-    )
+    return _validate_amount_fields(PORTFOLIO_AMOUNT_FIELDS, check_cash_vs_capital=True)
 
 
 def _simulation_projection_years() -> list[int]:
@@ -510,20 +504,14 @@ def _seed_step_2_edit_from_portfolio() -> None:
         st.session_state[f"{prefix}_periods_initialized"] = True
 
 
+# Display Step 1 = flows (internal seed/commit helpers are still named *_step_2_*).
+# Setup fields (description / horizon / projections) live always-on in Step 4 and
+# use _seed_step_1_edit_from_portfolio / _ensure_setup_widgets_seeded instead.
 def _on_enter_step_1_edit() -> None:
-    _seed_step_1_edit_from_portfolio()
-
-
-def _on_exit_step_1_edit() -> None:
-    _commit_step_1_edit_to_portfolio()
-    _clear_edit_keys(STEP_1_EDIT_KEYS)
-
-
-def _on_enter_step_2_edit() -> None:
     _seed_step_2_edit_from_portfolio()
 
 
-def _on_exit_step_2_edit() -> None:
+def _on_exit_step_1_edit() -> None:
     _commit_step_2_edit_to_portfolio()
     _clear_edit_keys(STEP_2_EDIT_KEYS)
 
@@ -568,7 +556,9 @@ def _read_portfolio_fields() -> dict[str, Any]:
         or st.session_state.get("portfolio_assumptions_editing")
     ):
         errors: list[str] = []
-        if capital_keys_present or st.session_state.get("portfolio_assumptions_editing"):
+        if capital_keys_present or st.session_state.get(
+            "portfolio_assumptions_editing"
+        ):
             errors.extend(_validate_setup_amount_inputs())
         if editing_flows or st.session_state.get("portfolio_assumptions_editing"):
             errors.extend(_validate_flow_amount_inputs())
@@ -592,13 +582,13 @@ def _force_close_all_section_edits() -> None:
     simulation executes (avoids empty/flickering section frames).
     """
     if _section_is_editing("Step 1"):
-        _on_exit_step_2_edit()
+        _on_exit_step_1_edit()
         st.session_state["section_step_1_editing"] = False
     if _section_is_editing("Step 2"):
-        _on_exit_step_3_edit()
+        _on_exit_step_2_edit()
         st.session_state["section_step_2_editing"] = False
     if _section_is_editing("Step 3"):
-        _on_exit_step_4_edit()
+        _on_exit_step_3_edit()
         st.session_state["section_step_3_editing"] = False
 
 
@@ -895,7 +885,9 @@ def _render_assumptions_file_controls() -> None:
 
 
 def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
-    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    cat: AssetCatalog = (
+        catalog if catalog is not None else st.session_state.asset_catalog
+    )
     keys: list[str] = []
     for asset in _investable_assets(cat):
         keys.append(f"asset_name_{asset.id}")
@@ -904,7 +896,9 @@ def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
 
 
 def _step_4_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
-    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    cat: AssetCatalog = (
+        catalog if catalog is not None else st.session_state.asset_catalog
+    )
     keys: list[str] = []
     for asset_id in return_model_asset_ids(cat):
         keys.append(f"return_edit_mu_{asset_id}")
@@ -944,9 +938,7 @@ def _commit_step_3_edit_to_session() -> None:
         if alloc_key in st.session_state:
             allocation[asset.id] = float(st.session_state[alloc_key])
         else:
-            allocation[asset.id] = float(
-                st.session_state.allocation.get(asset.id, 0.0)
-            )
+            allocation[asset.id] = float(st.session_state.allocation.get(asset.id, 0.0))
     st.session_state.asset_catalog = catalog
     if allocation:
         st.session_state.allocation = allocation
@@ -962,11 +954,11 @@ def _clear_step_3_edit_keys(catalog: AssetCatalog | None = None) -> None:
             st.session_state.pop(key, None)
 
 
-def _on_enter_step_3_edit() -> None:
+def _on_enter_step_2_edit() -> None:
     _seed_step_3_edit_from_session()
 
 
-def _on_exit_step_3_edit() -> None:
+def _on_exit_step_2_edit() -> None:
     _commit_step_3_edit_to_session()
     _clear_step_3_edit_keys()
 
@@ -984,12 +976,16 @@ def _request_allocation_widget_sync() -> None:
 
 def _seed_step_4_edit_from_session(catalog: AssetCatalog | None = None) -> None:
     """Force-load step 3 edit keys from mu/sigma/correlation canonical state."""
-    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    cat: AssetCatalog = (
+        catalog if catalog is not None else st.session_state.asset_catalog
+    )
     for asset_id in return_model_asset_ids(cat):
         st.session_state[f"return_edit_mu_{asset_id}"] = float(
             st.session_state.get(
                 f"mu_{asset_id}",
-                float(DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]["mu"]),
+                float(
+                    DEFAULT_RISK_PARAM.get(asset_id, [DEFAULT_NEW_ASSET_RISK])[0]["mu"]
+                ),
             )
         )
         st.session_state[f"return_edit_sigma_{asset_id}"] = float(
@@ -1012,7 +1008,9 @@ def _seed_step_4_edit_from_session(catalog: AssetCatalog | None = None) -> None:
 
 def _commit_step_4_edit_to_session(catalog: AssetCatalog | None = None) -> None:
     """Copy step 3 widget keys into mu/sigma/correlation canonical state."""
-    cat: AssetCatalog = catalog if catalog is not None else st.session_state.asset_catalog
+    cat: AssetCatalog = (
+        catalog if catalog is not None else st.session_state.asset_catalog
+    )
     for asset_id in return_model_asset_ids(cat):
         mu_key = f"return_edit_mu_{asset_id}"
         sigma_key = f"return_edit_sigma_{asset_id}"
@@ -1043,11 +1041,11 @@ def _clear_step_4_edit_keys(catalog: AssetCatalog | None = None) -> None:
             st.session_state.pop(key, None)
 
 
-def _on_enter_step_4_edit() -> None:
+def _on_enter_step_3_edit() -> None:
     _seed_step_4_edit_from_session()
 
 
-def _on_exit_step_4_edit() -> None:
+def _on_exit_step_3_edit() -> None:
     _commit_step_4_edit_to_session()
     _clear_step_4_edit_keys()
 
@@ -1396,13 +1394,16 @@ def _render_flow_period_block(name: str, help: str, key: str | None = None) -> N
         )
 
 
-def _render_step_2_readonly() -> None:
+def _render_step_1_readonly() -> None:
     _clear_viva_syntax_result()
     portfolio = st.session_state.portfolio
     horizon = int(portfolio["max_year"])
-    with st.container(border=False, key="portfolio_section_1"):
-        summary_cols = st.columns(2)
-        with summary_cols[0].container(border=False, gap=None):
+    with st.container(
+        border=False, 
+        key="portfolio_section_1", 
+        horizontal=True, width="stretch"):
+        # summary_cols = st.columns(2)
+        with st.container(border=False, gap=None, width=175):
             line1, line2 = _format_flow_amount_with_period(
                 portfolio["contributions"],
                 portfolio.get("contributions_from_period", 1),
@@ -1416,7 +1417,7 @@ def _render_step_2_readonly() -> None:
             )
             if line2:
                 st.caption(line2)
-        with summary_cols[1].container(border=False, gap=None):
+        with st.container(border=False, gap=None, width=175):
             line1, line2 = _format_flow_amount_with_period(
                 portfolio["withdrawals"],
                 portfolio.get("withdrawals_from_period", 1),
@@ -1431,13 +1432,15 @@ def _render_step_2_readonly() -> None:
             if line2:
                 st.caption(line2)
         viva_source = portfolio.get("viva_source", "").strip()
-        if viva_source:
-            _render_viva_program_summary(viva_source)
-        else:
-            st.caption("No additional Viva flows configured.")
+        with st.container(border=False, gap=None):
+            if viva_source:
+                result = _render_viva_program_summary(viva_source)
+                
+            else:
+                result = "No additional Viva flows configured."
+            st.metric("Additional flows", result, help=VIVA_FIELD_HELP["viva_source"])
 
-
-def _render_step_2_edit() -> None:
+def _render_step_1_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
     with st.container(border=False, key="portfolio_section_1"):
         _render_flow_period_block(
@@ -1500,7 +1503,7 @@ def _render_step_2_edit() -> None:
         _commit_step_2_edit_to_portfolio()
 
 
-def _render_step_3_readonly() -> None:
+def _render_step_2_readonly() -> None:
     catalog = _read_asset_catalog()
     portfolio = st.session_state.portfolio
     with st.container(border=False, key="portfolio_allocation_section_inner"):
@@ -1531,7 +1534,7 @@ def _render_step_3_readonly() -> None:
             )
 
 
-def _render_step_3_edit() -> None:
+def _render_step_2_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit; re-seed after normalize/reset.
     if st.session_state.pop("_pending_allocation_widget_sync", False):
         _seed_step_3_edit_from_session()
@@ -1667,12 +1670,15 @@ def _render_step_3_edit() -> None:
                     else:
                         st.success(f"{alloc_total:.1f}%")
 
-        with center_part, st.container(
-            border=show_border,
-            key="portfolio_allocation_section_center_part",
-            vertical_alignment="center",
-            horizontal_alignment="center",
-            height="stretch",
+        with (
+            center_part,
+            st.container(
+                border=show_border,
+                key="portfolio_allocation_section_center_part",
+                vertical_alignment="center",
+                horizontal_alignment="center",
+                height="stretch",
+            ),
         ):
             if st.button("Add asset", width="stretch"):
                 new_asset_name = "new asset"
@@ -1686,8 +1692,8 @@ def _render_step_3_edit() -> None:
                     st.session_state.allocation.setdefault(added.id, 0.0)
                     st.session_state[f"asset_name_{added.id}"] = added.name
                     st.session_state[f"alloc_{added.id}"] = 0.0
-                    st.session_state.correlation_values = (
-                        _default_correlation_values(catalog)
+                    st.session_state.correlation_values = _default_correlation_values(
+                        catalog
                     )
                     _init_mu_sigma_keys(catalog)
                     _init_correlation_keys(catalog)
@@ -1749,7 +1755,7 @@ def _render_step_3_edit() -> None:
     _commit_step_3_edit_to_session()
 
 
-def _render_step_4_readonly() -> None:
+def _render_step_3_readonly() -> None:
     with st.container(border=False, key="assets_performance_and_vol", gap="small"):
         catalog = st.session_state.asset_catalog
         mu_sigma = _read_mu_sigma(catalog)
@@ -1771,7 +1777,7 @@ def _render_step_4_readonly() -> None:
         st.caption(_format_correlation_summary(catalog, correlation_values))
 
 
-def _render_step_4_edit() -> None:
+def _render_step_3_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
     with st.container(border=False, key="assets_performance_and_vol"):
         catalog = st.session_state.asset_catalog
@@ -1896,10 +1902,17 @@ def _render_step_4_edit() -> None:
         _commit_step_4_edit_to_session(catalog)
 
 
-def _render_step_5_results(result: RunResult, result_year: int) -> None:
+def _render_step_5_results(
+    result: RunResult,
+    result_year: int,
+    *,
+    include_summary: bool = True,
+) -> None:
+    """Render post-run charts, metrics, optional summary table, and export links."""
     _render_charts(result)
     _render_outcome_probability_metrics(result, result_year)
-    _render_summary(result)
+    if include_summary:
+        _render_summary(result)
     st.subheader("Export")
     if result.output_csv.exists():
         st.download_button(
@@ -1985,7 +1998,12 @@ def _simulation_overlay() -> None:
 
     if _has_result():
         st.success("Simulation complete.")
-        _render_step_5_results(st.session_state.result, _result_year())
+        # Summary statistics stay on the main Step 4 page only.
+        _render_step_5_results(
+            st.session_state.result,
+            _result_year(),
+            include_summary=False,
+        )
     else:
         st.info("No simulation result to display.")
 
@@ -2053,17 +2071,15 @@ def _render_step_4_panel_content() -> None:
                 width="stretch",
                 on_click=_request_simulation_run,
             )
-        if has_result or running:
-            if st.button(
-                "Discard simulation",
-                key="sim_discard_btn_v5",
-                width="stretch",
-                disabled=running,
-            ):
-                if not running:
-                    st.session_state.result = None
-                    _close_sim_overlay()
-                    st.rerun()
+        if (has_result or running) and st.button(
+            "Discard simulation",
+            key="sim_discard_btn_v5",
+            width="stretch",
+            disabled=running,
+        ) and not running:
+            st.session_state.result = None
+            _close_sim_overlay()
+            st.rerun()
 
 
 def _render_simulation_section() -> None:
@@ -2107,28 +2123,28 @@ def _render_simulation_section() -> None:
 section1 = SectionContentEditable(
     name="Step 1",
     title="Contributions, withdrawals, and additional flows",
+    edit_form=_render_step_1_edit,
+    readonly_form=_render_step_1_readonly,
+    on_enter_edit=_on_enter_step_1_edit,
+    on_exit_edit=_on_exit_step_1_edit,
+)
+
+section2 = SectionContentEditable(
+    name="Step 2",
+    title="Portfolio",
     edit_form=_render_step_2_edit,
     readonly_form=_render_step_2_readonly,
     on_enter_edit=_on_enter_step_2_edit,
     on_exit_edit=_on_exit_step_2_edit,
 )
 
-section2 = SectionContentEditable(
-    name="Step 2",
-    title="Portfolio",
+section3 = SectionContentEditable(
+    name="Step 3",
+    title="Assets Performance",
     edit_form=_render_step_3_edit,
     readonly_form=_render_step_3_readonly,
     on_enter_edit=_on_enter_step_3_edit,
     on_exit_edit=_on_exit_step_3_edit,
-)
-
-section3 = SectionContentEditable(
-    name="Step 3",
-    title="Assets Performance",
-    edit_form=_render_step_4_edit,
-    readonly_form=_render_step_4_readonly,
-    on_enter_edit=_on_enter_step_4_edit,
-    on_exit_edit=_on_exit_step_4_edit,
 )
 
 # Kept for tests / API compatibility (name/title only).

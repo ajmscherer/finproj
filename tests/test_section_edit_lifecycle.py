@@ -143,7 +143,8 @@ class SetupFieldsLifecycleTest(unittest.TestCase):
         self.patcher.stop()
 
     def test_seed_loads_portfolio_into_edit_keys(self) -> None:
-        self.app._on_enter_step_1_edit()
+        # Setup fields are always-on in Step 4 (not a section enter/exit hook).
+        self.app._ensure_setup_widgets_seeded()
         self.assertEqual(self.state.portfolio_edit_description, "Original scenario")
         self.assertEqual(self.state.portfolio_edit_max_year, 20)
         self.assertEqual(self.state.portfolio_edit_nb_projections, 2000)
@@ -215,7 +216,7 @@ class Step1FlowsLifecycleTest(unittest.TestCase):
         self.patcher.stop()
 
     def test_seed_loads_flow_fields_and_periods(self) -> None:
-        self.app._on_enter_step_2_edit()
+        self.app._on_enter_step_1_edit()
         self.assertEqual(self.state.portfolio_edit_contributions, "40k")
         self.assertEqual(self.state.portfolio_edit_withdrawals, "30k")
         self.assertIn("flow: none", self.state.portfolio_edit_viva_source)
@@ -223,13 +224,13 @@ class Step1FlowsLifecycleTest(unittest.TestCase):
         self.assertEqual(self.state.portfolio_edit_contributions_to_period, 10)
 
     def test_exit_commits_flows_and_clears_keys(self) -> None:
-        self.app._on_enter_step_2_edit()
+        self.app._on_enter_step_1_edit()
         self.state.portfolio_edit_contributions = "75k"
         self.state.portfolio_edit_withdrawals = "12k"
         self.state.portfolio_edit_viva_source = "flow: bonus, 10k, year 2030"
         self.state.portfolio_edit_contributions_from_period = 1
         self.state.portfolio_edit_contributions_to_period = 8
-        self.app._on_exit_step_2_edit()
+        self.app._on_exit_step_1_edit()
 
         p = self.state.portfolio
         self.assertEqual(p["contributions"], "75k")
@@ -242,12 +243,12 @@ class Step1FlowsLifecycleTest(unittest.TestCase):
 
     def test_many_open_close_cycles_preserve_flows(self) -> None:
         for i in range(6):
-            self.app._on_enter_step_2_edit()
+            self.app._on_enter_step_1_edit()
             self.state.portfolio_edit_contributions = f"{10 + i}k"
             self.state.portfolio_edit_withdrawals = f"{20 + i}k"
-            self.app._on_exit_step_2_edit()
+            self.app._on_exit_step_1_edit()
 
-        self.app._on_enter_step_2_edit()
+        self.app._on_enter_step_1_edit()
         self.assertEqual(self.state.portfolio_edit_contributions, "15k")
         self.assertEqual(self.state.portfolio_edit_withdrawals, "25k")
 
@@ -286,7 +287,7 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.patcher.stop()
 
     def test_seed_loads_names_allocations_and_capital(self) -> None:
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.assertEqual(self.state.asset_name_stocks, "Stocks")
         self.assertEqual(self.state.portfolio_edit_initial_capital, "1M")
         self.assertEqual(self.state.portfolio_edit_cash_buffer, "150k")
@@ -296,7 +297,7 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         )
 
     def test_exit_commits_rename_allocation_and_capital(self) -> None:
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.state.asset_name_stocks = "Equities"
         self.state.portfolio_edit_initial_capital = "2M"
         self.state.portfolio_edit_cash_buffer = "200k"
@@ -305,13 +306,17 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.state.alloc_money_market = 20.0
         for asset_id in list(self.state.allocation):
             key = f"alloc_{asset_id}"
-            if key not in (
-                "alloc_stocks",
-                "alloc_bonds",
-                "alloc_money_market",
-            ) and key in self.state:
+            if (
+                key
+                not in (
+                    "alloc_stocks",
+                    "alloc_bonds",
+                    "alloc_money_market",
+                )
+                and key in self.state
+            ):
                 self.state[key] = 0.0
-        self.app._on_exit_step_3_edit()
+        self.app._on_exit_step_2_edit()
 
         self.assertEqual(self.state.asset_catalog.name("stocks"), "Equities")
         self.assertEqual(self.state.portfolio["initial_capital"], "2M")
@@ -322,21 +327,25 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.assertNotIn("portfolio_edit_initial_capital", self.state)
 
     def test_reenter_shows_committed_allocation(self) -> None:
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.state.alloc_stocks = 70.0
         self.state.alloc_bonds = 20.0
         self.state.alloc_money_market = 10.0
         for asset_id in list(self.state.allocation):
             key = f"alloc_{asset_id}"
-            if key not in (
-                "alloc_stocks",
-                "alloc_bonds",
-                "alloc_money_market",
-            ) and key in self.state:
+            if (
+                key
+                not in (
+                    "alloc_stocks",
+                    "alloc_bonds",
+                    "alloc_money_market",
+                )
+                and key in self.state
+            ):
                 self.state[key] = 0.0
-        self.app._on_exit_step_3_edit()
+        self.app._on_exit_step_2_edit()
 
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.assertAlmostEqual(float(self.state.alloc_stocks), 70.0)
         self.assertAlmostEqual(float(self.state.alloc_bonds), 20.0)
 
@@ -372,26 +381,26 @@ class Step3ReturnsLifecycleTest(unittest.TestCase):
         self.patcher.stop()
 
     def test_seed_loads_mu_sigma(self) -> None:
-        self.app._on_enter_step_4_edit()
+        self.app._on_enter_step_3_edit()
         self.assertAlmostEqual(
             float(self.state.return_edit_mu_stocks), float(self.state.mu_stocks)
         )
 
     def test_exit_commits_returns(self) -> None:
-        self.app._on_enter_step_4_edit()
+        self.app._on_enter_step_3_edit()
         self.state.return_edit_mu_stocks = 12.5
         self.state.return_edit_sigma_stocks = 22.0
-        self.app._on_exit_step_4_edit()
+        self.app._on_exit_step_3_edit()
         self.assertAlmostEqual(float(self.state.mu_stocks), 12.5)
         self.assertAlmostEqual(float(self.state.sigma_stocks), 22.0)
         self.assertNotIn("return_edit_mu_stocks", self.state)
 
     def test_many_cycles_do_not_lose_returns(self) -> None:
         for i in range(6):
-            self.app._on_enter_step_4_edit()
+            self.app._on_enter_step_3_edit()
             self.state.return_edit_mu_stocks = 5.0 + i
-            self.app._on_exit_step_4_edit()
-        self.app._on_enter_step_4_edit()
+            self.app._on_exit_step_3_edit()
+        self.app._on_enter_step_3_edit()
         self.assertAlmostEqual(float(self.state.return_edit_mu_stocks), 10.0)
 
 
@@ -442,21 +451,21 @@ class CrossSectionIsolationTest(unittest.TestCase):
         self.state.portfolio_edit_description = "must survive"
         self.app._commit_step_1_edit_to_portfolio()
 
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.state.alloc_stocks = 50.0
-        self.app._on_exit_step_3_edit()
+        self.app._on_exit_step_2_edit()
 
         self.assertEqual(self.state.portfolio["description"], "must survive")
         self.assertEqual(self.state.portfolio["viva_source"], "flow: keep me")
 
     def test_returns_edit_does_not_clear_flows(self) -> None:
-        self.app._on_enter_step_2_edit()
+        self.app._on_enter_step_1_edit()
         self.state.portfolio_edit_contributions = "99k"
-        self.app._on_exit_step_2_edit()
+        self.app._on_exit_step_1_edit()
 
-        self.app._on_enter_step_4_edit()
+        self.app._on_enter_step_3_edit()
         self.state.return_edit_mu_stocks = 8.8
-        self.app._on_exit_step_4_edit()
+        self.app._on_exit_step_3_edit()
 
         self.assertEqual(self.state.portfolio["contributions"], "99k")
 
@@ -466,34 +475,38 @@ class CrossSectionIsolationTest(unittest.TestCase):
             self.state.portfolio_edit_description = f"pass-{pass_i}"
             self.app._commit_step_1_edit_to_portfolio()
 
-            self.app._on_enter_step_2_edit()
+            self.app._on_enter_step_1_edit()
             self.state.portfolio_edit_contributions = f"{pass_i}k"
-            self.app._on_exit_step_2_edit()
+            self.app._on_exit_step_1_edit()
 
-            self.app._on_enter_step_3_edit()
+            self.app._on_enter_step_2_edit()
             self.state.alloc_stocks = 50.0 + pass_i
             self.state.alloc_bonds = 30.0 - pass_i
             self.state.alloc_money_market = 20.0
             for asset_id in list(self.state.allocation):
                 key = f"alloc_{asset_id}"
-                if key not in (
-                    "alloc_stocks",
-                    "alloc_bonds",
-                    "alloc_money_market",
-                ) and key in self.state:
+                if (
+                    key
+                    not in (
+                        "alloc_stocks",
+                        "alloc_bonds",
+                        "alloc_money_market",
+                    )
+                    and key in self.state
+                ):
                     self.state[key] = 0.0
-            self.app._on_exit_step_3_edit()
+            self.app._on_exit_step_2_edit()
 
-            self.app._on_enter_step_4_edit()
+            self.app._on_enter_step_3_edit()
             self.state.return_edit_mu_stocks = 6.0 + pass_i
-            self.app._on_exit_step_4_edit()
+            self.app._on_exit_step_3_edit()
 
         self.assertEqual(self.state.portfolio["description"], "pass-2")
         self.assertEqual(self.state.portfolio["contributions"], "2k")
-        self.app._on_enter_step_3_edit()
+        self.app._on_enter_step_2_edit()
         self.assertAlmostEqual(float(self.state.alloc_stocks), 52.0)
-        self.app._on_exit_step_3_edit()
-        self.app._on_enter_step_4_edit()
+        self.app._on_exit_step_2_edit()
+        self.app._on_enter_step_3_edit()
         self.assertAlmostEqual(float(self.state.return_edit_mu_stocks), 8.0)
 
 
@@ -612,7 +625,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         state["simulation_running"] = False
 
         with patch.object(gui_app.st, "session_state", state):
-            gui_app._on_enter_step_2_edit()
+            gui_app._on_enter_step_1_edit()
             state.portfolio_edit_contributions = "88k"
             state.portfolio_edit_withdrawals = "11k"
             # Leave keys present as if still editing (re-seed then mutate).
@@ -663,9 +676,9 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
             state["section_step_1_editing"] = True
             state["section_step_2_editing"] = True
             state["section_step_3_editing"] = True
+            gui_app._on_enter_step_1_edit()
             gui_app._on_enter_step_2_edit()
             gui_app._on_enter_step_3_edit()
-            gui_app._on_enter_step_4_edit()
 
             gui_app._force_close_all_section_edits()
 
@@ -696,7 +709,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         state["run_simulation_requested"] = False
 
         with patch.object(gui_app.st, "session_state", state):
-            gui_app._on_enter_step_2_edit()
+            gui_app._on_enter_step_1_edit()
             state.portfolio_edit_contributions = "77k"
             state["section_step_1_editing"] = True
             with patch.object(gui_app.st, "rerun") as rerun:
@@ -731,8 +744,9 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         Distinct body keys keep Streamlit from remapping the form block when
         mode flips (a common cause of empty frames after Run force-closes edits).
         """
-        from section import SectionContentEditable
         import inspect
+
+        from section import SectionContentEditable
 
         section = SectionContentEditable(name="Step 2", title="Portfolio")
         # Stable body + mode button keys (same for edit and readonly).
@@ -769,7 +783,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         state["section_step_3_editing"] = False
 
         with patch.object(gui_app.st, "session_state", state):
-            gui_app._on_enter_step_2_edit()
+            gui_app._on_enter_step_1_edit()
             state["section_step_1_editing"] = True
             with patch.object(gui_app.st, "rerun"):
                 gui_app._request_simulation_run()
@@ -783,5 +797,3 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
