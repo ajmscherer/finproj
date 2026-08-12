@@ -610,41 +610,72 @@ def _sim_overlay_should_open() -> bool:
         st.session_state.get("sim_overlay_open")
         or st.session_state.get("run_simulation_requested")
         or _simulation_running()
-        or _active_sim_job is not None
     )
 
 
-# Active batched job for the overlay (module-level; one run at a time).
-_active_sim_job: Any | None = None
+def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
+    """
+    Run Monte Carlo simulation. Returns True on success.
 
+    live_charts_placeholder: stable container for progress + live charts.
+    """
+    try:
+        assumptions = _collect_assumptions()
+        config = assumptions.to_simulation_config()
+        validate_allocation(config.risk_mix, config.asset_catalog)
+        validate_correlation(config.risk_param, config.risk_correlation)
+        live_distribution_year = config.max_year
+        chart_update_interval = _chart_update_interval(config.nb_projections)
 
-def _sim_batch_size(nb_projections: int) -> int:
-    """Projections per script run — short enough that Cancel stays responsive."""
-    return max(10, min(40, int(nb_projections) // 50 or 10))
+        # Keep progress/status/charts inside the reserved results area so we do
+        # not append orphan empty blocks below the Run button.
+        with live_charts_placeholder.container():
+            progress = st.progress(0.0, text="Starting simulation...")
+            status = st.empty()
+            charts_area = st.empty()
 
+        def progress_callback(
+            current: int,
+            total: int,
+            nav_fan: Any | None = None,
+        ) -> None:
+            progress.progress(
+                current / total,
+                text=f"Running projection {current:,} of {total:,}...",
+            )
+            if nav_fan is None:
+                return
+            if current == 1 or (
+                current != total and current % chart_update_interval == 0
+            ):
+                with charts_area.container():
+                    _render_live_charts(
+                        nav_fan,
+                        live_distribution_year,
+                        projections_done=current,
+                        projections_total=total,
+                    )
 
-def _discard_active_sim_job() -> None:
-    global _active_sim_job
-    if _active_sim_job is not None:
-        try:
-            _active_sim_job.close()
-        except Exception:
-            pass
-        _active_sim_job = None
+        importlib.reload(inv_proj)
+        importlib.reload(inv_proj_runner)
+        result = inv_proj_runner.run_simulation(
+            config,
+            progress_callback=progress_callback,
+        )
 
-
-def _start_active_sim_job() -> Any:
-    """Create a new SimulationJob from current assumptions."""
-    global _active_sim_job
-    _discard_active_sim_job()
-    importlib.reload(inv_proj)
-    importlib.reload(inv_proj_runner)
-    assumptions = _collect_assumptions()
-    config = assumptions.to_simulation_config()
-    validate_allocation(config.risk_mix, config.asset_catalog)
-    validate_correlation(config.risk_param, config.risk_correlation)
-    _active_sim_job = inv_proj_runner.SimulationJob(config)
-    return _active_sim_job
+        progress.progress(1.0, text="Simulation complete.")
+        status.success(
+            f"Finished {config.nb_projections:,} projections over {config.max_year} years."
+        )
+        st.session_state.result = result
+        st.session_state.result_max_year = int(_read_portfolio_fields()["max_year"])
+        return True
+    except ValueError as exc:
+        st.error(str(exc))
+        return False
+    except (RuntimeError, OSError, ImportError, TypeError, KeyError) as exc:
+        st.error(f"Simulation failed: {exc}")
+        return False
 
 
 def _init_session_state() -> None:
@@ -1939,111 +1970,35 @@ def _result_year() -> int:
 def _simulation_overlay() -> None:
     """Overlay: live progress/charts while running, then final results.
 
-    Runs the Monte Carlo in **short batches** with ``st.rerun()`` between them so
-    the Cancel button (below the charts) can be processed by Streamlit. A single
-    blocking ``run_simulation`` call cannot see button clicks mid-run.
+    Option A: heavy charts live here; Step 4 stays minimal during the run.
+    Not dismissible via click-outside so a long run cannot be closed by accident.
     """
-    global _active_sim_job
-
     pending = bool(st.session_state.get("run_simulation_requested"))
-    job = _active_sim_job
 
-    # Start a new job when Run was just requested.
-    if pending and job is None:
+    if pending:
+        st.caption("Live progress — charts update as projections complete.")
+        charts_host = st.container()
         st.session_state.run_simulation_requested = False
         try:
-            job = _start_active_sim_job()
-        except ValueError as exc:
-            st.error(str(exc))
+            ok = _execute_simulation_run(charts_host)
+        finally:
             _set_simulation_running(False)
-            if st.button("Close", key="sim_overlay_close_err_v6", width="stretch"):
-                _close_sim_overlay()
-                st.rerun()
-            return
-        except (RuntimeError, OSError, ImportError, TypeError, KeyError) as exc:
-            st.error(f"Simulation failed: {exc}")
-            _set_simulation_running(False)
-            if st.button("Close", key="sim_overlay_close_err2_v6", width="stretch"):
-                _close_sim_overlay()
-                st.rerun()
-            return
-
-    # --- In-progress: show charts, Cancel under them, then run one batch ---
-    if job is not None:
-        total = max(1, int(job.nb_projections))
-        current = int(job.completed)
-        st.caption("Live progress — charts update as projections complete.")
-        st.progress(
-            current / total,
-            text=(
-                f"Running projection {current:,} of {total:,}..."
-                if current < total
-                else f"Finished {total:,} projections."
-            ),
-        )
-        if current > 0:
-            _render_live_charts(
-                job.nav_fan,
-                int(job.config.max_year),
-                projections_done=current,
-                projections_total=total,
-            )
-
-        # Cancel below charts — checked at the start of each script run (between batches).
+        if ok:
+            st.session_state.sim_overlay_open = True
+            st.rerun()
+        # Failure: errors already rendered inside the host; offer close.
         if st.button(
-            "Cancel",
-            key="sim_overlay_cancel_v6",
-            type="secondary",
+            "Close",
+            key="sim_overlay_close_error_v5",
             width="stretch",
-            help="Abort the simulation and close this dialog",
         ):
-            _discard_active_sim_job()
-            _set_simulation_running(False)
-            st.session_state.run_simulation_requested = False
             _close_sim_overlay()
             st.rerun()
-
-        # Advance the job after painting UI so Cancel is on-screen.
-        if current < total:
-            batch = _sim_batch_size(total)
-            try:
-                status = job.run_batch(batch)
-            except (RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
-                st.error(f"Simulation failed: {exc}")
-                _discard_active_sim_job()
-                _set_simulation_running(False)
-                if st.button(
-                    "Close",
-                    key="sim_overlay_close_batch_err_v6",
-                    width="stretch",
-                ):
-                    _close_sim_overlay()
-                    st.rerun()
-                return
-            if status == "done":
-                st.session_state.result = job.result()
-                st.session_state.result_max_year = int(job.config.max_year)
-                _discard_active_sim_job()
-                _set_simulation_running(False)
-                st.session_state.sim_overlay_open = True
-                st.rerun()
-            else:
-                # More projections remain — rerun so UI updates and Cancel can fire.
-                st.rerun()
-            return
-
-        # completed == total but not yet finalized (edge case)
-        st.session_state.result = job.result()
-        st.session_state.result_max_year = int(job.config.max_year)
-        _discard_active_sim_job()
-        _set_simulation_running(False)
-        st.session_state.sim_overlay_open = True
-        st.rerun()
         return
 
-    # --- Idle overlay: show final results or empty state ---
     if _has_result():
         st.success("Simulation complete.")
+        # Summary statistics stay on the main Step 4 page only.
         _render_step_5_results(
             st.session_state.result,
             _result_year(),
@@ -2054,7 +2009,7 @@ def _simulation_overlay() -> None:
 
     if st.button(
         "Close",
-        key="sim_overlay_close_v6",
+        key="sim_overlay_close_v5",
         type="primary",
         width="stretch",
     ):
