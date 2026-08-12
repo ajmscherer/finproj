@@ -56,7 +56,7 @@ THEME: dict[str, str | int] = {
     "section_panel_background_edit": "#fffbeb",  # edit mode
     "section_panel_padding": "0.35rem 0.75rem",
     "section_panel_block_gap": "0.35rem",
-    "section_left_column_width": 100,
+    "section_left_column_width": 70,
     # Tagline and captions
     "caption_font_size": "0.9rem",
     "caption_color": "#6b7280",
@@ -284,8 +284,8 @@ section.main h3,
     margin-bottom: {t["subsection_margin_bottom"]};
 }}
 
-/* Section column labels (Section component title column) */
-[class*="st-key-section_"] [class*="_title"] .fp-section-title {{
+/* Section step labels (left column of each section row) */
+.fp-section-title {{
     font-family: {t["section_label_font_family"]};
     font-size: {t["section_label_font_size"]};
     font-weight: {t["section_label_font_weight"]};

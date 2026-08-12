@@ -47,34 +47,43 @@ class Section(SectionBaseLayout):
             self.content_form()
 
     def render(self) -> None:
-        """Render step label, title, and bordered panel as a pure vertical stack.
+        """Render step label (fixed width) | title + bordered panel (stretch).
 
-        No horizontal containers — nested horizontal/column layouts were
-        corrupting Streamlit's element tree so later widgets appeared inside
-        earlier section panels.
+        Uses a horizontal container so the left rail is exactly
+        ``left_column_width`` pixels and the right side fills remaining space.
+        (``st.columns`` only supports relative weights, not fixed pixel widths.)
         """
-
-        left_column, right_column = st.columns([1, 4])
-        with (
-            left_column,
-            st.container(
-                width=self.left_column_width,
-                border=True,
-                height="stretch",
-                vertical_alignment="center",
-            ),
+        with st.container(
+            horizontal=True,
+            width="stretch",
+            gap="small",
+            # Center the short left label against the taller right column.
+            vertical_alignment="center",
+            key=f"section_{self._slug}_row_v5",
         ):
-            st.caption(self.name)
-        with right_column:
-            st.header(self.title)
+            with st.container(
+                width=self.left_column_width,
+                border=False,
+                key=f"{self._slug}_left_col_v5",
+            ):
+                st.markdown(
+                    f'<p class="fp-section-title">{html.escape(self.name)}</p>',
+                    unsafe_allow_html=True,
+                )
             with st.container(
                 width="stretch",
-                border=True,
-                key=self._content_container_key,
+                border=False,
+                key=f"{self._slug}_right_col_v5",
             ):
-                self._render_panel_body()
-            if self.footer_form is not None:
-                self.footer_form()
+                st.header(self.title)
+                with st.container(
+                    width="stretch",
+                    border=True,
+                    key=self._content_container_key,
+                ):
+                    self._render_panel_body()
+                if self.footer_form is not None:
+                    self.footer_form()
 
 
 @dataclass

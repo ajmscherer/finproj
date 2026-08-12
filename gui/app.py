@@ -68,7 +68,7 @@ from inv_proj_runner import (
     validate_allocation,
     validate_correlation,
 )
-from theme import inject_theme
+from theme import THEME, inject_theme
 from viva_adapter import HAS_VIVA
 
 from assumptions import DEFAULT_ASSUMPTIONS_DIR, Assumptions
@@ -2067,14 +2067,36 @@ def _render_step_4_panel_content() -> None:
 
 
 def _render_simulation_section() -> None:
-    """Render Step 4 (Simulation) as a pure vertical stack (no side columns)."""
-    st.markdown(
-        '<p class="fp-section-title">Step 4</p>',
-        unsafe_allow_html=True,
-    )
-    st.header("Simulation")
-    with st.container(width="stretch", border=True, key="sim_section_panel_v5"):
-        _render_step_4_panel_content()
+    """Render Step 4 with fixed-width step label and stretched content column."""
+    left_w = int(THEME.get("section_left_column_width", 100))
+    with st.container(
+        horizontal=True,
+        width="stretch",
+        gap="small",
+        vertical_alignment="center",
+        key="section_step_4_row_v5",
+    ):
+        with st.container(
+            width=left_w,
+            border=False,
+            key="step_4_left_col_v5",
+        ):
+            st.markdown(
+                '<p class="fp-section-title">Step 4</p>',
+                unsafe_allow_html=True,
+            )
+        with st.container(
+            width="stretch",
+            border=False,
+            key="step_4_right_col_v5",
+        ):
+            st.header("Simulation")
+            with st.container(
+                width="stretch",
+                border=True,
+                key="sim_section_panel_v5",
+            ):
+                _render_step_4_panel_content()
 
 
 # Section numbering (display):
