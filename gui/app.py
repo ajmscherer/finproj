@@ -1318,9 +1318,8 @@ def _ensure_setup_widgets_seeded() -> None:
 def _render_setup_fields() -> None:
     """Editable simulation setup fields (idle only)."""
     _ensure_setup_widgets_seeded()
-    st.subheader("Simulation setup")
     st.text_area(
-        "Simulation description",
+        "Description",
         key="portfolio_edit_description",
         height=100,
         help=PORTFOLIO_FIELD_HELP["description"],
@@ -2034,7 +2033,6 @@ def _render_step_4_panel_content() -> None:
             _render_setup_fields()
             _check_config_validity()
 
-    st.divider()
 
     # --- Slot 2: status / persistent results (no live charts — those are overlay) ---
     with st.container(key="sim_slot_status_v5"):
@@ -2055,7 +2053,6 @@ def _render_step_4_panel_content() -> None:
             )
         # Valid idle config: no status message — Run simulation is enough.
 
-    st.divider()
 
     # --- Slot 3: run controls ---
     with st.container(key="sim_slot_controls_v5"):
