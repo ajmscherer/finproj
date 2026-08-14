@@ -56,6 +56,7 @@ class Section(SectionBaseLayout):
         with st.container(
             horizontal=True,
             width="stretch",
+            height="stretch",
             gap="small",
             # Center the short left label against the taller right column.
             vertical_alignment="center",
@@ -65,6 +66,8 @@ class Section(SectionBaseLayout):
                 width=self.left_column_width,
                 border=False,
                 key=f"{self._slug}_left_col_v5",
+                vertical_alignment="center",
+                horizontal_alignment="center",
             ):
                 st.markdown(
                     f'<p class="fp-section-title">{html.escape(self.name)}</p>',
@@ -74,16 +77,21 @@ class Section(SectionBaseLayout):
                 width="stretch",
                 border=False,
                 key=f"{self._slug}_right_col_v5",
+                gap="small",
+
             ):
                 st.header(self.title)
                 with st.container(
                     width="stretch",
-                    border=True,
+                    border=False,
                     key=self._content_container_key,
+                    gap="small",
+                    vertical_alignment="top",
                 ):
                     self._render_panel_body()
                 if self.footer_form is not None:
                     self.footer_form()
+        st.space()
 
 
 @dataclass
@@ -133,6 +141,7 @@ class SectionContentEditable(Section):
     def _render_panel_body(self) -> None:
         force_readonly = bool(st.session_state.get("simulation_running"))
         show_editing = self.editing and not force_readonly
+        
         mode_class = (
             "fp-section-panel-edit" if show_editing else "fp-section-panel-readonly"
         )
@@ -140,6 +149,7 @@ class SectionContentEditable(Section):
             f'<span class="{mode_class}" aria-hidden="true"></span>',
             unsafe_allow_html=True,
         )
+           
         mode_button_key = self._render_inside_panel(show_editing=show_editing)
         ClickPanelRegistry.register_handler(self._handler_key, self.on_click)
         bind_panel_click(
@@ -166,7 +176,12 @@ class SectionContentEditable(Section):
             else "Edit the content of this section"
         )
 
-        with st.container(key=body_key, gap="small", horizontal=True):
+        with st.container(
+            key=body_key,
+            gap="xxsmall",
+            horizontal=True,
+            border=False,
+        ):
             
             if show_editing:
                 self.edit_form()

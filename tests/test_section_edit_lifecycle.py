@@ -349,6 +349,79 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.assertAlmostEqual(float(self.state.alloc_stocks), 70.0)
         self.assertAlmostEqual(float(self.state.alloc_bonds), 20.0)
 
+    def test_normalize_pending_sync_survives_early_commit(self) -> None:
+        """Normalize must not be clobbered by sidebar/catalog commits.
+
+        After Normalize sets a scaled allocation + pending sync flag, the next
+        script run used to call ``_commit_step_3_edit_to_session`` (via
+        ``_collect_assumptions`` in the sidebar) *before* re-seeding ``alloc_*``
+        widgets, writing stale weights back over the normalized allocation.
+        """
+        self.app._on_enter_step_2_edit()
+        # Stale un-normalized widget values still in session state.
+        self.state.alloc_stocks = 50.0
+        self.state.alloc_bonds = 50.0
+        self.state.alloc_money_market = 50.0
+        for asset_id in list(self.state.allocation):
+            key = f"alloc_{asset_id}"
+            if (
+                key
+                not in (
+                    "alloc_stocks",
+                    "alloc_bonds",
+                    "alloc_money_market",
+                )
+                and key in self.state
+            ):
+                self.state[key] = 0.0
+
+        # What Normalize does before st.rerun():
+        total = 150.0
+        self.state.allocation = {
+            "stocks": 50.0 / total * 100.0,
+            "bonds": 50.0 / total * 100.0,
+            "money_market": 50.0 / total * 100.0,
+        }
+        self.app._request_allocation_widget_sync()
+
+        # Early apply (as main() does) before any commit path.
+        self.app._apply_pending_allocation_widget_sync()
+        # Simulate sidebar / _read_asset_catalog while still editing Step 2.
+        self.state["section_step_2_editing"] = True
+        self.app._commit_step_3_edit_to_session()
+
+        self.assertAlmostEqual(float(self.state.alloc_stocks), 100.0 / 3.0, places=5)
+        self.assertAlmostEqual(float(self.state.alloc_bonds), 100.0 / 3.0, places=5)
+        self.assertAlmostEqual(
+            float(self.state.alloc_money_market), 100.0 / 3.0, places=5
+        )
+        self.assertAlmostEqual(
+            sum(float(w) for w in self.state.allocation.values()), 100.0, places=5
+        )
+
+    def test_pending_sync_blocks_stale_commit_until_applied(self) -> None:
+        self.app._on_enter_step_2_edit()
+        self.state.alloc_stocks = 80.0
+        self.state.alloc_bonds = 80.0
+        self.state.alloc_money_market = 40.0
+        self.state.allocation = {
+            "stocks": 40.0,
+            "bonds": 40.0,
+            "money_market": 20.0,
+        }
+        self.app._request_allocation_widget_sync()
+
+        # Commit must not overwrite the normalized allocation while pending.
+        self.app._commit_step_3_edit_to_session()
+        self.assertAlmostEqual(float(self.state.allocation["stocks"]), 40.0)
+        self.assertAlmostEqual(float(self.state.allocation["bonds"]), 40.0)
+        self.assertAlmostEqual(float(self.state.allocation["money_market"]), 20.0)
+
+        self.app._apply_pending_allocation_widget_sync()
+        self.assertAlmostEqual(float(self.state.alloc_stocks), 40.0)
+        self.assertAlmostEqual(float(self.state.alloc_bonds), 40.0)
+        self.assertAlmostEqual(float(self.state.alloc_money_market), 20.0)
+
 
 class Step3ReturnsLifecycleTest(unittest.TestCase):
     """Step 3 (returns) — internal helpers are *_step_4_*."""

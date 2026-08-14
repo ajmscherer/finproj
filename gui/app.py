@@ -215,6 +215,12 @@ PORTFOLIO_FIELD_HELP = {
         "More projections produce smoother statistics but take longer. "
         "Counts above 5,000 can take several minutes."
     ),
+    "allocation": (
+        "Target weights of investable assets at the start of each projection "
+        "(and after rebalancing). Must sum to 100%. "
+        "Cash (liquidity buffer) is held separately and is not part of this mix. "
+        "Required classes: Money Market, Bonds, and Stocks; optional classes can be added."
+    ),
 }
 
 VIVA_FIELD_HELP = {
@@ -603,6 +609,8 @@ def _request_simulation_run() -> None:
 
 def _close_sim_overlay() -> None:
     st.session_state.sim_overlay_open = False
+    st.session_state.pop("sim_confirm_cancel", None)
+    st.session_state.pop("sim_confirm_save", None)
 
 
 def _sim_overlay_should_open() -> bool:
@@ -610,72 +618,69 @@ def _sim_overlay_should_open() -> bool:
         st.session_state.get("sim_overlay_open")
         or st.session_state.get("run_simulation_requested")
         or _simulation_running()
+        or _get_active_sim_job() is not None
     )
 
 
-def _execute_simulation_run(live_charts_placeholder: Any) -> bool:
-    """
-    Run Monte Carlo simulation. Returns True on success.
+# Session-state key for the active SimulationJob. Must NOT be a module global:
+# Streamlit re-executes app.py every run and would reset ``_active_sim_job = None``,
+# dropping the job after the first batch (empty dialog / no progress).
+_SIM_JOB_KEY = "_active_sim_job"
 
-    live_charts_placeholder: stable container for progress + live charts.
-    """
+
+def _sim_batch_size(nb_projections: int) -> int:
+    """Projections per script run so the dialog × control stays responsive."""
+    return max(10, min(40, int(nb_projections) // 50 or 10))
+
+
+def _get_active_sim_job() -> Any | None:
+    return st.session_state.get(_SIM_JOB_KEY)
+
+
+def _set_active_sim_job(job: Any | None) -> None:
+    if job is None:
+        st.session_state.pop(_SIM_JOB_KEY, None)
+    else:
+        st.session_state[_SIM_JOB_KEY] = job
+
+
+def _discard_active_sim_job() -> None:
+    job = _get_active_sim_job()
+    if job is not None:
+        try:
+            job.close()
+        except Exception:
+            pass
+        _set_active_sim_job(None)
+
+
+def _start_active_sim_job() -> Any:
+    """Create a SimulationJob from current GUI assumptions."""
+    _discard_active_sim_job()
+    # Do not reload inv_proj modules mid-session: it breaks class identity for
+    # any object still held in session_state and is unnecessary each Run click.
+    assumptions = _collect_assumptions()
+    config = assumptions.to_simulation_config()
+    validate_allocation(config.risk_mix, config.asset_catalog)
+    validate_correlation(config.risk_param, config.risk_correlation)
+    job = inv_proj_runner.SimulationJob(config)
+    _set_active_sim_job(job)
+    return job
+
+
+def _save_assumptions_to_file() -> tuple[bool, str]:
+    """Save current assumptions JSON. Returns (ok, message)."""
     try:
         assumptions = _collect_assumptions()
-        config = assumptions.to_simulation_config()
-        validate_allocation(config.risk_mix, config.asset_catalog)
-        validate_correlation(config.risk_param, config.risk_correlation)
-        live_distribution_year = config.max_year
-        chart_update_interval = _chart_update_interval(config.nb_projections)
-
-        # Keep progress/status/charts inside the reserved results area so we do
-        # not append orphan empty blocks below the Run button.
-        with live_charts_placeholder.container():
-            progress = st.progress(0.0, text="Starting simulation...")
-            status = st.empty()
-            charts_area = st.empty()
-
-        def progress_callback(
-            current: int,
-            total: int,
-            nav_fan: Any | None = None,
-        ) -> None:
-            progress.progress(
-                current / total,
-                text=f"Running projection {current:,} of {total:,}...",
-            )
-            if nav_fan is None:
-                return
-            if current == 1 or (
-                current != total and current % chart_update_interval == 0
-            ):
-                with charts_area.container():
-                    _render_live_charts(
-                        nav_fan,
-                        live_distribution_year,
-                        projections_done=current,
-                        projections_total=total,
-                    )
-
-        importlib.reload(inv_proj)
-        importlib.reload(inv_proj_runner)
-        result = inv_proj_runner.run_simulation(
-            config,
-            progress_callback=progress_callback,
-        )
-
-        progress.progress(1.0, text="Simulation complete.")
-        status.success(
-            f"Finished {config.nb_projections:,} projections over {config.max_year} years."
-        )
-        st.session_state.result = result
-        st.session_state.result_max_year = int(_read_portfolio_fields()["max_year"])
-        return True
-    except ValueError as exc:
-        st.error(str(exc))
-        return False
-    except (RuntimeError, OSError, ImportError, TypeError, KeyError) as exc:
-        st.error(f"Simulation failed: {exc}")
-        return False
+        if st.session_state.assumptions_file:
+            path = Path(st.session_state.assumptions_file)
+        else:
+            path = DEFAULT_ASSUMPTIONS_DIR / assumptions.safe_filename()
+            st.session_state.assumptions_file = str(path)
+        assumptions.save(path)
+        return True, f"Saved to `{path}`."
+    except (ValueError, OSError) as exc:
+        return False, str(exc)
 
 
 def _init_session_state() -> None:
@@ -688,6 +693,8 @@ def _init_session_state() -> None:
     st.session_state.setdefault("simulation_running", False)
     st.session_state.setdefault("run_simulation_requested", False)
     st.session_state.setdefault("sim_overlay_open", False)
+    st.session_state.setdefault("sim_confirm_cancel", False)
+    st.session_state.setdefault("sim_confirm_save", False)
     _init_portfolio_fields()
     st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
     st.session_state.setdefault("assumptions_name", "Untitled")
@@ -856,17 +863,11 @@ def _render_assumptions_file_controls() -> None:
                 st.error(f"Could not load file: {exc}")
 
     if st.button("Save", use_container_width=True):
-        try:
-            assumptions = _collect_assumptions()
-            if st.session_state.assumptions_file:
-                path = Path(st.session_state.assumptions_file)
-            else:
-                path = DEFAULT_ASSUMPTIONS_DIR / assumptions.safe_filename()
-                st.session_state.assumptions_file = str(path)
-            assumptions.save(path)
-            st.success(f"Saved to `{path}`.")
-        except (ValueError, OSError) as exc:
-            st.error(str(exc))
+        ok, message = _save_assumptions_to_file()
+        if ok:
+            st.success(message)
+        else:
+            st.error(message)
 
     try:
         download_payload = _collect_assumptions().to_json()
@@ -921,7 +922,13 @@ def _seed_step_3_edit_from_session() -> None:
 
 
 def _commit_step_3_edit_to_session() -> None:
-    """Copy Step 2 (Portfolio) widget keys into portfolio + catalog + allocation."""
+    """Copy Step 2 (Portfolio) widget keys into portfolio + catalog + allocation.
+
+    Skip while a normalize/reset widget sync is pending so stale ``alloc_*``
+    values cannot clobber the freshly scaled ``session_state.allocation``.
+    """
+    if st.session_state.get("_pending_allocation_widget_sync"):
+        return
     _commit_capital_edit_to_portfolio()
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
     allocation: dict[str, float] = {}
@@ -959,6 +966,8 @@ def _on_enter_step_2_edit() -> None:
 
 
 def _on_exit_step_2_edit() -> None:
+    # Done must always commit even if a normalize/reset sync flag was left set.
+    st.session_state.pop("_pending_allocation_widget_sync", None)
     _commit_step_3_edit_to_session()
     _clear_step_3_edit_keys()
 
@@ -972,6 +981,18 @@ def _read_asset_catalog() -> AssetCatalog:
 def _request_allocation_widget_sync() -> None:
     """After mid-edit normalize/reset, re-seed alloc widgets on next render."""
     st.session_state["_pending_allocation_widget_sync"] = True
+
+
+def _apply_pending_allocation_widget_sync() -> None:
+    """Re-seed ``alloc_*`` keys from canonical allocation before any commit.
+
+    Must run early in the script (before the sidebar's ``_collect_assumptions``),
+    otherwise stale widget values get committed over a just-normalized allocation
+    and Normalize/Reset appear to do nothing.
+    """
+    if not st.session_state.pop("_pending_allocation_widget_sync", False):
+        return
+    _seed_step_3_edit_from_session()
 
 
 def _seed_step_4_edit_from_session(catalog: AssetCatalog | None = None) -> None:
@@ -1506,25 +1527,26 @@ def _render_step_2_readonly() -> None:
     catalog = _read_asset_catalog()
     portfolio = st.session_state.portfolio
     with st.container(border=False, key="portfolio_allocation_section_inner"):
-        capital_cols = st.columns(2)
-        capital_cols[0].metric(
+        with st.container(border=False, horizontal=True, width="content"):
+            st.metric(
             "Initial capital",
             portfolio["initial_capital"],
             help=PORTFOLIO_FIELD_HELP["initial_capital"],
-        )
-        capital_cols[1].metric(
+            )
+            st.metric(
             "Cash buffer",
             portfolio["cash_buffer"],
             help=PORTFOLIO_FIELD_HELP["cash_buffer"],
-        )
-        allocation = st.session_state.allocation
-        assets = _investable_assets(catalog)
-        summary_cols = st.columns(max(len(assets), 1))
-        for idx, asset in enumerate(assets):
-            weight = allocation.get(asset.id, 0.0)
-            with summary_cols[idx]:
-                st.metric(asset.name, f"{weight:.0f}%")
-        # if total allocation is not 100%, show a warning
+            )
+            assets = _investable_assets(catalog)
+            allocation = st.session_state.allocation
+            allocation_str = " | ".join([f"{asset.name}={allocation.get(asset.id, 0.0):.0f}%" for asset in assets])
+            st.metric(
+                label="Allocation",
+                value=allocation_str,
+                help=PORTFOLIO_FIELD_HELP["allocation"],
+            )
+        
         alloc_total = sum(allocation.values())
         error = abs(alloc_total - 100.0) > 0.01
         if error:
@@ -1534,9 +1556,9 @@ def _render_step_2_readonly() -> None:
 
 
 def _render_step_2_edit() -> None:
-    # Edit keys are force-seeded in on_enter_edit; re-seed after normalize/reset.
-    if st.session_state.pop("_pending_allocation_widget_sync", False):
-        _seed_step_3_edit_from_session()
+    # Pending normalize/reset sync is applied early in main(); keep a late
+    # fallback in case this form is rendered without going through main().
+    _apply_pending_allocation_widget_sync()
 
     catalog: AssetCatalog = st.session_state.asset_catalog.copy()
     show_border = False  # TODO: make this dynamic based on the section mode
@@ -1748,10 +1770,13 @@ def _render_step_2_edit() -> None:
                 ):
                     st.pyplot(pie_fig, transparent=True)
 
-    # Keep canonical session state in sync while editing.
-    st.session_state.asset_catalog = catalog
-    st.session_state.allocation = allocation
-    _commit_step_3_edit_to_session()
+    # Keep canonical session state in sync while editing. Skip when a
+    # normalize/reset is pending so we do not overwrite the scaled allocation
+    # if script execution continues past st.rerun()'s yield point.
+    if not st.session_state.get("_pending_allocation_widget_sync"):
+        st.session_state.asset_catalog = catalog
+        st.session_state.allocation = allocation
+        _commit_step_3_edit_to_session()
 
 
 def _render_step_3_readonly() -> None:
@@ -1965,39 +1990,182 @@ def _result_year() -> int:
     )
 
 
-@st.dialog("Monte Carlo simulation", width="large", dismissible=False)
+def _on_sim_dialog_dismiss() -> None:
+    """Handle native dialog dismiss (header ✕, Esc, or click outside).
+
+    Re-opens the overlay into a confirmation view so dismiss is never a silent
+    hard-close while a job is active or results still need a save prompt.
+    """
+    # Already on a confirmation screen.
+    if st.session_state.get("sim_confirm_cancel"):
+        # Dismiss cancel prompt → keep running (same as "No, keep running").
+        st.session_state.sim_confirm_cancel = False
+        st.session_state.sim_overlay_open = True
+        return
+    if st.session_state.get("sim_confirm_save"):
+        # Dismiss save prompt → close without saving.
+        st.session_state.sim_confirm_save = False
+        st.session_state.sim_overlay_open = False
+        return
+
+    job = _get_active_sim_job()
+    if job is not None and int(job.completed) < int(job.nb_projections):
+        # Running: ask before aborting.
+        st.session_state.sim_confirm_cancel = True
+        st.session_state.sim_confirm_save = False
+        st.session_state.sim_overlay_open = True
+        return
+
+    # Completed (or error with no job): ask about saving assumptions.
+    st.session_state.sim_confirm_save = True
+    st.session_state.sim_confirm_cancel = False
+    st.session_state.sim_overlay_open = True
+
+
+@st.dialog(
+    "Monte Carlo simulation",
+    width="large",
+    dismissible=True,
+    on_dismiss=_on_sim_dialog_dismiss,
+)
 def _simulation_overlay() -> None:
     """Overlay: live progress/charts while running, then final results.
 
-    Option A: heavy charts live here; Step 4 stays minimal during the run.
-    Not dismissible via click-outside so a long run cannot be closed by accident.
+    Uses short projection batches + ``st.rerun()`` so the native dismiss control
+    stays usable. Dismiss while running → cancel confirmation; after complete →
+    save yes/no. Job lives in ``st.session_state`` so batches survive reruns.
     """
     pending = bool(st.session_state.get("run_simulation_requested"))
+    job = _get_active_sim_job()
 
-    if pending:
-        st.caption("Live progress — charts update as projections complete.")
-        charts_host = st.container()
+    # --- Confirmations (same dialog body after native dismiss reopens us) ---
+    if st.session_state.get("sim_confirm_cancel"):
+        st.warning("Cancel the simulation?")
+        st.caption("Progress so far will be discarded. Previous results are kept.")
+        yes_col, no_col = st.columns(2)
+        with yes_col:
+            if st.button(
+                "Yes, cancel",
+                key="sim_confirm_cancel_yes",
+                type="primary",
+                width="stretch",
+            ):
+                _discard_active_sim_job()
+                _set_simulation_running(False)
+                st.session_state.run_simulation_requested = False
+                st.session_state.sim_confirm_cancel = False
+                _close_sim_overlay()
+                st.rerun()
+        with no_col:
+            if st.button(
+                "No, keep running",
+                key="sim_confirm_cancel_no",
+                width="stretch",
+            ):
+                st.session_state.sim_confirm_cancel = False
+                st.rerun()
+        return
+
+    if st.session_state.get("sim_confirm_save"):
+        st.info("Save scenario assumptions before closing?")
+        yes_col, no_col = st.columns(2)
+        with yes_col:
+            if st.button(
+                "Yes, save",
+                key="sim_confirm_save_yes",
+                type="primary",
+                width="stretch",
+            ):
+                ok, message = _save_assumptions_to_file()
+                if ok:
+                    st.session_state.sim_confirm_save = False
+                    st.session_state["_assumptions_load_message"] = message
+                    _close_sim_overlay()
+                    st.rerun()
+                st.error(message)
+        with no_col:
+            if st.button(
+                "No, just close",
+                key="sim_confirm_save_no",
+                width="stretch",
+            ):
+                st.session_state.sim_confirm_save = False
+                _close_sim_overlay()
+                st.rerun()
+        return
+
+    # Start a new job when Run was just requested.
+    if pending and job is None:
         st.session_state.run_simulation_requested = False
         try:
-            ok = _execute_simulation_run(charts_host)
-        finally:
+            job = _start_active_sim_job()
+        except ValueError as exc:
+            st.error(str(exc))
             _set_simulation_running(False)
-        if ok:
+            st.caption("Dismiss this dialog when ready.")
+            return
+        except (RuntimeError, OSError, ImportError, TypeError, KeyError) as exc:
+            st.error(f"Simulation failed: {exc}")
+            _set_simulation_running(False)
+            st.caption("Dismiss this dialog when ready.")
+            return
+
+    # --- In-progress run (batched) ---
+    if job is not None and int(job.completed) < int(job.nb_projections):
+        total = max(1, int(job.nb_projections))
+        current = int(job.completed)
+        st.caption("Live progress — charts update as projections complete.")
+        st.progress(
+            current / total,
+            text=(
+                f"Running projection {current:,} of {total:,}..."
+                if current < total
+                else f"Finished {total:,} projections."
+            ),
+        )
+        if current > 0:
+            _render_live_charts(
+                job.nav_fan,
+                int(job.config.max_year),
+                projections_done=current,
+                projections_total=total,
+            )
+
+        # Advance after painting UI so native dismiss can be used between batches.
+        batch = _sim_batch_size(total)
+        try:
+            status = job.run_batch(batch)
+        except (RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
+            st.error(f"Simulation failed: {exc}")
+            _discard_active_sim_job()
+            _set_simulation_running(False)
+            st.caption("Dismiss this dialog when ready.")
+            return
+
+        if status == "done":
+            st.session_state.result = job.result()
+            st.session_state.result_max_year = int(job.config.max_year)
+            _discard_active_sim_job()
+            _set_simulation_running(False)
             st.session_state.sim_overlay_open = True
             st.rerun()
-        # Failure: errors already rendered inside the host; offer close.
-        if st.button(
-            "Close",
-            key="sim_overlay_close_error_v5",
-            width="stretch",
-        ):
-            _close_sim_overlay()
+        else:
             st.rerun()
         return
 
+    # Edge: job finished but still referenced
+    if job is not None:
+        st.session_state.result = job.result()
+        st.session_state.result_max_year = int(job.config.max_year)
+        _discard_active_sim_job()
+        _set_simulation_running(False)
+        st.session_state.sim_overlay_open = True
+        st.rerun()
+        return
+
+    # --- Completed results view (dismiss via native dialog ✕) ---
     if _has_result():
         st.success("Simulation complete.")
-        # Summary statistics stay on the main Step 4 page only.
         _render_step_5_results(
             st.session_state.result,
             _result_year(),
@@ -2005,15 +2173,7 @@ def _simulation_overlay() -> None:
         )
     else:
         st.info("No simulation result to display.")
-
-    if st.button(
-        "Close",
-        key="sim_overlay_close_v5",
-        type="primary",
-        width="stretch",
-    ):
-        _close_sim_overlay()
-        st.rerun()
+        st.caption("Dismiss this dialog when ready.")
 
 
 def _render_step_4_panel_content() -> None:
@@ -2198,6 +2358,8 @@ def main() -> None:
     inject_theme()
     _init_session_state()
     _process_pending_assumptions()
+    # Before sidebar/_collect_assumptions can commit stale alloc_* widgets.
+    _apply_pending_allocation_widget_sync()
 
     _render_app_header()
     _render_sidebar()
