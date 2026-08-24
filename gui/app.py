@@ -160,7 +160,7 @@ def _runtime_is_local() -> bool:
 
 def _render_app_header() -> None:
     caption = (
-        "Stochastic financial projections — runs locally on your machine — "
+        "Stochastic financial projections — "
         "[Copyright © 2025–2026 Alex Scherer]"
         "(https://github.com/ajmscherer/finproj/blob/main/README.md)"
     )
