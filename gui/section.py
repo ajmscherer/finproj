@@ -83,7 +83,7 @@ class Section(SectionBaseLayout):
                 st.header(self.title)
                 with st.container(
                     width="stretch",
-                    border=False,
+                    border=True,
                     key=self._content_container_key,
                     gap="small",
                     vertical_alignment="top",

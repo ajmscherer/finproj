@@ -22,10 +22,13 @@ from __future__ import annotations
 import copy
 import html
 import importlib
+import ipaddress
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import matplotlib
 
@@ -100,14 +103,69 @@ PRODUCT_ABOUT_HELP = (
     "Everything runs on your machine; your financial assumptions never leave your computer."
 )
 
+DEMO_DATA_WARNING = (
+    "⚠️Remote code execution — be careful about sharing personal information. Download codebase on your own computer for better security."
+)
+
+
+def _hostname_is_local(host: str) -> bool:
+    """True for loopback, private LAN, and .local names — i.e. this machine."""
+    host = (host or "").strip().lower().rstrip(".")
+    if host.startswith("[") and "]" in host:
+        host = host[1 : host.index("]")]
+    elif host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    if not host:
+        return True
+    if host in {"localhost", "127.0.0.1", "::1", "0.0.0.0", "0:0:0:0:0:0:0:1"}:
+        return True
+    if host.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return bool(
+        ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified
+    )
+
+
+def _request_hostname() -> str:
+    """Hostname the browser used to reach this Streamlit process."""
+    try:
+        url = getattr(st.context, "url", "") or ""
+        host = urlparse(url).hostname or ""
+        if host:
+            return host
+    except Exception:
+        pass
+    try:
+        headers = getattr(st.context, "headers", None)
+        if headers:
+            return str(headers.get("Host") or headers.get("host") or "")
+    except Exception:
+        pass
+    return ""
+
+
+def _runtime_is_local() -> bool:
+    """True when finproj is running on the user's machine, not a hosted demo."""
+    flag = os.environ.get("RUN_REMOTE", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return False
+    if flag in {"0", "false", "no", "off"}:
+        return True
+    return _hostname_is_local(_request_hostname())
+
 
 def _render_app_header() -> None:
     caption = (
         "Stochastic financial projections — runs locally on your machine — "
         "[Copyright © 2025–2026 Alex Scherer]"
         "(https://github.com/ajmscherer/finproj/blob/main/README.md)"
-        "\n\n⚠️Demo only — do not enter real financial data or personal information."
     )
+    if not _runtime_is_local():
+        caption += f"\n\n{DEMO_DATA_WARNING}"
 
     with st.container(key="app_header"):
         with st.container(key="app_header_title"):
@@ -1422,9 +1480,8 @@ def _render_step_1_readonly() -> None:
     portfolio = st.session_state.portfolio
     horizon = int(portfolio["max_year"])
     with st.container(
-        border=False, 
-        key="portfolio_section_1", 
-        horizontal=True, width="stretch"):
+        border=False, key="portfolio_section_1", horizontal=True, width="stretch"
+    ):
         # summary_cols = st.columns(2)
         with st.container(border=False, gap=None, width=175):
             line1, line2 = _format_flow_amount_with_period(
@@ -1458,10 +1515,11 @@ def _render_step_1_readonly() -> None:
         with st.container(border=False, gap=None):
             if viva_source:
                 result = _render_viva_program_summary(viva_source)
-                
+
             else:
                 result = "No additional Viva flows configured."
             st.metric("Additional flows", result, help=VIVA_FIELD_HELP["viva_source"])
+
 
 def _render_step_1_edit() -> None:
     # Edit keys are force-seeded in on_enter_edit before this form runs.
@@ -1532,24 +1590,29 @@ def _render_step_2_readonly() -> None:
     with st.container(border=False, key="portfolio_allocation_section_inner"):
         with st.container(border=False, horizontal=True, width="content"):
             st.metric(
-            "Initial capital",
-            portfolio["initial_capital"],
-            help=PORTFOLIO_FIELD_HELP["initial_capital"],
+                "Initial capital",
+                portfolio["initial_capital"],
+                help=PORTFOLIO_FIELD_HELP["initial_capital"],
             )
             st.metric(
-            "Cash buffer",
-            portfolio["cash_buffer"],
-            help=PORTFOLIO_FIELD_HELP["cash_buffer"],
+                "Cash buffer",
+                portfolio["cash_buffer"],
+                help=PORTFOLIO_FIELD_HELP["cash_buffer"],
             )
             assets = _investable_assets(catalog)
             allocation = st.session_state.allocation
-            allocation_str = " ‣ ".join([f"{asset.name}={allocation.get(asset.id, 0.0):.0f}%" for asset in assets])
+            allocation_str = " ‣ ".join(
+                [
+                    f"{asset.name}={allocation.get(asset.id, 0.0):.0f}%"
+                    for asset in assets
+                ]
+            )
             st.metric(
                 label="Allocation",
                 value=allocation_str,
                 help=PORTFOLIO_FIELD_HELP["allocation"],
             )
-        
+
         alloc_total = sum(allocation.values())
         error = abs(alloc_total - 100.0) > 0.01
         if error:
@@ -2196,7 +2259,6 @@ def _render_step_4_panel_content() -> None:
             _render_setup_fields()
             _check_config_validity()
 
-
     # --- Slot 2: status / persistent results (no live charts — those are overlay) ---
     with st.container(key="sim_slot_status_v5"):
         if running:
@@ -2216,7 +2278,6 @@ def _render_step_4_panel_content() -> None:
             )
         # Valid idle config: no status message — Run simulation is enough.
 
-
     # --- Slot 3: run controls ---
     with st.container(key="sim_slot_controls_v5"):
         config_ok = _config_can_run()
@@ -2231,12 +2292,16 @@ def _render_step_4_panel_content() -> None:
                 width="stretch",
                 on_click=_request_simulation_run,
             )
-        if (has_result or running) and st.button(
-            "Discard simulation",
-            key="sim_discard_btn_v5",
-            width="stretch",
-            disabled=running,
-        ) and not running:
+        if (
+            (has_result or running)
+            and st.button(
+                "Discard simulation",
+                key="sim_discard_btn_v5",
+                width="stretch",
+                disabled=running,
+            )
+            and not running
+        ):
             st.session_state.result = None
             _close_sim_overlay()
             st.rerun()
