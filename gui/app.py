@@ -260,7 +260,10 @@ def _clear_viva_source() -> None:
 def _test_viva_syntax() -> None:
     source = st.session_state.get("portfolio_edit_viva_source", "")
     st.session_state.viva_syntax_checked_source = source
-    summary, error = try_summarize_viva_source(source)
+    try:
+        summary, error = try_summarize_viva_source(source)
+    except Exception as _:
+        summary, error = None, "Syntax error"
     if error or summary is None:
         st.session_state.viva_syntax_result = (
             "error",
@@ -1540,7 +1543,7 @@ def _render_step_2_readonly() -> None:
             )
             assets = _investable_assets(catalog)
             allocation = st.session_state.allocation
-            allocation_str = " | ".join([f"{asset.name}={allocation.get(asset.id, 0.0):.0f}%" for asset in assets])
+            allocation_str = " ‣ ".join([f"{asset.name}={allocation.get(asset.id, 0.0):.0f}%" for asset in assets])
             st.metric(
                 label="Allocation",
                 value=allocation_str,

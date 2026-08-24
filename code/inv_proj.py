@@ -26,57 +26,56 @@ from enum import Enum
 
 
 class rc(Enum):
-    '''Risk class'''
-    INFLATION = 'inflation'
-    MONEY_MARKET = 'liquidity(liquidités[fr])'
-    BOND = 'bond(obligataire[fr])'
-    EQUITY = 'equity(actions[fr])'
-    CRYPTO = 'crypto currencies(crypto monnaies[fr])'
-    PMETAL = 'precious metal(métaux précieux[fr])'
-    REAL_ESTATE = 'real_estate(immobilier[fr])'
+    """Risk class"""
 
+    INFLATION = "inflation"
+    MONEY_MARKET = "liquidity(liquidités[fr])"
+    BOND = "bond(obligataire[fr])"
+    EQUITY = "equity(actions[fr])"
+    CRYPTO = "crypto currencies(crypto monnaies[fr])"
+    PMETAL = "precious metal(métaux précieux[fr])"
+    REAL_ESTATE = "real_estate(immobilier[fr])"
 
     @staticmethod
-    def getDescription_o(risk_class, langage='en'):
-        '''return a description of risk_class'''
+    def getDescription_o(risk_class, langage="en"):
+        """return a description of risk_class"""
 
         def build_translation():
 
             nst = risk_class.value
             trs = {}
-            
+
             # init translations
-            
+
             p1 = re.compile(r"(.*)\((.*)\)")
             m1 = p1.match(nst)
 
             if m1:
                 default_name, translations = m1.groups()
-                trs[''] = default_name
+                trs[""] = default_name
 
                 p2 = re.compile(r"(.*)\[(.*)\]")
                 for translation_info in translations.split(","):
-                    m2=p2.match(translation_info)
+                    m2 = p2.match(translation_info)
                     if m2:
                         translation, language = m2.groups()
                         trs[language] = translation
 
             else:
-                trs[''] = nst
+                trs[""] = nst
 
             rc.risk_names[risk_class] = trs  # type: ignore[attr-defined]
-
 
         if risk_class not in rc.risk_names:  # type: ignore[attr-defined]
             build_translation()
 
         trs = rc.risk_names[risk_class]  # type: ignore[attr-defined]
-        
-        result = trs[langage] if langage in trs else trs['']
-            
+
+        result = trs[langage] if langage in trs else trs[""]
+
         return result
 
-    def getDescription(self, language='en'):
+    def getDescription(self, language="en"):
 
         return rc.getDescription_o(self, language)
 
@@ -84,12 +83,12 @@ class rc(Enum):
 rc.risk_names = {}  # type: ignore[attr-defined]
 
 
-
-''' 
+""" 
 
 Helper functions
 
-'''
+"""
+
 
 def cv(value_str):
     """
@@ -112,24 +111,24 @@ def cv(value_str):
     elif not isinstance(value_str, str):
         raise TypeError("Input must be a string.")
 
-    s = value_str.replace(',', '').strip().lower()
+    s = value_str.replace(",", "").strip().lower()
 
     multiplier = 1.0
 
-    if s.endswith('%'):
+    if s.endswith("%"):
         s = s[:-1]
         try:
             return float(s) / 100
         except ValueError:
             raise ValueError(f"Could not convert '{value_str}' to a float.")
 
-    if s.endswith('k'):
+    if s.endswith("k"):
         multiplier = 1e3
         s = s[:-1]
-    elif s.endswith('m'):
+    elif s.endswith("m"):
         multiplier = 1e6
         s = s[:-1]
-    elif s.endswith('b'):
+    elif s.endswith("b"):
         multiplier = 1e9
         s = s[:-1]
 
@@ -138,7 +137,8 @@ def cv(value_str):
     except ValueError:
         raise ValueError(f"Could not convert '{value_str}' to a float.")
 
-def header(text, pattern="-", width = 80):
+
+def header(text, pattern="-", width=80):
     text = f" {text} "
     left = (width - len(text)) // 2
     right = width - left - len(text)
@@ -149,16 +149,17 @@ def header(text, pattern="-", width = 80):
 Random variables
 """
 
-class RV(ABC):
 
+class RV(ABC):
     @abstractmethod
     def draw(self) -> float:
         pass
 
-class Norm(RV):
-    '''Normal distribition'''
 
-    def __init__(self, mu =0.0, sigma =1.0):
+class Norm(RV):
+    """Normal distribition"""
+
+    def __init__(self, mu=0.0, sigma=1.0):
         self.mu = mu
         self.sigma = sigma
 
@@ -169,12 +170,12 @@ class Norm(RV):
 
 
 def build_correlation_matrix(risk_classes, correlations=None):
-    '''
+    """
     Build a symmetric correlation matrix for the given risk classes.
 
     :param risk_classes: ordered list of rc values
     :param correlations: optional dict mapping (rc_a, rc_b) pairs to correlation coefficients
-    '''
+    """
     n = len(risk_classes)
     matrix = [[0.0] * n for _ in range(n)]
     for i in range(n):
@@ -195,7 +196,7 @@ def build_correlation_matrix(risk_classes, correlations=None):
 
 
 def cholesky_decomposition(matrix):
-    '''Return lower-triangular Cholesky factor L such that matrix = L @ L.T'''
+    """Return lower-triangular Cholesky factor L such that matrix = L @ L.T"""
     n = len(matrix)
     L = [[0.0] * n for _ in range(n)]
 
@@ -216,10 +217,10 @@ def cholesky_decomposition(matrix):
 
 
 class CorrelatedReturns:
-    '''
+    """
     Draw correlated annual returns for all risk classes using a Cholesky decomposition
     of the correlation matrix and independent standard normal shocks.
-    '''
+    """
 
     def __init__(self, risk_distrib, correlations=None, risk_classes=None):
         self.risk_distrib = risk_distrib
@@ -230,11 +231,11 @@ class CorrelatedReturns:
         self.cholesky = cholesky_decomposition(corr_matrix)
 
     def draw(self, period):
-        '''
+        """
         Draw one correlated return sample per risk class for the given period.
 
         Returns a dict keyed by rc with return values expressed in percent (same units as Norm.draw()).
-        '''
+        """
         n = len(self.risk_classes)
         z = [self.rng.gauss(0, 1) for _ in range(n)]
         returns = {}
@@ -246,33 +247,36 @@ class CorrelatedReturns:
 
         return returns
 
+
 """
 Risks
 """
 
+
 class Risk:
-    '''A risk class'''
-    
+    """A risk class"""
+
     def __init__(self, asset_id, name, quantifications, max_year):
         self.asset_id = asset_id
         self.name = name
 
         # init distribution
-        self.distribution=init_distrib(quantifications, max_year=max_year)
+        self.distribution = init_distrib(quantifications, max_year=max_year)
 
-        
     @staticmethod
     def buildRisks(risk_param, max_year, asset_names=None):
-        '''
+        """
         Static method to create a set of risks
-        
+
         :param risk_param: assumptions for risk distribution keyed by asset id
         :param max_year: the number of years to project
         :param asset_names: optional asset id -> display name mapping
-        '''
+        """
         result = {}
         for asset_id in risk_param:
-            display_name = asset_names.get(asset_id, asset_id) if asset_names else asset_id
+            display_name = (
+                asset_names.get(asset_id, asset_id) if asset_names else asset_id
+            )
             result[asset_id] = Risk(
                 asset_id=asset_id,
                 name=display_name,
@@ -280,32 +284,32 @@ class Risk:
                 max_year=max_year,
             )
         return result
-    
+
+
 def init_distrib(distrib_info_list, max_year):
-    result={}
-    y2 = max_year+1
+    result = {}
+    y2 = max_year + 1
     for distrib_info in distrib_info_list[::-1]:
-        rvn = distrib_info['rv']
-        if rvn == 'norm':
-            rv = Norm(mu=distrib_info['mu'], sigma=distrib_info['sigma'])
+        rvn = distrib_info["rv"]
+        if rvn == "norm":
+            rv = Norm(mu=distrib_info["mu"], sigma=distrib_info["sigma"])
         else:
             raise ValueError(f"Unknown random variable class '{rvn}'")
-        y1 = distrib_info['from_year']
-        items ={y:rv for y in range(y1,y2)}
-        y2=y1
+        y1 = distrib_info["from_year"]
+        items = {y: rv for y in range(y1, y2)}
+        y2 = y1
         result.update(items)
 
     return result
 
 
 class Portfolio:
-
     def __init__(self, lines):
         self.lines = lines
 
     @staticmethod
     def create(amount, composition):
-        lines = {key:value*amount for key, value in composition.items()}
+        lines = {key: value * amount for key, value in composition.items()}
         return Portfolio(lines)
 
     @staticmethod
@@ -314,21 +318,21 @@ class Portfolio:
 
     @staticmethod
     def create_non_cash(amount, risk_mix):
-        '''
+        """
         Docstring for create_non_cash
-        
+
         :param capital: portfolio amount
         :param risk_mix: Description
-        '''
+        """
 
-        # get the key of the first risk 
-        k=next(iter(risk_mix.keys()))
+        # get the key of the first risk
+        k = next(iter(risk_mix.keys()))
 
         # create non cash with all capital on the first risk
-        p = Portfolio.create(amount=amount,composition={k:1})
+        p = Portfolio.create(amount=amount, composition={k: 1})
 
         # rebalance across all rosks
-        p. rebalance(targetMix=risk_mix)
+        p.rebalance(targetMix=risk_mix)
 
         return p
 
@@ -336,25 +340,24 @@ class Portfolio:
         return Portfolio(self.lines.copy())
 
     def __add__(self, otherPortfolio):
-        '''
+        """
         operator + overriden to allow the addition of two portfolios.
-        
+
         :param self: Description
         :param otherPortfolio: Description
-        '''
-        lines1, lines2 = self.lines, otherPortfolio.lines    
+        """
+        lines1, lines2 = self.lines, otherPortfolio.lines
         keys1 = list(lines1.keys())
         keys2 = list(lines2.keys())
-        keys = set(keys1+keys2)
+        keys = set(keys1 + keys2)
         s = {}
         for key in keys:
-            t=lines1.get(key, 0.0)
+            t = lines1.get(key, 0.0)
             if key in lines2:
-                t+=lines2[key]
-            s[key]=t
+                t += lines2[key]
+            s[key] = t
 
         return Portfolio.create(amount=1.0, composition=s)
-        
 
     def applyReturns(self, returns=None):
         if returns is None:
@@ -386,42 +389,43 @@ class Portfolio:
             if line in self.lines:
                 v += self.lines[line]
         return v
-    
+
     def total_value(self):
         lines = self.lines.keys()
         return self.value(lines)
-    
+
     def getComposition(self):
         tv = self.total_value()
         result = {}
         for risk_class in self.lines:
             rcv = self.lines[risk_class]
-            result[risk_class] = (f"{rcv:,.0f}", f"{rcv/tv:,.1%}")
+            result[risk_class] = (f"{rcv:,.0f}", f"{rcv / tv:,.1%}")
         return result
-    
+
     def getCompoStr(self, asset_names=None):
-        result = ''
+        result = ""
         fs = r"{:<15} {:>20} ({:>6})"
         for k, v in self.getComposition().items():
             label = asset_names.get(k, k) if asset_names else k
             result += f"{fs.format(label, v[0], v[1])}\n"
-        result += "-" * len(fs.format('', "", "100.0%")) + '\n'
+        result += "-" * len(fs.format("", "", "100.0%")) + "\n"
         result += fs.format("total NAV", f"{self.total_value():,.0f}", "100.0%") + "\n"
         return result
 
+
 class Observer(ABC):
-    '''An abstract class that observe things when its process method is invoked'''
+    """An abstract class that observe things when its process method is invoked"""
 
     @abstractmethod
     def processNotification(self, observed, **params):
-        '''Method that get info and do something with it'''
+        """Method that get info and do something with it"""
+
 
 class Observable:
-
     def __init__(self):
-        self.observers=[]
+        self.observers = []
 
-    def registerObserver(self, observer:Observer):
+    def registerObserver(self, observer: Observer):
         self.observers.append(observer)
 
     def notifyObservers(self, **params):
@@ -430,22 +434,21 @@ class Observable:
 
 
 class ps(Enum):
-    START = 'Beginning of Simulation'
-    BOP = 'Beginning of Period'
-    EOP = 'End of Period'
-    WRAPUP = 'End of Simulation'
-
+    START = "Beginning of Simulation"
+    BOP = "Beginning of Period"
+    EOP = "End of Period"
+    WRAPUP = "End of Simulation"
 
 
 class Projection(Observable):
-    '''
+    """
     A class that projects a P&L over multiple years using specified assumptions
-    '''
-    
+    """
+
     def __init__(
         self,
         initial_capital,
-        flows:list[float],
+        flows: list[float],
         cashBuffer,
         risk_mix,
         risk_distrib,
@@ -454,18 +457,18 @@ class Projection(Observable):
         asset_catalog,
         correlations=None,
     ):
-        '''
+        """
         arguments:
             initial_capital:        the initial amount of capital
             flows:            the flows of money in and out of the portfolio
             cashBuffer:     the target amount of cash that needs to be held when possible
             risk_mix:       the allocation of capital by asset id
-            risk_distrib:   the risk distributions keyed by asset id  
+            risk_distrib:   the risk distributions keyed by asset id
             nb_years:       the number of years to run
             nb_projections: the number of projections to run
-            asset_catalog:  asset definitions and role mapping  
+            asset_catalog:  asset definitions and role mapping
             correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
-        '''
+        """
 
         super().__init__()
         self.asset_catalog = asset_catalog
@@ -481,52 +484,59 @@ class Projection(Observable):
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
         self.risk_distribution = risk_distrib
-        self.correlated_returns = CorrelatedReturns(risk_distrib, correlations=correlations)
+        self.correlated_returns = CorrelatedReturns(
+            risk_distrib, correlations=correlations
+        )
         self.nb_projections = nb_projections
 
-    def set_flows(self, flows:list[float]):
+    def set_flows(self, flows: list[float]):
         if len(flows) != self.nb_years:
-            raise ValueError(f"Number of flows ({len(flows)}) does not match number of years ({self.nb_years})")
+            raise ValueError(
+                f"Number of flows ({len(flows)}) does not match number of years ({self.nb_years})"
+            )
         self.flows = flows
 
-    def run(self,id):
-        '''
+    def run(self, id):
+        """
         Method to run a single projection
         id: the id of the projection to run
-        '''
+        """
 
         # init simulation
         self.start(id)
 
         # run all periods
-        for period in range(1,self.nb_years+1):
+        for period in range(1, self.nb_years + 1):
             self.processPeriod(period)
 
         # wrap up
         self.wrapUp()
 
-    def start(self,id):
+    def start(self, id):
 
         # init id
-        self.id =id
-        
+        self.id = id
+
         # initiate period
         self.period = 0
 
         # create a portfolio made 100% of the liquidity buffer asset
         cashAmount = self.cashBuffer
-        cash_ptf = Portfolio.create_liquidity_buffer(cashAmount, self.liquidity_asset_id)
+        cash_ptf = Portfolio.create_liquidity_buffer(
+            cashAmount, self.liquidity_asset_id
+        )
 
         # create non cash portfolio
         nonCashAmount = self.initial_capital - cashAmount
-        nonCash_ptf = Portfolio.create_non_cash(amount=nonCashAmount,risk_mix=self.risk_mix)
+        nonCash_ptf = Portfolio.create_non_cash(
+            amount=nonCashAmount, risk_mix=self.risk_mix
+        )
 
         # define portfolio as cash + non cash portfolios
         self.ptf_eop = cash_ptf + nonCash_ptf
 
         # notify observers
         self.notifyObservers(step=ps.START)
-
 
     def processPeriod(self, period):
 
@@ -551,7 +561,7 @@ class Projection(Observable):
         self.availableCash -= self.cashDepletion
 
         # reflect cash depletion
-        
+
         self.ptf1 = self.ptf_bop.dup()
         self.shortfall = withdrawals - self.cashDepletion
         self.ptf1.lines[self.liquidity_asset_id] -= self.cashDepletion
@@ -565,18 +575,20 @@ class Projection(Observable):
         v1 = self.ptf2.total_value()
 
         # investment income (correlated draws via Cholesky decomposition)
-        self.returns = {k: v / 100.0 for k, v in self.correlated_returns.draw(period).items()}
-    
+        self.returns = {
+            k: v / 100.0 for k, v in self.correlated_returns.draw(period).items()
+        }
+
         # Apply returns
         self.ptf3 = self.ptf2.dup()
         self.ptf3.applyReturns(self.returns)
-        v2= self.ptf3.total_value()
-    
+        v2 = self.ptf3.total_value()
+
         # Financial Gain Loss
         self.financialGainLoss = v2 - v1
 
         # determine if replenishment of cash is needed
-        if self.financialGainLoss>0:
+        if self.financialGainLoss > 0:
             liquidity_balance = self.ptf3.lines.get(self.liquidity_asset_id, 0.0)
             self.cashReplenishment = min(self.cashBuffer - liquidity_balance, v2 - v1)
             self.ptf4 = self.ptf3.dup()
@@ -584,10 +596,12 @@ class Projection(Observable):
                 self.ptf4.lines[self.replenishment_asset_id] = 0.0
             if self.liquidity_asset_id not in self.ptf4.lines:
                 self.ptf4.lines[self.liquidity_asset_id] = 0.0
-            self.ptf4.growByPeriodMovement({
-                self.liquidity_asset_id: +self.cashReplenishment,
-                self.replenishment_asset_id: -self.cashReplenishment,
-            })
+            self.ptf4.growByPeriodMovement(
+                {
+                    self.liquidity_asset_id: +self.cashReplenishment,
+                    self.replenishment_asset_id: -self.cashReplenishment,
+                }
+            )
             self.ptf5 = self.ptf4.dup()
             self.ptf5.rebalance(self.risk_mix)
         else:
@@ -597,36 +611,33 @@ class Projection(Observable):
         self.ptf_eop = self.ptf5
 
         self.notifyObservers(step=ps.EOP)
-        
+
     def wrapUp(self):
-        '''this method to run at the end'''
+        """this method to run at the end"""
 
         self.notifyObservers(step=ps.WRAPUP)
 
 
-
-
 class StatisticalObserver(Observer):
-    '''
+    """
     Class to observe quantity in a projection and store value to enable statistic analysis
-    '''
+    """
 
-    def __init__(self, quantity = lambda : None, condition = lambda :True ):
+    def __init__(self, quantity=lambda: None, condition=lambda: True):
         self.quantity = quantity
         self.condition = condition
         self.values = []
         self._reset_moment_data()
 
     def _reset_moment_data(self):
-        '''Reset moment data'''
-        self._mdata={}
+        """Reset moment data"""
+        self._mdata = {}
 
     def processNotification(self, observed, **params):
-        '''Method to respond to notification'''
+        """Method to respond to notification"""
 
         # test if process should apply
         if self.condition(observed, **params):
-
             # reset data used for calculations of all moment
             self._reset_moment_data()
             v = self.quantity(observed, **params)
@@ -636,54 +647,60 @@ class StatisticalObserver(Observer):
                 raise ValueError("Value not defined")
 
     def mean(self):
-        if 'mean' not in self._mdata:
+        if "mean" not in self._mdata:
             values = self.values
             length = len(values)
-            self._mdata['mean'] =  sum(values) / length if length>0 else float('nan')
-        return self._mdata['mean']
-    
+            self._mdata["mean"] = sum(values) / length if length > 0 else float("nan")
+        return self._mdata["mean"]
+
     def std(self):
-        if 'std' not in self._mdata:
+        if "std" not in self._mdata:
             values = self.values
-            if len(values)==0:
-                self._mdata['std']= float('nan')
+            if len(values) == 0:
+                self._mdata["std"] = float("nan")
             else:
-                m=self.mean()
-                v=sum([v*v for v in values])/len(values) - m*m
-                self._mdata['std'] = math.sqrt(v)
-        return self._mdata['std']
+                m = self.mean()
+                v = sum([v * v for v in values]) / len(values) - m * m
+                self._mdata["std"] = math.sqrt(v)
+        return self._mdata["std"]
 
     def quantile(self, pct):
-        '''0<pct<=1 '''
-        
-        if 'ord' not in self._mdata:
-            self._mdata['ord'] = sorted(self.values)
-        length=len(self.values)
-        i=round(length*pct*length/(length+1))
-        return self._mdata['ord'][i]
-        
+        """0<pct<=1"""
+
+        if "ord" not in self._mdata:
+            self._mdata["ord"] = sorted(self.values)
+        length = len(self.values)
+        i = round(length * pct * length / (length + 1))
+        return self._mdata["ord"][i]
+
     def min(self):
         return self.quantile(0.0)
-    
+
     def max(self):
         return self.quantile(1.0)
 
     def __repr__(self):
         details = self.getDetails()
-        simplified = " | ".join(details[1:-1].split("|")[0:3]) 
+        simplified = " - ".join(details[1:-1].split("|")[0:3])
         return f"[{simplified}]"
 
     def getDetails(self):
-        m, s, N, min_, max_ = self.mean(), self.std(), len(self.values), self.min(), self.max()
+        m, s, N, min_, max_ = (
+            self.mean(),
+            self.std(),
+            len(self.values),
+            self.min(),
+            self.max(),
+        )
         s = f"[mean = {m:,.0f} | std = {s:,.0f} | N={N:,.0f} | min={min_:,.0f} | max={max_:,.0f}"
-        for pct in [.01, .1 , .5]:
-            s += f" | q({pct*100}%)={self.quantile(pct):,.2f}"
-        s+="]"
+        for pct in [0.01, 0.1, 0.5]:
+            s += f" | q({pct * 100}%)={self.quantile(pct):,.2f}"
+        s += "]"
         return s
 
 
 class NavFanObserver(Observer):
-    '''Collect NAV at end-of-period for each year across all simulation projections.'''
+    """Collect NAV at end-of-period for each year across all simulation projections."""
 
     def __init__(self, max_year: int):
         self.max_year = max_year
@@ -692,7 +709,7 @@ class NavFanObserver(Observer):
         }
 
     def processNotification(self, observed, **params):
-        step = params.get('step')
+        step = params.get("step")
         period = observed.period
         if step != ps.EOP or period < 1 or period > self.max_year:
             return
@@ -706,7 +723,7 @@ class NavFanObserver(Observer):
     @staticmethod
     def _quantile(values: list[float], pct: float) -> float:
         if not values:
-            return float('nan')
+            return float("nan")
         ordered = sorted(values)
         length = len(values)
         index = round(length * pct * length / (length + 1))
@@ -716,7 +733,7 @@ class NavFanObserver(Observer):
         return [
             sum(self.values_by_year[year]) / len(self.values_by_year[year])
             if self.values_by_year[year]
-            else float('nan')
+            else float("nan")
             for year in self.years()
         ]
 
@@ -725,7 +742,7 @@ class NavFanObserver(Observer):
         for year in self.years():
             values = self.values_by_year[year]
             if len(values) < 2:
-                stds.append(0.0 if values else float('nan'))
+                stds.append(0.0 if values else float("nan"))
                 continue
             mean = sum(values) / len(values)
             variance = sum(v * v for v in values) / len(values) - mean * mean
@@ -738,47 +755,61 @@ class NavFanObserver(Observer):
     def latest_projection_curve(self) -> list[float]:
         """End-of-year NAV for the most recently completed simulation projection."""
         return [
-            self.values_by_year[year][-1] if self.values_by_year[year] else float('nan')
+            self.values_by_year[year][-1] if self.values_by_year[year] else float("nan")
             for year in self.years()
         ]
 
 
 class AuditObserver(Observer):
-
     def __init__(self, out=sys.stdout):
         super().__init__()
         self.out = out
 
     def processNotification(self, observed, **params):
-        step = params['step']
+        step = params["step"]
         id = observed.id
         period = observed.period
         out = self.out
 
         if step == ps.START:
-            
-            print(header(f"Period 0 ( simulation {id:0>5})",pattern="#")+"\n", file = out)
-            print(observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()), file=out)
+            print(
+                header(f"Period 0 ( simulation {id:0>5})", pattern="#") + "\n", file=out
+            )
+            print(
+                observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()),
+                file=out,
+            )
             print(file=out)
 
         elif step == ps.BOP:
-            print(header(f"Period {period: >2}", pattern="*")+"\n", file = out)
+            print(header(f"Period {period: >2}", pattern="*") + "\n", file=out)
         elif step == ps.EOP:
-            print(observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()), file=out)
+            print(
+                observed.ptf_eop.getCompoStr(observed.asset_catalog.name_map()),
+                file=out,
+            )
         elif step == ps.WRAPUP:
-            print("\n"*2, file=out)
+            print("\n" * 2, file=out)
         else:
-            raise ValueError(f'No code for step {step}')
+            raise ValueError(f"No code for step {step}")
 
 
 class CSV_Observer(Observer):
-
     def __init__(self, file_name):
         super().__init__()
         self.file_name = file_name
-        self.lines =[]
-        self.ptfs =['ptf_bop','ptf_eop',     'ptf1', 'ptf2', 'ptf3', 'ptf4', 'ptf5']
-        self.vars = [ 'contributions', 'withdrawals', 'availableCash', 'cashBuffer', 'cashDepletion','shortfall', 'cashReplenishment','financialGainLoss']
+        self.lines = []
+        self.ptfs = ["ptf_bop", "ptf_eop", "ptf1", "ptf2", "ptf3", "ptf4", "ptf5"]
+        self.vars = [
+            "contributions",
+            "withdrawals",
+            "availableCash",
+            "cashBuffer",
+            "cashDepletion",
+            "shortfall",
+            "cashReplenishment",
+            "financialGainLoss",
+        ]
 
     def _addLine(self, items):
         line = ",".join(items)
@@ -786,12 +817,14 @@ class CSV_Observer(Observer):
 
     def addHeader(self, observed):
         if observed.id == 1:
-            self._addLine(['simulation', 'period', 'variable', 'risk', 'value'])
+            self._addLine(["simulation", "period", "variable", "risk", "value"])
 
     def write_data(self, observed):
 
         def newLine(variable, risk, value):
-            self._addLine([f"{observed.id}", f"{observed.period}", variable, risk, f"{value}"])
+            self._addLine(
+                [f"{observed.id}", f"{observed.period}", variable, risk, f"{value}"]
+            )
 
         asset_names = observed.asset_catalog.name_map()
 
@@ -805,31 +838,35 @@ class CSV_Observer(Observer):
         # write returns
         for line in observed.returns:
             value = observed.returns[line]
-            newLine('returns', asset_names.get(line, line), value)
+            newLine("returns", asset_names.get(line, line), value)
 
         # write withdrawals and other quantities
         for var in self.vars:
-            newLine(var,'',observed.__dict__[var])
-        
+            newLine(var, "", observed.__dict__[var])
 
     def save(self, observed):
 
         # check if current projection is the last
         if observed.id == observed.nb_projections:
-            with open(self.file_name, 'w') as f:
+            with open(self.file_name, "w") as f:
                 for line in self.lines:
                     print(line, file=f)
 
     def processNotification(self, observed, **params):
-        step = params['step']
-        
-        indirection = {ps.START:self.addHeader, ps.EOP: self.write_data,ps.WRAPUP:self.save}
+        step = params["step"]
+
+        indirection = {
+            ps.START: self.addHeader,
+            ps.EOP: self.write_data,
+            ps.WRAPUP: self.save,
+        }
 
         if step in indirection:
             indirection[step](observed)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     raise RuntimeError(
-        'This code is meant to be used as a library, not to be run. '
-        'Run code/inv_proj_run.py instead.'
+        "This code is meant to be used as a library, not to be run. "
+        "Run code/inv_proj_run.py instead."
     )
