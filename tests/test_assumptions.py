@@ -23,6 +23,7 @@ class AssumptionsTest(unittest.TestCase):
         catalog = default_config().asset_catalog
         assumptions = Assumptions.from_gui_state(
             name='Test scenario',
+            description='Retirement stress test',
             initial_capital='2M',
             contributions='100k',
             withdrawals='50k',
@@ -40,9 +41,35 @@ class AssumptionsTest(unittest.TestCase):
         )
         restored = Assumptions.from_json(assumptions.to_json())
         self.assertEqual(restored.name, 'Test scenario')
+        self.assertEqual(restored.description, 'Retirement stress test')
         self.assertEqual(restored.initial_capital, '2M')
         self.assertEqual(restored.max_year, 20)
         self.assertEqual(restored.allocation['bonds'], 45.0)
+
+    def test_description_defaults_when_missing_from_json(self):
+        catalog = default_config().asset_catalog
+        assumptions = Assumptions.from_gui_state(
+            name='Legacy',
+            initial_capital='1M',
+            contributions='0k',
+            withdrawals='0k',
+            cash_buffer='100k',
+            max_year=15,
+            nb_projections=100,
+            output_dir='output',
+            mix_preset='performance',
+            asset_catalog=catalog,
+            allocation=DEFAULT_RISK_MIX_PRESETS['performance'],
+            mu_sigma={
+                asset_id: (entry[0]['mu'], entry[0]['sigma'])
+                for asset_id, entry in default_config().risk_param.items()
+            },
+            correlation_values=default_config().risk_correlation,
+        )
+        payload = assumptions.to_dict()
+        del payload['description']
+        restored = Assumptions.from_dict(payload)
+        self.assertEqual(restored.description, '')
 
     def test_save_and_load_file(self):
         config = default_config()

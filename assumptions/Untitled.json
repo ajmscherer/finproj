@@ -1,12 +1,13 @@
 {
   "format_version": 1,
   "name": "Untitled",
-  "initial_capital": "100k",
-  "contributions": "0",
-  "withdrawals": "0k",
-  "cash_buffer": "10k",
-  "max_year": 20,
-  "nb_projections": 2000,
+  "description": "Test",
+  "initial_capital": "",
+  "contributions": "0k",
+  "withdrawals": "50k",
+  "cash_buffer": "",
+  "max_year": 1,
+  "nb_projections": 10,
   "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
   "mix_preset": "performance",
   "asset_catalog": [
@@ -43,12 +44,38 @@
       "roles": [
         "investable"
       ]
+    },
+    {
+      "id": "crypto",
+      "name": "Crypto",
+      "required": false,
+      "roles": [
+        "investable"
+      ]
+    },
+    {
+      "id": "pmetal",
+      "name": "Precious Metals",
+      "required": false,
+      "roles": [
+        "investable"
+      ]
+    },
+    {
+      "id": "real_estate",
+      "name": "Real Estate",
+      "required": false,
+      "roles": [
+        "investable"
+      ]
     }
   ],
   "allocation": {
-    "money_market": 100.0,
-    "bonds": 0.0,
-    "stocks": 0.0
+    "bonds": 30,
+    "stocks": 40,
+    "pmetal": 5,
+    "crypto": 5,
+    "real_estate": 20
   },
   "mu_sigma": {
     "cash": {
@@ -56,8 +83,8 @@
       "sigma": 0.0
     },
     "money_market": {
-      "mu": 0.0,
-      "sigma": 0.1
+      "mu": 0.5,
+      "sigma": 4.0
     },
     "bonds": {
       "mu": 2.0,
@@ -66,14 +93,46 @@
     "stocks": {
       "mu": 6.5,
       "sigma": 20.0
+    },
+    "crypto": {
+      "mu": 5.0,
+      "sigma": 40.0
+    },
+    "pmetal": {
+      "mu": 1.0,
+      "sigma": 18.0
+    },
+    "real_estate": {
+      "mu": 3.0,
+      "sigma": 15.0
     }
   },
   "correlations": {
     "cash|money_market": 0.0,
     "cash|bonds": 0.0,
     "cash|stocks": 0.0,
+    "cash|crypto": 0.0,
+    "cash|pmetal": 0.0,
+    "cash|real_estate": 0.0,
     "money_market|bonds": 0.5,
     "money_market|stocks": 0.0,
-    "bonds|stocks": -0.2
-  }
+    "money_market|crypto": 0.0,
+    "money_market|pmetal": 0.0,
+    "money_market|real_estate": 0.0,
+    "bonds|stocks": -0.2,
+    "bonds|crypto": 0.0,
+    "bonds|pmetal": 0.0,
+    "bonds|real_estate": 0.1,
+    "stocks|crypto": 0.15,
+    "stocks|pmetal": 0.05,
+    "stocks|real_estate": 0.3,
+    "crypto|pmetal": 0.0,
+    "crypto|real_estate": 0.0,
+    "pmetal|real_estate": 0.0
+  },
+  "viva_source": "life: Julian, man, born 2000\nevent: wedding, year 2030, probability 50%\nflow: party, -100k, upon wedding\nflow: insurance_premium, -2k per year, until Julian's death\nflow: insurance, 1 million, upon Julian's death\n",
+  "contributions_from_period": 1,
+  "contributions_to_period": 20,
+  "withdrawals_from_period": 1,
+  "withdrawals_to_period": 20
 }

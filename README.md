@@ -65,12 +65,12 @@ On the first run, the launcher creates a `.venv` folder in the project and insta
 
 On Debian or Ubuntu, if virtual-environment creation fails, install: `sudo apt install python3-venv python3-full`, then run the launcher again.
 
-The GUI runs on `localhost` only. The main workflow has four sections:
+The GUI runs on `localhost` only. The main workflow has these sections:
 
-1. **Contributions, withdrawals, and projection parameters** — initial capital, contributions and withdrawals (each with **From period** / **To period**), cash buffer, horizon, projection count, and optional **Additional flows** Viva editor (shorthand amounts such as `1M` or `40k`)
-2. **Portfolio allocation** — customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
+1. **Contributions, withdrawals, and additional flows** — annual contributions and withdrawals (each with **From period** / **To period**), plus the optional **Additional flows** Viva editor
+2. **Portfolio** — initial capital and cash buffer; customize the asset list (rename, add optional classes, remove optional classes), set weights, and load preset mixes
 3. **Assets performance and volatility** — expected return (μ) and volatility (σ) per asset, plus pairwise correlations
-4. **Run and results** — run or refresh the simulation; charts update live during the run, then show:
+4. **Simulation** — simulation description, horizon, and projection count; then run or refresh the simulation. The **Run simulation** button is at the bottom of this section. Charts update live during the run, then show:
    - NAV fan chart (P10 / median / P90 with nested probability-density bands)
    - NAV distribution at the horizon year
    - Probability of negative final NAV and probability of exceeding initial capital
@@ -93,7 +93,7 @@ For additional charts and the scenario navigator, refresh `output/finproj.xlsx` 
 
 ### 5. Change the Financial Assumptions
 
-**GUI (recommended):** use the various sections in the GUI to change capital, liquidity requirement, contributions and withdrawals (including period ranges), optional Viva flows, and number of runs (section 1); rename, add, or remove optional assets, and adjust allocation (section 2); and change returns and correlations (section 3). Assumptions can be saved and reloaded from the sidebar.
+**GUI (recommended):** use the various sections in the GUI to change contributions and withdrawals (including period ranges) and optional Viva flows (section 1); set initial capital and cash buffer, rename/add/remove assets, and adjust allocation (section 2); change returns and correlations (section 3); and set description, horizon, and number of runs then run the simulation (section 4). Assumptions can be saved and reloaded from the sidebar.
 
 **Command line / code:** defaults live in [code/inv_proj_runner.py](code/inv_proj_runner.py). [code/inv_proj_run.py](code/inv_proj_run.py) is a thin entry point that runs those defaults.
 
@@ -116,7 +116,7 @@ Every simulation uses an **asset catalog**. Four assets are always required and 
 | `stocks`       | Stocks       | Investable equity asset                                                                            |
 
 
-Optional defaults (Crypto, Precious Metals, Real Estate) can be renamed, removed, or supplemented with new investable classes. In the GUI, section 2 sets weights for **investable** assets only; Cash is configured separately as the liquidity buffer in section 1. Display names are user-editable; stable **asset ids** (e.g. `bonds`, `real_estate`) are used internally in CSV output and configuration dictionaries.
+Optional defaults (Crypto, Precious Metals, Real Estate) can be renamed, removed, or supplemented with new investable classes. In the GUI, section 2 sets weights for **investable** assets only; Cash is configured separately as the liquidity buffer in section 2. Display names are user-editable; stable **asset ids** (e.g. `bonds`, `real_estate`) are used internally in CSV output and configuration dictionaries.
 
 The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so you can modify capital and withdrawal assumptions without converting everything to raw numbers first.
 

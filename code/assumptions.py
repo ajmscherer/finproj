@@ -76,6 +76,7 @@ def _correlation_from_key(key: str) -> tuple[str, str]:
 @dataclass
 class Assumptions:
     name: str = 'Untitled'
+    description: str = ''
     initial_capital: str = '1M'
     contributions: str = '40k'  
     withdrawals: str = '10k'
@@ -120,6 +121,7 @@ class Assumptions:
         allocation: dict[str, float],
         mu_sigma: dict[str, tuple[float, float]],
         correlation_values: dict[tuple[str, str], float],
+        description: str = '',
         viva_source: str = '',
         contributions_from_period: int = 1,
         contributions_to_period: int = 15,
@@ -134,6 +136,7 @@ class Assumptions:
 
         return cls(
             name=name,
+            description=description,
             initial_capital=initial_capital,
             contributions=contributions,
             withdrawals=withdrawals,
@@ -206,6 +209,7 @@ class Assumptions:
         return {
             'format_version': self.format_version,
             'name': self.name,
+            'description': self.description,
             'initial_capital': self.initial_capital,
             'contributions': self.contributions,
             'withdrawals': self.withdrawals,
@@ -237,6 +241,7 @@ class Assumptions:
         assumptions = cls(
             format_version=version,
             name=data.get('name', 'Untitled'),
+            description=str(data.get('description', '') or ''),
             initial_capital=data['initial_capital'],
             contributions=data['contributions'],
             withdrawals=data['withdrawals'],

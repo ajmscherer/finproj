@@ -37,6 +37,7 @@ class ClickPanelRegistry:
 
     @classmethod
     def register(cls, *, panel_key: str, trigger_key: str) -> None:
+        """Bind a panel to an existing button key (Edit/Done or a dedicated trigger)."""
         binding = (panel_key, trigger_key)
         if binding not in cls._bindings:
             cls._bindings.append(binding)
@@ -47,9 +48,14 @@ class ClickPanelRegistry:
             return
 
         bindings_json = json.dumps(cls._bindings)
+        # Only hide dedicated invisible triggers (*_click_trigger). Visible
+        # Edit/Done buttons used as triggers must stay shown.
         hide_rules = "\n".join(
-            f".st-key-{html.escape(trigger_key)} {{ display: none !important; }}"
+            f".st-key-{html.escape(trigger_key)} {{ "
+            f"display: none !important; height: 0 !important; "
+            f"margin: 0 !important; padding: 0 !important; overflow: hidden !important; }}"
             for _, trigger_key in cls._bindings
+            if trigger_key.endswith("_click_trigger")
         )
         pointer_rules = "\n".join(
             f".st-key-{html.escape(panel_key)}, "
@@ -138,8 +144,21 @@ class ClickPanelRegistry:
         )
 
 
+def bind_panel_click(*, panel_key: str, trigger_key: str) -> None:
+    """Use an existing button (e.g. Edit/Done) as the panel-click trigger.
+
+    Prefer this over :func:`click_panel` so no invisible extra button is mounted
+    (invisible triggers were a major source of empty frames under section panels).
+    """
+    ClickPanelRegistry.register(panel_key=panel_key, trigger_key=trigger_key)
+
+
 def click_panel(*, panel_key: str, handler_key: str) -> None:
-    """Listen for clicks on a bordered panel and invoke its registered handler."""
+    """Legacy: mount a hidden trigger button and bind it to the panel.
+
+    Prefer :func:`bind_panel_click` with the visible Edit/Done key when those
+    buttons are already on the panel.
+    """
     trigger_key = f"{handler_key}_trigger"
 
     st.button(

@@ -361,6 +361,94 @@ def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
     return flow_engine
 
 
+class SimulationJob:
+    """Resumable Monte Carlo job (GUI advances in batches so Cancel/Close stay live)."""
+
+    def __init__(self, config: SimulationConfig) -> None:
+        sync_config_with_catalog(config)
+        config.asset_catalog.validate()
+        validate_allocation(config.risk_mix, config.asset_catalog)
+        validate_correlation(config.risk_param, config.risk_correlation)
+
+        config.output_dir.mkdir(exist_ok=True)
+
+        distributions = Risk.buildRisks(
+            config.risk_param,
+            max_year=config.max_year,
+            asset_names=config.asset_catalog.name_map(),
+        )
+
+        self.config = config
+        self.engine = _build_flow_engine(config)
+        self.flows0 = [0.0] * config.max_year
+        self.nb_projections = int(config.nb_projections)
+        self.completed = 0
+        self._closed = False
+
+        self.simulation = Projection(
+            initial_capital=config.initial_capital,
+            flows=self.flows0,
+            cashBuffer=config.cash_buffer,
+            risk_mix=config.risk_mix,
+            risk_distrib=distributions,
+            nb_years=config.max_year,
+            nb_projections=config.nb_projections,
+            asset_catalog=config.asset_catalog,
+            correlations=config.risk_correlation,
+        )
+
+        self.audit_path = config.output_dir / "audit.txt"
+        self._audit_out = open(self.audit_path, mode="w", encoding="utf-8")
+        self.nav, self.nav_fan = _define_observers(
+            self.simulation, config, self._audit_out
+        )
+
+    def run_batch(
+        self,
+        batch_size: int,
+        progress_callback: Callable[..., None] | None = None,
+    ) -> str:
+        """Run up to ``batch_size`` more projections. Returns ``running`` or ``done``."""
+        if self._closed:
+            raise RuntimeError("SimulationJob is closed")
+        if batch_size < 1:
+            batch_size = 1
+        target = min(self.completed + batch_size, self.nb_projections)
+        while self.completed < target:
+            idx = self.completed
+            if self.engine is not None:
+                flow_structure = self.engine.draw_flows(seed=idx + 1)
+                self.simulation.set_flows(flow_structure.flows)
+            else:
+                self.simulation.set_flows(self.flows0)
+            self.simulation.run(idx + 1)
+            self.completed += 1
+            _call_progress_callback(
+                progress_callback,
+                self.completed,
+                self.nb_projections,
+                self.nav_fan,
+            )
+        return "done" if self.completed >= self.nb_projections else "running"
+
+    def result(self) -> RunResult:
+        return RunResult(
+            nav_observers=self.nav,
+            nav_fan=self.nav_fan,
+            output_csv=self.config.output_dir / "output.csv",
+            audit_path=self.audit_path,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._audit_out.close()
+        except Exception:
+            pass
+
+
 def run_simulation(
     config: SimulationConfig,
     progress_callback: Callable[..., None] | None = None,
@@ -370,53 +458,9 @@ def run_simulation(
     config: the configuration for the simulation
     progress_callback: the callback to call to update the progress bar
     """
-    sync_config_with_catalog(config)
-    config.asset_catalog.validate()
-    validate_allocation(config.risk_mix, config.asset_catalog)
-    validate_correlation(config.risk_param, config.risk_correlation)
-
-    config.output_dir.mkdir(exist_ok=True)
-
-    distributions = Risk.buildRisks(
-        config.risk_param,
-        max_year=config.max_year,
-        asset_names=config.asset_catalog.name_map(),
-    )
-
-    engine = _build_flow_engine(config) 
-    flows0 = [0.0] * config.max_year
-
-    simulation = Projection(
-        initial_capital=config.initial_capital,
-        flows=flows0,
-        cashBuffer=config.cash_buffer,
-        risk_mix=config.risk_mix,
-        risk_distrib=distributions,
-        nb_years=config.max_year,
-        nb_projections=config.nb_projections,
-        asset_catalog=config.asset_catalog,
-        correlations=config.risk_correlation,
-    )
-
-    audit_path = config.output_dir / "audit.txt"
-    with open(audit_path, mode="w", encoding="utf-8") as audit_out:
-        nav, nav_fan = _define_observers(simulation, config, audit_out)
-
-        for i in range(config.nb_projections):
-            if engine is not None:
-                flow_structure = engine.draw_flows(seed=i + 1)
-                flows = flow_structure.flows
-                simulation.set_flows(flows)
-            else:
-                simulation.set_flows(flows0)
-            simulation.run(i + 1)
-            _call_progress_callback(
-                progress_callback, i + 1, config.nb_projections, nav_fan
-            )
-
-    return RunResult(
-        nav_observers=nav,
-        nav_fan=nav_fan,
-        output_csv=config.output_dir / "output.csv",
-        audit_path=audit_path,
-    )
+    job = SimulationJob(config)
+    try:
+        job.run_batch(job.nb_projections, progress_callback)
+        return job.result()
+    finally:
+        job.close()
