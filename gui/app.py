@@ -81,7 +81,7 @@ try_summarize_viva_source = _viva_summary_module.try_summarize_viva_source
 format_viva_program_summary_lines = (
     _viva_summary_module.format_viva_program_summary_lines
 )
-import inv_proj
+
 import inv_proj_runner
 
 
@@ -137,13 +137,13 @@ def _request_hostname() -> str:
         host = urlparse(url).hostname or ""
         if host:
             return host
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         headers = getattr(st.context, "headers", None)
         if headers:
             return str(headers.get("Host") or headers.get("host") or "")
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return ""
 
@@ -320,7 +320,7 @@ def _test_viva_syntax() -> None:
     st.session_state.viva_syntax_checked_source = source
     try:
         summary, error = try_summarize_viva_source(source)
-    except Exception as _:
+    except Exception as _:  # noqa: BLE001
         summary, error = None, "Syntax error"
     if error or summary is None:
         st.session_state.viva_syntax_result = (
@@ -710,7 +710,7 @@ def _discard_active_sim_job() -> None:
     if job is not None:
         try:
             job.close()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         _set_active_sim_job(None)
 
