@@ -25,6 +25,7 @@ import importlib
 import ipaddress
 import json
 import os
+import secrets
 import sys
 from pathlib import Path
 from typing import Any
@@ -232,6 +233,7 @@ PORTFOLIO_FIELD_DEFAULTS = {
     "cash_buffer": "150k",
     "max_year": 20,
     "nb_projections": 2000,
+    "rng_seed": 1,
     "viva_source": "",
     "contributions_from_period": 1,
     "contributions_to_period": 20,
@@ -272,6 +274,10 @@ PORTFOLIO_FIELD_HELP = {
         "Number of simulation projections to run. "
         "More projections produce smoother statistics but take longer. "
         "Counts above 5,000 can take several minutes."
+    ),
+    "rng_seed": (
+        "Master random seed. The same seed and assumptions reproduce the same "
+        "projections (markets and life-event draws). Use New seed for a fresh universe."
     ),
     "allocation": (
         "Target weights of investable assets at the start of each projection "
@@ -458,6 +464,7 @@ STEP_1_EDIT_KEYS = (
     "portfolio_edit_description",
     "portfolio_edit_max_year",
     "portfolio_edit_nb_projections",
+    "portfolio_edit_rng_seed",
 )
 # Capital / cash buffer live in Step 2 (Portfolio) with allocation editing.
 PORTFOLIO_CAPITAL_EDIT_KEYS = (
@@ -525,6 +532,8 @@ def _commit_step_1_edit_to_portfolio() -> None:
         portfolio["nb_projections"] = int(
             st.session_state.portfolio_edit_nb_projections
         )
+    if "portfolio_edit_rng_seed" in st.session_state:
+        portfolio["rng_seed"] = int(st.session_state.portfolio_edit_rng_seed)
 
 
 def _commit_step_2_edit_to_portfolio() -> None:
@@ -551,6 +560,7 @@ def _seed_step_1_edit_from_portfolio() -> None:
     st.session_state.portfolio_edit_description = portfolio.get("description", "")
     st.session_state.portfolio_edit_max_year = int(portfolio["max_year"])
     st.session_state.portfolio_edit_nb_projections = int(portfolio["nb_projections"])
+    st.session_state.portfolio_edit_rng_seed = int(portfolio.get("rng_seed", 1))
 
 
 def _seed_step_2_edit_from_portfolio() -> None:
@@ -827,6 +837,7 @@ def _collect_assumptions() -> Assumptions:
         withdrawals_to_period=int(
             portfolio.get("withdrawals_to_period", portfolio["max_year"])
         ),
+        rng_seed=int(portfolio.get("rng_seed", 1)),
     )
     return assumptions
 
@@ -858,6 +869,7 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
         "cash_buffer": assumptions.cash_buffer,
         "max_year": assumptions.max_year,
         "nb_projections": assumptions.nb_projections,
+        "rng_seed": int(getattr(assumptions, "rng_seed", 1)),
         "viva_source": assumptions.viva_source,
         "contributions_from_period": assumptions.contributions_from_period,
         "contributions_to_period": assumptions.contributions_to_period,
@@ -1407,7 +1419,12 @@ def _render_setup_fields() -> None:
         help=PORTFOLIO_FIELD_HELP["description"],
         placeholder="Describe what this simulation is about…",
     )
-    cols = st.columns(2)
+    pending_seed = st.session_state.pop("_pending_new_rng_seed", None)
+    if pending_seed is not None:
+        st.session_state.portfolio_edit_rng_seed = int(pending_seed)
+        st.session_state.portfolio["rng_seed"] = int(pending_seed)
+
+    cols = st.columns(3)
     with cols[0]:
         st.number_input(
             "Horizon (years)",
@@ -1426,6 +1443,18 @@ def _render_setup_fields() -> None:
             key="portfolio_edit_nb_projections",
             help=PORTFOLIO_FIELD_HELP["nb_projections"],
         )
+    with cols[2]:
+        st.number_input(
+            "Random seed",
+            min_value=1,
+            max_value=2_147_483_646,
+            step=1,
+            key="portfolio_edit_rng_seed",
+            help=PORTFOLIO_FIELD_HELP["rng_seed"],
+        )
+        if st.button("New seed", help="Draw a new master seed for the next run."):
+            st.session_state["_pending_new_rng_seed"] = secrets.randbelow(2**31 - 2) + 1
+            st.rerun()
     if int(st.session_state.portfolio_edit_nb_projections) > 5000:
         st.warning("Large projection counts can take several minutes.")
     _commit_step_1_edit_to_portfolio()
@@ -2037,11 +2066,12 @@ def _render_setup_summary_readonly() -> None:
     """Readonly setup metrics while a simulation is running (no widget keys)."""
     portfolio = st.session_state.portfolio
     st.subheader("Simulation setup")
-    cols = st.columns(4)
+    cols = st.columns(5)
     cols[0].metric("Initial capital", portfolio["initial_capital"])
     cols[1].metric("Cash buffer", portfolio["cash_buffer"])
     cols[2].metric("Horizon", f"{int(portfolio['max_year'])} yrs")
     cols[3].metric("Projections", f"{int(portfolio['nb_projections']):,}")
+    cols[4].metric("Seed", f"{int(portfolio.get('rng_seed', 1))}")
     desc = str(portfolio.get("description", "") or "").strip()
     if desc:
         st.caption(desc)
@@ -2180,7 +2210,10 @@ def _simulation_overlay() -> None:
     if job is not None and int(job.completed) < int(job.nb_projections):
         total = max(1, int(job.nb_projections))
         current = int(job.completed)
-        st.caption("Live progress — charts update as projections complete.")
+        st.caption(
+            "Live progress — charts update as projections complete. "
+            f"Seed {int(job.config.rng_seed)}."
+        )
         st.progress(
             current / total,
             text=(
@@ -2232,6 +2265,9 @@ def _simulation_overlay() -> None:
     # --- Completed results view (dismiss via native dialog ✕) ---
     if _has_result():
         st.success("Simulation complete.")
+        st.caption(
+            f"Seed {int(st.session_state.portfolio.get('rng_seed', 1))}."
+        )
         _render_step_5_results(
             st.session_state.result,
             _result_year(),

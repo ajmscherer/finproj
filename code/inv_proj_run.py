@@ -17,13 +17,41 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
+import argparse
+import secrets
 
 from inv_proj_runner import default_config, run_simulation
 
 
-def run():
-    '''Main procedure to run investment projection simulation'''
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run a finproj Monte Carlo projection (reproducible by default)."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Master RNG seed (default: 1, from default_config).",
+    )
+    parser.add_argument(
+        "--reseed",
+        action="store_true",
+        help="Draw a new master seed and print it (overrides --seed).",
+    )
+    return parser.parse_args(argv)
+
+
+def run(argv: list[str] | None = None):
+    """Main procedure to run investment projection simulation."""
+    args = _parse_args(argv)
     config = default_config()
+    if args.reseed:
+        config.rng_seed = secrets.randbelow(2**31 - 2) + 1
+    elif args.seed is not None:
+        config.rng_seed = int(args.seed)
+    print(f"rng_seed={config.rng_seed}")
     result = run_simulation(config)
 
     for period in result.nav_observers:

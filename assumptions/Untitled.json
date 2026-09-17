@@ -1,13 +1,13 @@
 {
   "format_version": 1,
   "name": "Untitled",
-  "description": "Test",
-  "initial_capital": "",
+  "description": "",
+  "initial_capital": "1M",
   "contributions": "0k",
   "withdrawals": "50k",
-  "cash_buffer": "",
-  "max_year": 1,
-  "nb_projections": 10,
+  "cash_buffer": "150k",
+  "max_year": 20,
+  "nb_projections": 2000,
   "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
   "mix_preset": "performance",
   "asset_catalog": [
@@ -130,9 +130,10 @@
     "crypto|real_estate": 0.0,
     "pmetal|real_estate": 0.0
   },
-  "viva_source": "life: Julian, man, born 2000\nevent: wedding, year 2030, probability 50%\nflow: party, -100k, upon wedding\nflow: insurance_premium, -2k per year, until Julian's death\nflow: insurance, 1 million, upon Julian's death\n",
+  "viva_source": "",
   "contributions_from_period": 1,
   "contributions_to_period": 20,
   "withdrawals_from_period": 1,
-  "withdrawals_to_period": 20
+  "withdrawals_to_period": 20,
+  "rng_seed": 1
 }

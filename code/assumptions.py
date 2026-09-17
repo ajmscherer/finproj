@@ -95,6 +95,7 @@ class Assumptions:
     contributions_to_period: int = 15
     withdrawals_from_period: int = 1
     withdrawals_to_period: int = 15
+    rng_seed: int = 1
 
     def __post_init__(self) -> None:
         if not self.allocation:
@@ -127,6 +128,7 @@ class Assumptions:
         contributions_to_period: int = 15,
         withdrawals_from_period: int = 1,
         withdrawals_to_period: int = 15,
+        rng_seed: int = 1,
     ) -> Assumptions:
         asset_order = asset_catalog.return_model_ids()
         correlations = {}
@@ -157,6 +159,7 @@ class Assumptions:
             contributions_to_period=int(contributions_to_period),
             withdrawals_from_period=int(withdrawals_from_period),
             withdrawals_to_period=int(withdrawals_to_period),
+            rng_seed=int(rng_seed),
         )
 
     def correlation_values(self) -> dict[tuple[str, str], float]:
@@ -201,6 +204,7 @@ class Assumptions:
             contributions_to_period=self.contributions_to_period,
             withdrawals_from_period=self.withdrawals_from_period,
             withdrawals_to_period=self.withdrawals_to_period,
+            rng_seed=int(self.rng_seed),
         )
         sync_config_with_catalog(config)
         return config
@@ -227,6 +231,7 @@ class Assumptions:
             'contributions_to_period': self.contributions_to_period,
             'withdrawals_from_period': self.withdrawals_from_period,
             'withdrawals_to_period': self.withdrawals_to_period,
+            'rng_seed': int(self.rng_seed),
         }
 
     @classmethod
@@ -266,6 +271,7 @@ class Assumptions:
             withdrawals_to_period=int(
                 data.get('withdrawals_to_period', data.get('max_year', 15))
             ),
+            rng_seed=int(data.get('rng_seed', 1)),
         )
         assumptions.asset_catalog.validate()
         return assumptions

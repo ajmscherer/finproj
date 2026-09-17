@@ -24,6 +24,20 @@ import sys
 from abc import ABC, abstractmethod
 from enum import Enum
 
+# Independent RNG streams mixed into the master seed (not PYTHONHASHSEED).
+STREAM_RETURNS = 1
+STREAM_VIVA = 2
+
+
+def mix_seed(master: int, stream: int, projection_id: int) -> int:
+    """Deterministic 64-bit seed from master + stream + projection id."""
+    x = (int(master) + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+    x ^= (int(stream) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    x ^= (int(projection_id) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9 & 0xFFFFFFFFFFFFFFFF
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EB & 0xFFFFFFFFFFFFFFFF
+    return (x ^ (x >> 31)) & 0xFFFFFFFFFFFFFFFF
+
 
 class rc(Enum):
     """Risk class"""
@@ -222,13 +236,16 @@ class CorrelatedReturns:
     of the correlation matrix and independent standard normal shocks.
     """
 
-    def __init__(self, risk_distrib, correlations=None, risk_classes=None):
+    def __init__(self, risk_distrib, correlations=None, risk_classes=None, rng=None):
         self.risk_distrib = risk_distrib
         self.risk_classes = list(risk_classes or risk_distrib.keys())
-        self.rng = random.Random()
+        self.rng = rng if rng is not None else random.Random()
 
         corr_matrix = build_correlation_matrix(self.risk_classes, correlations)
         self.cholesky = cholesky_decomposition(corr_matrix)
+
+    def seed(self, seed: int) -> None:
+        self.rng.seed(int(seed))
 
     def draw(self, period):
         """
@@ -456,6 +473,7 @@ class Projection(Observable):
         nb_projections,
         asset_catalog,
         correlations=None,
+        rng_seed: int = 1,
     ):
         """
         arguments:
@@ -468,9 +486,11 @@ class Projection(Observable):
             nb_projections: the number of projections to run
             asset_catalog:  asset definitions and role mapping
             correlations:   optional dict of (asset_id, asset_id) pairs to correlation coefficients
+            rng_seed:       master seed; each projection reseeds returns from this
         """
 
         super().__init__()
+        self.rng_seed = int(rng_seed)
         self.asset_catalog = asset_catalog
         self.liquidity_asset_id = asset_catalog.liquidity_id()
         self.shortfall_asset_id = asset_catalog.shortfall_id()
@@ -516,6 +536,7 @@ class Projection(Observable):
 
         # init id
         self.id = id
+        self.correlated_returns.seed(mix_seed(self.rng_seed, STREAM_RETURNS, id))
 
         # initiate period
         self.period = 0

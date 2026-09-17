@@ -27,6 +27,7 @@ from typing import Any
 
 from asset_classes import AssetCatalog, default_asset_catalog
 from inv_proj import (
+    STREAM_VIVA,
     AuditObserver,
     CSV_Observer,
     NavFanObserver,
@@ -36,6 +37,7 @@ from inv_proj import (
     build_correlation_matrix,
     cholesky_decomposition,
     cv,
+    mix_seed,
     ps,
 )
 from viva_adapter import (
@@ -106,6 +108,7 @@ class SimulationConfig:
     contributions_to_period: int = 15
     withdrawals_from_period: int = 1
     withdrawals_to_period: int = 15
+    rng_seed: int = 1
 
 
 @dataclass
@@ -395,6 +398,7 @@ class SimulationJob:
             nb_projections=config.nb_projections,
             asset_catalog=config.asset_catalog,
             correlations=config.risk_correlation,
+            rng_seed=config.rng_seed,
         )
 
         self.audit_path = config.output_dir / "audit.txt"
@@ -417,7 +421,9 @@ class SimulationJob:
         while self.completed < target:
             idx = self.completed
             if self.engine is not None:
-                flow_structure = self.engine.draw_flows(seed=idx + 1)
+                flow_structure = self.engine.draw_flows(
+                    seed=mix_seed(self.config.rng_seed, STREAM_VIVA, idx + 1)
+                )
                 self.simulation.set_flows(flow_structure.flows)
             else:
                 self.simulation.set_flows(self.flows0)

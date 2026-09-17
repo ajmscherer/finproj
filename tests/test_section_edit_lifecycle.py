@@ -148,6 +148,7 @@ class SetupFieldsLifecycleTest(unittest.TestCase):
         self.assertEqual(self.state.portfolio_edit_description, "Original scenario")
         self.assertEqual(self.state.portfolio_edit_max_year, 20)
         self.assertEqual(self.state.portfolio_edit_nb_projections, 2000)
+        self.assertEqual(self.state.portfolio_edit_rng_seed, 1)
         self.assertNotIn("portfolio_edit_initial_capital", self.state)
         self.assertNotIn("portfolio_edit_cash_buffer", self.state)
 
@@ -156,11 +157,13 @@ class SetupFieldsLifecycleTest(unittest.TestCase):
         self.state.portfolio_edit_description = "Updated plan"
         self.state.portfolio_edit_max_year = 30
         self.state.portfolio_edit_nb_projections = 5000
+        self.state.portfolio_edit_rng_seed = 42
         self.app._commit_step_1_edit_to_portfolio()
 
         self.assertEqual(self.state.portfolio["description"], "Updated plan")
         self.assertEqual(self.state.portfolio["max_year"], 30)
         self.assertEqual(self.state.portfolio["nb_projections"], 5000)
+        self.assertEqual(self.state.portfolio["rng_seed"], 42)
 
     def test_many_commit_cycles_do_not_lose_content(self) -> None:
         for i in range(8):

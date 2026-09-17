@@ -44,6 +44,7 @@ class AssumptionsTest(unittest.TestCase):
         self.assertEqual(restored.description, 'Retirement stress test')
         self.assertEqual(restored.initial_capital, '2M')
         self.assertEqual(restored.max_year, 20)
+        self.assertEqual(restored.rng_seed, 1)
         self.assertEqual(restored.allocation['bonds'], 45.0)
 
     def test_description_defaults_when_missing_from_json(self):
