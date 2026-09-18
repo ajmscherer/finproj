@@ -34,5 +34,5 @@ if %ERRORLEVEL% neq 0 (
   if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 )
 
-python -m streamlit run gui/app.py --server.address localhost --server.headless false %*
+python -m streamlit run gui/v1/app.py --server.address localhost --server.headless false %*
 exit /b %ERRORLEVEL%

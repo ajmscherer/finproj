@@ -47,4 +47,9 @@ if lsof -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   exit 1
 fi
 
-exec "$VENV_PYTHON" -m streamlit run gui/app.py --server.address localhost --server.headless false "$@"
+GUI_APP="gui/v1/app.py"
+if [[ "${1:-}" == "v2" ]]; then
+  GUI_APP="gui/v2/app.py"
+  shift
+fi
+exec "$VENV_PYTHON" -m streamlit run "$GUI_APP" --server.address localhost --server.headless false "$@"
