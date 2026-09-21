@@ -39,16 +39,32 @@ from inv_proj_runner import (
     success_rate,
     validate_allocation,
 )
+from guided import GuidedTour
 from theme import inject_theme
 
 from assumptions import Assumptions
 
+USAGE_WHEN_RETIRE = "Decide when I can retire"
+USAGE_SAVE_FOR_INCOME = (
+    "Decide how much I need to save to achieve a retirement revenue of X"
+)
+USAGE_OTHER = "Other usage"
+USAGE_CHOICES = (USAGE_WHEN_RETIRE, USAGE_SAVE_FOR_INCOME, USAGE_OTHER)
+
 STEPS = (
+    {
+        "short": "Goal",
+        "title": "How would you like to use this app?",
+        "intro": (
+            "Choose the question you want this projection to help you answer. "
+            "You can change this later."
+        ),
+    },
     {
         "short": "Today",
         "title": "Your wealth today",
         "intro": (
-            "Let's Start with a snapshot of what you have now." 
+            "Let's start with a snapshot of what you have now." 
         ),
     },
     {
@@ -114,6 +130,10 @@ div[class*="st-key-v2_step_card"] {
     background: #fbfaf7;
     border-radius: 0.75rem;
 }
+div[class*="st-key-v2g_on_"],
+div[class*="st-key-v2g_off_"] {
+    margin-bottom: 0.35rem;
+}
 </style>
 """
 
@@ -141,6 +161,8 @@ def _default_data(catalog) -> dict[str, Any]:
         "max_year": 20,
         "nb_projections": 2000,
         "rng_seed": 1,
+        "usage_goal": USAGE_WHEN_RETIRE,
+        "usage_other": "",
         "allocation": _default_allocation(catalog),
         "mu": mu,
         "sigma": sigma,
@@ -157,6 +179,9 @@ def _init() -> None:
     st.session_state.setdefault("result", None)
     if "v2" not in st.session_state:
         st.session_state.v2 = _default_data(catalog)
+    else:
+        st.session_state.v2.setdefault("usage_goal", USAGE_WHEN_RETIRE)
+        st.session_state.v2.setdefault("usage_other", "")
 
 
 def _data() -> dict[str, Any]:
@@ -172,6 +197,7 @@ def _commit_widgets() -> None:
         "v2w_cash_buffer": "cash_buffer",
         "v2w_contributions": "contributions",
         "v2w_withdrawals": "withdrawals",
+        "v2w_usage_other": "usage_other",
     }
     for wkey, ckey in text_map.items():
         if wkey in st.session_state:
@@ -180,6 +206,8 @@ def _commit_widgets() -> None:
         data["max_year"] = int(st.session_state.v2w_max_year)
     if "v2w_nb_projections" in st.session_state:
         data["nb_projections"] = int(st.session_state.v2w_nb_projections)
+    if "v2w_usage_goal" in st.session_state:
+        data["usage_goal"] = str(st.session_state.v2w_usage_goal)
     alloc = dict(data["allocation"])
     for asset_id in investable_asset_ids(catalog):
         wkey = f"v2w_alloc_{asset_id}"
@@ -202,23 +230,29 @@ def _seed_widgets_for_step(step: int) -> None:
     data = _data()
     catalog = st.session_state.asset_catalog
     if step == 0:
+        goal = str(data.get("usage_goal", USAGE_WHEN_RETIRE))
+        if goal not in USAGE_CHOICES:
+            goal = USAGE_WHEN_RETIRE
+        st.session_state.v2w_usage_goal = goal
+        st.session_state.v2w_usage_other = str(data.get("usage_other", ""))
+    elif step == 1:
         st.session_state.v2w_initial_capital = str(data["initial_capital"])
         st.session_state.v2w_cash_buffer = str(data["cash_buffer"])
-    elif step == 1:
+    elif step == 2:
         st.session_state.v2w_contributions = str(data["contributions"])
         st.session_state.v2w_withdrawals = str(data["withdrawals"])
-    elif step == 2:
+    elif step == 3:
         for asset_id in investable_asset_ids(catalog):
             st.session_state[f"v2w_alloc_{asset_id}"] = float(
                 data["allocation"].get(asset_id, 0.0)
             )
-    elif step == 3:
+    elif step == 4:
         for asset_id in investable_asset_ids(catalog):
             st.session_state[f"v2w_mu_{asset_id}"] = float(data["mu"].get(asset_id, 0.0))
             st.session_state[f"v2w_sigma_{asset_id}"] = float(
                 data["sigma"].get(asset_id, 0.0)
             )
-    elif step == 4:
+    elif step == 5:
         st.session_state.v2w_max_year = int(data["max_year"])
         st.session_state.v2w_nb_projections = int(data["nb_projections"])
 
@@ -229,17 +263,13 @@ def _goto(step: int) -> None:
     st.rerun()
 
 
-def _help(text: str) -> None:
-    st.markdown(f'<p class="fp2-help">{text}</p>', unsafe_allow_html=True)
-
-
 def _render_timeline(current: int) -> None:
     n = len(STEPS)
     cols = st.columns(n, gap="small")
     has_result = st.session_state.result is not None
     for i, col in enumerate(cols):
         with col:
-            label = f"{i + 1}  {STEPS[i]['short']}"
+            label = STEPS[i]["short"]
             disabled = i == n - 1 and not has_result
             clicked = st.button(
                 label,
@@ -286,137 +316,218 @@ def _collect() -> Assumptions:
     )
 
 
-def _render_step_wealth() -> None:
-    st.markdown("**Starting wealth**")
-    _help(
-        "The total value of your assets as of today. "
-        "This is the amount we will project forward, year by year. "
-        "Include everything you have in cash, stocks, bonds, real estate, and other assets. "
-        "If you have a mortgage, or other debt, do not subtract the principal amount outstanding from your total assets. We will deal with debt later in the simulation. "
-        "You can type 1M for one million, or 250k for 250,000."
-    )
-    st.text_input("Starting wealth", key="v2w_initial_capital", label_visibility="collapsed")
+def _tour_nav(step: int) -> dict:
+    kwargs: dict = {}
+    if step > 0:
+        kwargs["on_back_step"] = lambda: _goto(step - 1)
+    if step < len(STEPS) - 2:
+        kwargs["on_next_step"] = lambda: _goto(step + 1)
+    return kwargs
 
-    st.markdown("**Cash you keep aside**")
-    _help(
-        "A rainy-day reserve that is not invested in the mix below. "
-        "Yearly withdrawals are taken from here first. Must be less than starting wealth."
+
+def _render_usage_fields() -> None:
+    st.radio(
+        "Intended usage",
+        options=USAGE_CHOICES,
+        key="v2w_usage_goal",
+        label_visibility="collapsed",
     )
-    st.text_input("Cash reserve", key="v2w_cash_buffer", label_visibility="collapsed")
+    if st.session_state.get("v2w_usage_goal") == USAGE_OTHER:
+        st.text_area(
+            "Describe the intended usage",
+            key="v2w_usage_other",
+            height=120,
+            placeholder="In a few sentences, what do you want to explore?",
+        )
+
+
+def _render_step_usage() -> None:
+    (
+        GuidedTour("usage")
+        .add(
+            "usage.goal",
+            "What should this projection help you decide?",
+            "Pick the option that is closest. If none fit, choose Other and describe "
+            "what you want to do.",
+            _render_usage_fields,
+            focus_key="v2w_usage_goal",
+        )
+        .render(**_tour_nav(0))
+    )
+
+
+def _render_step_wealth() -> None:
+    (
+        GuidedTour("wealth")
+        .add(
+            "wealth.capital",
+            "Starting wealth",
+            "The total value of your assets as of today. "
+            "This is the amount we will project forward, year by year. "
+            "Include everything you have in cash, stocks, bonds, real estate, and other assets. "
+            "If you have a mortgage, or other debt, do not subtract the principal amount outstanding "
+            "from your total assets. We will deal with debt later in the simulation."
+            "<br/>You can type 1M for one million, or 250k for 250,000.",
+            lambda: st.text_input(
+                "Starting wealth",
+                key="v2w_initial_capital",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_initial_capital",
+        )
+        .add(
+            "wealth.cash",
+            "Cash you keep aside",
+            "A rainy-day reserve that is not invested in the mix below. "
+            "Yearly withdrawals are taken from here first. Must be less than starting wealth.",
+            lambda: st.text_input(
+                "Cash reserve",
+                key="v2w_cash_buffer",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_cash_buffer",
+        )
+        .render(**_tour_nav(1))
+    )
 
 
 def _render_step_flows() -> None:
-    st.markdown("**Added each year**")
-    _help(
-        "New savings put into the portfolio every year (for example from salary). "
-        "Use 0k if you will not add money."
+    (
+        GuidedTour("flows")
+        .add(
+            "flows.contributions",
+            "Added each year",
+            "New savings put into the portfolio every year (for example from salary). "
+            "Use 0k if you will not add money.",
+            lambda: st.text_input(
+                "Yearly contributions",
+                key="v2w_contributions",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_contributions",
+        )
+        .add(
+            "flows.withdrawals",
+            "Taken out each year",
+            "Spending paid from the portfolio every year (for example living costs in retirement). "
+            "Use 0k if you will not take money out.",
+            lambda: st.text_input(
+                "Yearly withdrawals",
+                key="v2w_withdrawals",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_withdrawals",
+        )
+        .render(**_tour_nav(2))
     )
-    st.text_input("Yearly contributions", key="v2w_contributions", label_visibility="collapsed")
 
-    st.markdown("**Taken out each year**")
-    _help(
-        "Spending paid from the portfolio every year (for example living costs in retirement). "
-        "Use 0k if you will not take money out."
+
+def _alloc_input(asset_id: str, name: str) -> None:
+    st.number_input(
+        f"{name} %",
+        min_value=0.0,
+        max_value=100.0,
+        step=1.0,
+        key=f"v2w_alloc_{asset_id}",
+        label_visibility="collapsed",
     )
-    st.text_input("Yearly withdrawals", key="v2w_withdrawals", label_visibility="collapsed")
 
 
-def _render_step_mix() -> None:
+def _render_optional_alloc() -> None:
     catalog = st.session_state.asset_catalog
     required = {"money_market", "bonds", "stocks"}
-    investable = [catalog.get(i) for i in investable_asset_ids(catalog)]
-    for asset in investable:
-        if asset.id not in required:
+    for asset_id in investable_asset_ids(catalog):
+        if asset_id in required:
             continue
+        asset = catalog.get(asset_id)
         st.markdown(f"**{asset.name}**")
-        _help(ASSET_BLURB.get(asset.id, "Share of the invested portfolio."))
-        st.number_input(
-            f"{asset.name} %",
-            min_value=0.0,
-            max_value=100.0,
-            step=1.0,
-            key=f"v2w_alloc_{asset.id}",
-            label_visibility="collapsed",
+        st.markdown(
+            f'<p class="fp2-help">{ASSET_BLURB.get(asset.id, "Optional part of the mix.")}</p>',
+            unsafe_allow_html=True,
         )
+        _alloc_input(asset.id, asset.name)
 
-    with st.expander("Optional investments"):
-        for asset in investable:
-            if asset.id in required:
-                continue
-            st.markdown(f"**{asset.name}**")
-            _help(ASSET_BLURB.get(asset.id, "Optional part of the mix."))
-            st.number_input(
-                f"{asset.name} %",
-                min_value=0.0,
-                max_value=100.0,
-                step=1.0,
-                key=f"v2w_alloc_{asset.id}",
-                label_visibility="collapsed",
-            )
 
+def _render_mix_total() -> None:
     _commit_widgets()
     total = sum(float(w) for w in _data()["allocation"].values())
     st.caption(f"Total invested mix: **{total:.0f}%** (needs to be 100%).")
     if abs(total - 100.0) > 0.01:
         st.warning("The percentages should add up to 100%.")
         if total > 0 and st.button("Balance to 100%", key="v2_normalize"):
-            scaled = {
+            _data()["allocation"] = {
                 k: v / total * 100.0 for k, v in _data()["allocation"].items()
             }
-            _data()["allocation"] = scaled
             st.rerun()
+
+
+def _render_step_mix() -> None:
+    catalog = st.session_state.asset_catalog
+    required = ("money_market", "bonds", "stocks")
+    tour = GuidedTour("mix")
+    for asset_id in required:
+        asset = catalog.get(asset_id)
+        tour.add(
+            f"mix.{asset.id}",
+            asset.name,
+            ASSET_BLURB.get(asset.id, "Share of the invested portfolio."),
+            lambda aid=asset.id, name=asset.name: _alloc_input(aid, name),
+            focus_key=f"v2w_alloc_{asset.id}",
+        )
+    tour.add(
+        "mix.optional",
+        "Optional investments",
+        "You can leave these at 0%. They are extras, not required.",
+        _render_optional_alloc,
+        focus_key="v2w_alloc_real_estate",
+    )
+    tour.add(
+        "mix.total",
+        "Check the total",
+        "The invested mix must add up to 100%. Use Balance to 100% if needed.",
+        _render_mix_total,
+        focus_key="v2_normalize",
+    )
+    tour.render(**_tour_nav(3))
+
+
+def _market_pair(asset_id: str) -> None:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.number_input(
+            "Typical yearly growth (%)",
+            min_value=-20.0,
+            max_value=80.0,
+            step=0.5,
+            key=f"v2w_mu_{asset_id}",
+        )
+    with c2:
+        st.number_input(
+            "How bumpy the ride is (%)",
+            min_value=0.0,
+            max_value=100.0,
+            step=0.5,
+            key=f"v2w_sigma_{asset_id}",
+        )
 
 
 def _render_step_markets() -> None:
     catalog = st.session_state.asset_catalog
     st.caption("Suggested values are typical long-run planning figures, not forecasts.")
+    tour = GuidedTour("markets")
     for asset_id in investable_asset_ids(catalog):
         asset = catalog.get(asset_id)
-        st.markdown(f"**{asset.name}**")
-        _help(ASSET_BLURB.get(asset.id, ""))
-        c1, c2 = st.columns(2)
-        with c1:
-            st.number_input(
-                "Typical yearly growth (%)",
-                min_value=-20.0,
-                max_value=80.0,
-                step=0.5,
-                key=f"v2w_mu_{asset.id}",
-            )
-        with c2:
-            st.number_input(
-                "How bumpy the ride is (%)",
-                min_value=0.0,
-                max_value=100.0,
-                step=0.5,
-                key=f"v2w_sigma_{asset.id}",
-            )
+        tour.add(
+            f"markets.{asset.id}",
+            asset.name,
+            ASSET_BLURB.get(asset.id, ""),
+            lambda aid=asset.id: _market_pair(aid),
+            focus_key=f"v2w_mu_{asset.id}",
+        )
+    tour.render(**_tour_nav(4))
 
 
-def _render_step_run() -> None:
-    st.markdown("**How many years to look ahead**")
-    _help("For example 20 years if you want to see two decades of possible paths.")
-    st.number_input(
-        "Horizon (years)",
-        min_value=1,
-        max_value=50,
-        step=1,
-        key="v2w_max_year",
-        label_visibility="collapsed",
-    )
-    st.markdown("**How many possible futures to try**")
-    _help(
-        "More paths give a smoother picture. 2,000 is a good start. "
-        "Above 5,000 can take several minutes."
-    )
-    st.number_input(
-        "Number of projections",
-        min_value=10,
-        max_value=20000,
-        step=10,
-        key="v2w_nb_projections",
-        label_visibility="collapsed",
-    )
+def _render_run_button() -> None:
     try:
         assumptions = _collect()
         config = assumptions.to_simulation_config()
@@ -435,6 +546,45 @@ def _render_step_run() -> None:
         st.session_state.result = result
         st.session_state.v2_step = len(STEPS) - 1
         st.rerun()
+
+
+def _render_step_run() -> None:
+    (
+        GuidedTour("run")
+        .add(
+            "run.horizon",
+            "How many years to look ahead",
+            "For example 20 years if you want to see two decades of possible paths.",
+            lambda: st.number_input(
+                "Horizon (years)",
+                min_value=1,
+                max_value=50,
+                step=1,
+                key="v2w_max_year",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_max_year",
+        )
+        .add(
+            "run.paths",
+            "How many possible futures to try",
+            "More paths give a smoother picture. 2,000 is a good start. "
+            "Above 5,000 can take several minutes.",
+            lambda: st.number_input(
+                "Number of projections",
+                min_value=10,
+                max_value=20000,
+                step=10,
+                key="v2w_nb_projections",
+                label_visibility="collapsed",
+            ),
+            focus_key="v2w_nb_projections",
+        )
+        .render(
+            on_back_step=lambda: _goto(4),
+            after_last=_render_run_button,
+        )
+    )
 
 
 def _render_step_results() -> None:
@@ -478,23 +628,19 @@ def _render_step_results() -> None:
     st.caption(f"Seed {int(_data()['rng_seed'])} — same answers if you run again.")
 
 
+def _reset_question_cursors() -> None:
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("v2_guide_i_") or str(key).startswith("v2_guide_max_"):
+            del st.session_state[key]
+    st.session_state.pop("v2_guide_last_focus", None)
+
+
 def _render_nav_buttons(step: int) -> None:
-    last_setup = len(STEPS) - 2
-    back_col, next_col = st.columns(2)
-    with back_col:
-        if step > 0 and st.button("Back", width="stretch", key="v2_back"):
-            _goto(step - 1)
-    with next_col:
-        if step < last_setup and st.button(
-            "Continue", type="primary", width="stretch", key="v2_next"
-        ):
-            _goto(step + 1)
-        if step == last_setup:
-            st.caption("Use **Run projection** above when you are ready.")
-        if step == len(STEPS) - 1 and st.button(
-            "Start over", width="stretch", key="v2_restart"
-        ):
-            _goto(0)
+    if step == len(STEPS) - 1 and st.button(
+        "Start over", width="stretch", key="v2_restart"
+    ):
+        _reset_question_cursors()
+        _goto(0)
 
 
 def main() -> None:
@@ -505,8 +651,8 @@ def main() -> None:
     _commit_widgets()
 
     st.markdown('<p class="fp2-kicker">Guided projection</p>', unsafe_allow_html=True)
-    st.title("finproj")
-    st.caption("One step at a time. You can jump using the timeline.")
+    st.title("Serenity")
+    st.caption("Helping you plan for the future.")
 
     step = int(st.session_state.v2_step)
     step = max(0, min(step, len(STEPS) - 1))
@@ -521,6 +667,7 @@ def main() -> None:
         st.markdown(f"### Step {step + 1} of {len(STEPS)}  ·  {spec['title']}")
         st.markdown(f'<p class="fp2-intro">{spec["intro"]}</p>', unsafe_allow_html=True)
         renderers = (
+            _render_step_usage,
             _render_step_wealth,
             _render_step_flows,
             _render_step_mix,
@@ -529,8 +676,9 @@ def main() -> None:
             _render_step_results,
         )
         renderers[step]()
-        st.divider()
-        _render_nav_buttons(step)
+        if step == len(STEPS) - 1:
+            st.divider()
+            _render_nav_buttons(step)
 
 
 main()
