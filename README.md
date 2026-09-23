@@ -58,8 +58,8 @@ Either approach will generate or update `output/output.csv` with the simulation 
 
 Python 3.10 or higher is required. From the project root (after cloning or downloading the repository), launch the local app:
 
-- **Mac / Linux:** `./run_gui.sh` (current GUI, v1). Guided one-step-at-a-time GUI: `./run_gui.sh v2`
-- **Windows:** double-click `run_gui.bat`, or run it from Command Prompt (`streamlit run gui/v2/app.py` for the guided GUI)
+- **Mac / Linux:** `./run_gui.sh`
+- **Windows:** double-click `run_gui.bat`, or run it from Command Prompt
 
 On the first run, the launcher creates a `.venv` folder in the project and installs GUI dependencies from `requirements-gui.txt` (this avoids system-wide `pip`, which modern Linux distributions often block).
 
@@ -129,12 +129,10 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `code/viva_summary.py` — Parse and summarize Viva programs for the GUI (lives, events, flows)
 - `code/inv_proj_runner.py` — Shared simulation configuration, Viva program composition, and runner (used by CLI and GUI)
 - `code/inv_proj_run.py` — Command-line entry point
-- `gui/v1/app.py` — Streamlit GUI v1 (current): assumptions, runs, charts, and summary statistics
+- `gui/v1/app.py` — Streamlit GUI: assumptions, runs, charts, and summary statistics
 - `gui/v1/charts.py` — Matplotlib chart builders (NAV fan chart, distribution histogram)
 - `gui/v1/formatting.py` — Compact number formatting and summary table HTML
 - `gui/v1/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
-- `gui/v2/app.py` — Streamlit GUI v2 placeholder (second web interface)
-- `gui/app.py` — Back-compat launcher that runs v1
 - `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
 - `requirements-gui.txt` — GUI dependencies (Streamlit, matplotlib, Viva)
 - `assumptions/` — Default location for saved scenario JSON files

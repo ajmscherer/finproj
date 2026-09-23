@@ -2,10 +2,10 @@
   "format_version": 1,
   "name": "Untitled",
   "description": "",
-  "initial_capital": "1M",
+  "initial_capital": "5M",
   "contributions": "0k",
-  "withdrawals": "50k",
-  "cash_buffer": "150k",
+  "withdrawals": "120k",
+  "cash_buffer": "250k",
   "max_year": 20,
   "nb_projections": 2000,
   "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
@@ -71,11 +71,12 @@
     }
   ],
   "allocation": {
-    "bonds": 30,
-    "stocks": 40,
-    "pmetal": 5,
-    "crypto": 5,
-    "real_estate": 20
+    "money_market": 25.0,
+    "bonds": 35.0,
+    "stocks": 40.0,
+    "crypto": 0.0,
+    "pmetal": 0.0,
+    "real_estate": 0.0
   },
   "mu_sigma": {
     "cash": {
