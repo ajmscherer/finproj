@@ -10,11 +10,11 @@ from model.step import FieldSpec
 from ui.widgets import FieldWidget
 
 _CHROME: dict[str,  Verbiage] = {
-    "previous": Verbiage("Previous[en]|Anterior[es]|Précédent[fr]|Zurück[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Назад[ru]|上一题[zh]"),
-    "back": Verbiage("Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|К шагу[ru]|返回[zh]"),
-    "next": Verbiage("Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一题[zh]"),
+    "previous": Verbiage("Previous[en]|Anterior[es]|Précédent[fr]|Vorheriger[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Предыдущий[ru]|上一步[zh]"),
+    "back": Verbiage("Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|Назад[ru]|返回[zh]"),
+    "next": Verbiage("Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一步[zh]"),
     "continue": Verbiage("Continue[en]|Continuar[es]|Continuer[fr]|Fortfahren[de]|Continua[it]|続ける[ja]|Continuar[pt]|Продолжить[ru]|继续[zh]"),
-    "done": Verbiage("Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Опрос завершён.[ru]|引导已完成。[zh]"),
+    "done": Verbiage("Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Обход завершён.[ru]|引导已完成。[zh]"),
 }
 
 
@@ -95,7 +95,7 @@ class StepView:
                     self.runner.definition.get(step_id).title.to(language),
                     key=f"v4_tl_{step_id}_{len(self.runner.history)}",
                     disabled=False,
-                    width=100,
+                    #width=100,
                     type="primary"
                     if step_id == self.runner.current_id
                     else "secondary",

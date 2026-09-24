@@ -15,7 +15,7 @@ from content.verbiage import LANGUAGE_NAMES, Language, Verbiage
 from model.runner import TourRunner
 from ui.step_view import StepView
 
-_CAPTION=Verbiage("Guided interview. The projection engine is not called from this screen yet.[en]|Entrevista guiada. El motor de proyección aún no se llama desde esta pantalla.[es]|Entretien guidé. Le moteur de projection n’est pas encore appelé depuis cet écran.[fr]|Geführtes Gespräch. Die Projektion wird von diesem Bildschirm noch nicht gestartet.[de]|Intervista guidata. Il motore di proiezione non è ancora chiamato da questa schermata.[it]|ガイド付きの質問です。この画面からはまだ投影を実行しません。[ja]|Entrevista guiada. O motor de projeção ainda não é chamado desta tela.[pt]|Пошаговый опрос. Движок проекции с этого экрана ещё не вызывается.[ru]|引导式问答。此页面尚未调用投影引擎。[zh]")
+_CAPTION=Verbiage("Guided interview. The projection engine is not called from this screen yet.[en]|Entrevista guiada. El motor de proyección aún no se llama desde esta pantalla.[es]|Entretien guidé. Le moteur de projection n’est pas encore appelé depuis cet écran.[fr]|Geführtes Gespräch. Die Projektionsengine wird von diesem Bildschirm noch nicht aufgerufen.[de]|Intervista guidata. Il motore di proiezione non è ancora chiamato da questa schermata.[it]|ガイド付きの質問です。この画面からはまだ試算エンジンを呼び出しません。[ja]|Entrevista guiada. O motor de projeção ainda não é chamado desta tela.[pt]|Пошаговое интервью. Движок проекции с этого экрана ещё не вызывается.[ru]|引导式访谈。此屏幕尚未调用预测引擎。[zh]")
 
 
 def _runner() -> TourRunner:
