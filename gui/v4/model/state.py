@@ -20,6 +20,12 @@ class WealthState:
     """Amounts stay as typed strings (1M, 150k) until an adapter parses them."""
 
     initial_capital: str | None = None
+
+
+@dataclass
+class LiquidityState:
+    """Cash kept outside the invested mix. Same string form as wealth."""
+
     cash_buffer: str | None = None
 
 
@@ -60,6 +66,7 @@ class RunState:
 class TourState:
     goal: GoalState = field(default_factory=GoalState)
     wealth: WealthState = field(default_factory=WealthState)
+    liquidity: LiquidityState = field(default_factory=LiquidityState)
     flows: FlowsState = field(default_factory=FlowsState)
     mix: MixState = field(default_factory=MixState)
     markets: MarketsState = field(default_factory=MarketsState)

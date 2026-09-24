@@ -56,7 +56,10 @@ class StepView:
             st.success(_chrome("done", language))
             return
 
+        # timeline
         self._timeline(language)
+
+        # visible fields
         visible = self._visible()
         index = int(st.session_state.get(self._cursor_key(), 0))
         if visible:
@@ -65,7 +68,7 @@ class StepView:
             index = 0
         st.session_state[self._cursor_key()] = index
 
-        with st.container(border=True):
+        with st.container(border=False):
             #st.markdown(f"### {step.title.to(language)}")
             st.caption(f"{step.prompt.to(language)}")
             if not visible:
@@ -77,9 +80,26 @@ class StepView:
                     break
                 widget = FieldWidget(spec)
                 widget.seed(preview)
-                with st.container(border=(i == index)):
+
+                focus = i == index
+                if focus:
+                    st.markdown(
+                        """
+                        <style>
+                        .st-key-v4_focus {
+                            background-color: #fff3bf;
+                            border-radius: 0.5rem;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with st.container(border=True, key="v4_focus" if focus else f"v4_focus_{i}"):
                     widget.render(language)
+
+            # navigation buttons
             self._nav(index, len(visible), language)
+            
         st.divider()
         st.markdown("### Debug")
         st.write(self._draft_answers())
@@ -111,23 +131,23 @@ class StepView:
                 del st.session_state[key]
 
     def _nav(self, index: int, count: int, language: Language) -> None:
-        back_col, next_col = st.columns(2)
-        with back_col:
+        
+        button_width = 150
+        with st.container(border=False, horizontal=True, width="stretch", horizontal_alignment="right"):
             if index > 0 and st.button(
-                _chrome("previous", language), width="stretch", key="v4_prev"
+                _chrome("previous", language), width=button_width, key="v4_prev"
             ):
                 st.session_state[self._cursor_key()] = index - 1
                 st.rerun()
-            elif st.button(_chrome("back", language), width="stretch", key="v4_back"):
+            elif st.button(_chrome("back", language), width=button_width, key="v4_back"):
                 self.runner.back()
                 self._clear_widgets()
                 st.rerun()
-        with next_col:
             if count and index < count - 1:
                 if st.button(
                     _chrome("next", language),
                     type="primary",
-                    width="stretch",
+                    width=button_width,
                     key="v4_next",
                 ):
                     st.session_state[self._cursor_key()] = index + 1
@@ -135,7 +155,7 @@ class StepView:
             elif st.button(
                 _chrome("continue", language),
                 type="primary",
-                width="stretch",
+                width=button_width,
                 key="v4_continue",
             ):
                 step = self.runner.current()

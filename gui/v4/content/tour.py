@@ -87,15 +87,15 @@ goal_kind_other = Verbiage(
     })
 goal_kind_other_help = Verbiage(
     {
-    "en":"Pick the usage that best describes what you want to do.",
-    "es":"Elige el uso que mejor describe lo que quieres hacer.",
-    "fr":"Choisissez l'utilisation qui décrit le mieux ce que vous voulez faire.",
-    "de":"Wählen Sie die Verwendung, die am besten beschreibt, was Sie tun möchten.",
-    "it":"Scegli l'utilizzo che descrive meglio ciò che vuoi fare.",
-    "ja":"やりたいことを最もよく表す用途を選んでください。",
-    "pt":"Escolha o uso que melhor descreve o que você quer fazer.",
-    "ru":"Выберите вариант, который лучше всего описывает то, что вы хотите сделать.",
-    "zh":"请选择最能描述你想做什么的用途。"
+    "en":"Describe what you want to do.",
+    "es":"Describe lo que quieres hacer.",
+    "fr":"Décrivez ce que vous voulez faire.",
+    "de":"Beschreiben Sie, was Sie tun möchten.",
+    "it":"Descrivi ciò che vuoi fare.",
+    "ja":"やりたいことを説明してください。",
+    "pt":"Descreva o que você quer fazer.",
+    "ru":"Опишите, что вы хотите сделать.",
+    "zh":"描述你想做什么。"
     })
 
 wealth_title = Verbiage(
@@ -146,7 +146,31 @@ wealth_starting_wealth_help = Verbiage(
     "ru":"Можно ввести 1M для миллиона или 250k для 250 000.",
     "zh":"你可以输入1M表示一百万，或者250k表示250,000。"
     })
-wealth_cash_buffer = Verbiage(
+liquidity_title = Verbiage(
+    {
+    "en":"Liquidity",
+    "es":"Liquidez",
+    "fr":"Liquidité",
+    "de":"Liquidität",
+    "it":"Liquidità",
+    "ja":"流動性",
+    "pt":"Liquidez",
+    "ru":"Ликвидность",
+    "zh":"流动性"
+    })
+liquidity_prompt = Verbiage(
+    {
+    "en":"Cash you keep aside.",
+    "es":"Efectivo que mantienes aparte.",
+    "fr":"Liquidités que vous gardez de côté.",
+    "de":"Bargeld, das Sie beiseitelegen.",
+    "it":"Liquidità che tieni da parte.",
+    "ja":"別に取っておく現金です。",
+    "pt":"Dinheiro que você mantém de lado.",
+    "ru":"Наличные, которые вы оставляете в стороне.",
+    "zh":"你另外留出的现金。"
+    })
+liquidity_cash_buffer = Verbiage(
     {
     "en":"Cash you keep aside",
     "es":"Liquide que vous gardez de côté",
@@ -158,7 +182,7 @@ wealth_cash_buffer = Verbiage(
     "ru":"Наличные, которые вы оставляете в стороне",
     "zh":"你另外留出的现金"
     })
-wealth_cash_buffer_help = Verbiage(
+liquidity_cash_buffer_help = Verbiage(
     {
     "en":"A reserve that is not part of the invested mix.",
     "es":"Una reserva que no forma parte de la mezcla invertida.",
@@ -250,15 +274,15 @@ flows_withdrawals_help = Verbiage(
 # mix
 mix_title = Verbiage(
     {
-    "en":"How your money is invested",
-    "es":"Cómo está invertido tu dinero",
-    "fr":"Comment votre argent est investi",
-    "de":"Wie Ihr Geld investiert wird",
-    "it":"Come è investito il tuo denaro",
-    "ja":"あなたのお金がどのように投資されているか",
-    "pt":"Como seu dinheiro é investido",
-    "ru":"Как вложены ваши деньги",
-    "zh":"你的钱是如何投资的"
+    "en":"Mix",
+    "es":"Mezcla",
+    "fr":"Mix",
+    "de":"Mix",
+    "it":"Mix",
+    "ja":"ミックス",
+    "pt":"Mix",
+    "ru":"Микс",
+    "zh":"混合"
     })
 mix_prompt = Verbiage(
     {
@@ -310,15 +334,15 @@ mix_stocks = Verbiage(
     })
 markets_title = Verbiage(
     {
-    "en":"How markets may behave",
-    "es":"Cómo pueden comportarse los mercados",
-    "fr":"Comment les marchés peuvent se comporter",
-    "de":"Wie die Märkte sich verhalten können",
-    "it":"Come possono comportarsi i mercati",
-    "ja":"市場がどう動くか",
-    "pt":"Como os mercados podem se comportar",
-    "ru":"Как могут вести себя рынки",
-    "zh":"市场可能如何表现"
+    "en":"Returns",
+    "es":"Rendimiento",
+    "fr":"Rendement",
+    "de":"Rendite",
+    "it":"Rendita",
+    "ja":"収益",
+    "pt":"Rendimento",
+    "ru":"Доходность",
+    "zh":"收益"
     })
 markets_prompt = Verbiage(
     {
@@ -535,11 +559,19 @@ def build_definition() -> TourDefinition:
                     "amount",
                     help=wealth_starting_wealth_help,
                 ),
+            ],
+            default_next="liquidity",
+        ),
+        Step(
+            id="liquidity",
+            title=liquidity_title,
+            prompt=liquidity_prompt,
+            fields=[
                 FieldSpec(
-                    "wealth.cash_buffer",
-                    wealth_cash_buffer,
+                    "liquidity.cash_buffer",
+                    liquidity_cash_buffer,
                     "amount",
-                    help=wealth_cash_buffer_help,
+                    help=liquidity_cash_buffer_help,
                 ),
             ],
             default_next="flows",

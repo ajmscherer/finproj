@@ -35,11 +35,13 @@ class TourPathTest(unittest.TestCase):
         runner.apply({"goal.kind": "retire_when"})
         assert runner.current() is not None
         self.assertEqual(runner.current().id, "wealth")
-        runner.apply(
-            {"wealth.initial_capital": "1M", "wealth.cash_buffer": "150k"}
-        )
+        runner.apply({"wealth.initial_capital": "1M"})
+        assert runner.current() is not None
+        self.assertEqual(runner.current().id, "liquidity")
+        runner.apply({"liquidity.cash_buffer": "150k"})
         assert runner.current() is not None
         self.assertEqual(runner.current().id, "flows")
+        self.assertEqual(runner.state.liquidity.cash_buffer, "150k")
         runner.apply({"flows.contributions": "0k", "flows.withdrawals": "50k"})
         assert runner.current() is not None
         self.assertEqual(runner.current().id, "mix")
