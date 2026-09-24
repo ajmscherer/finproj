@@ -17,6 +17,8 @@ _CHROME: dict[str,  Verbiage] = {
     "done": Verbiage("Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Обход завершён.[ru]|引导已完成。[zh]"),
 }
 
+CLEAR_WIDGETS = False
+
 
 def _chrome(key: str, language: Language) -> str:
     return _CHROME[key].to(language)
@@ -125,23 +127,30 @@ class StepView:
                     else "secondary",
                 )
 
-    def _clear_widgets(self) -> None:
+    def _clear_widgets(self, clear:bool=True) -> None:
+        '''
+        Clear all widgets from the session state.
+        '''
+        if not clear:
+            return
         for key in list(st.session_state.keys()):
-            if str(key).startswith("v4w_") or str(key).startswith("v4_field_i_"):
+            if str(key).startswith("v4w_"):
                 del st.session_state[key]
 
     def _nav(self, index: int, count: int, language: Language) -> None:
-        
         button_width = 150
         with st.container(border=False, horizontal=True, width="stretch", horizontal_alignment="right"):
-            if index > 0 and st.button(
+            if (index > 0 or self.runner.history) and st.button(
                 _chrome("previous", language), width=button_width, key="v4_prev"
             ):
-                st.session_state[self._cursor_key()] = index - 1
-                st.rerun()
-            elif st.button(_chrome("back", language), width=button_width, key="v4_back"):
-                self.runner.back()
-                self._clear_widgets()
+                if index > 0:
+                    st.session_state[self._cursor_key()] = index - 1
+                else:
+                    self.runner.back()
+                    self._clear_widgets(CLEAR_WIDGETS)
+                    step = self.runner.current()
+                    visible = step.visible_fields(self.runner.state) if step else []
+                    st.session_state[self._cursor_key()] = max(0, len(visible) - 1)
                 st.rerun()
             if count and index < count - 1:
                 if st.button(
@@ -165,5 +174,8 @@ class StepView:
                     for spec in step.visible_fields(state):
                         answers[spec.path] = FieldWidget(spec).read()
                 self.runner.apply(answers)
-                self._clear_widgets()
+                self._clear_widgets(CLEAR_WIDGETS)
+                arrived = self.runner.current()
+                if arrived is not None:
+                    st.session_state.pop(f"v4_field_i_{arrived.id}", None)
                 st.rerun()
