@@ -9,7 +9,7 @@ from model.runner import TourRunner
 from model.step import FieldSpec
 from ui.widgets import FieldWidget
 
-_CHROME: dict[str,  Verbiage] = {
+BUTTON_VERBIAGE: dict[str,  Verbiage] = {
     "previous": Verbiage("Previous[en]|Anterior[es]|Précédent[fr]|Vorheriger[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Предыдущий[ru]|上一步[zh]"),
     "back": Verbiage("Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|Назад[ru]|返回[zh]"),
     "next": Verbiage("Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一步[zh]"),
@@ -21,7 +21,7 @@ CLEAR_WIDGETS = False
 
 
 def _chrome(key: str, language: Language) -> str:
-    return _CHROME[key].to(language)
+    return BUTTON_VERBIAGE[key].to(language)
 
 
 class StepView:
@@ -146,7 +146,7 @@ class StepView:
                 if index > 0:
                     st.session_state[self._cursor_key()] = index - 1
                 else:
-                    self.runner.back()
+                    self.runner.retreat(self._draft_answers())
                     self._clear_widgets(CLEAR_WIDGETS)
                     step = self.runner.current()
                     visible = step.visible_fields(self.runner.state) if step else []

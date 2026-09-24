@@ -46,6 +46,18 @@ class TourPathTest(unittest.TestCase):
         assert runner.current() is not None
         self.assertEqual(runner.current().id, "mix")
 
+    def test_retreat_keeps_answers_from_the_step_left(self) -> None:
+        runner = TourRunner(build_definition())
+        runner.apply({"goal.kind": "retire_when"})
+        runner.apply({"wealth.initial_capital": "1M"})
+        runner.apply({"liquidity.cash_buffer": "150k"})
+        runner.retreat({"flows.contributions": "10k", "flows.withdrawals": "0k"})
+        assert runner.current() is not None
+        self.assertEqual(runner.current().id, "liquidity")
+        self.assertEqual(runner.state.liquidity.cash_buffer, "150k")
+        self.assertEqual(runner.state.flows.contributions, "10k")
+        self.assertEqual(runner.state.flows.withdrawals, "0k")
+
     def test_other_field_hidden_until_selected(self) -> None:
         runner = TourRunner(build_definition())
         goal = runner.current()

@@ -70,3 +70,15 @@ class TourRunner:
         self.current_id = self.history.pop()
         self.state = self.snapshots.pop()
         return self.current()
+
+    def retreat(self, answers: dict[str, Any] | None = None) -> Step | None:
+        """Move to the previous step and keep answers from the step being left."""
+        leaving = self.current()
+        if leaving is not None and answers:
+            self.state = merge_answers(self.state, leaving, answers)
+        if not self.history:
+            return self.current()
+        self.current_id = self.history.pop()
+        if self.snapshots:
+            self.snapshots.pop()
+        return self.current()
