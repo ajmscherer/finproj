@@ -32,16 +32,18 @@ class FieldWidget:
 
     def render(self, language: Language) -> None:
         spec = self.spec
-        st.markdown(f"**{spec.label}**")
+        st.markdown(f"**{spec.label.to(language)}**")
         if spec.help:
-            st.caption(spec.help)
+            st.caption(spec.help.to(language))
         key = self.key()
         if spec.kind == "choice":
             labels = spec.choice_labels or {}
             st.radio(
                 spec.label.to(language),
                 options=list(spec.choices or ()),
-                format_func=lambda value: labels.get(value, value),
+                format_func=lambda value: (
+                    labels[value].to(language) if value in labels else value
+                ),
                 key=key,
                 label_visibility="visible",
                 help=spec.help.to(language) if spec.help else None,

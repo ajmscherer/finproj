@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from content.verbiage import Language
 from model.runner import TourRunner
 from model.step import FieldSpec
 from ui.widgets import FieldWidget
@@ -38,12 +39,13 @@ class StepView:
         return step.visible_fields(state)
 
     def render(self) -> None:
+        language: Language = "fr"
         step = self.runner.current()
         if step is None:
             st.success("Tour complete.")
             return
 
-        self._timeline()
+        self._timeline(language)
         visible = self._visible()
         index = int(st.session_state.get(self._cursor_key(), 0))
         if visible:
@@ -53,8 +55,8 @@ class StepView:
         st.session_state[self._cursor_key()] = index
 
         with st.container(border=True):
-            st.markdown(f"### {step.title}")
-            st.caption(step.prompt)
+            st.markdown(f"### {step.title.to(language)}")
+            st.caption(step.prompt.to(language))
             if not visible:
                 self._nav(index, 0)
                 return
@@ -65,10 +67,10 @@ class StepView:
                 widget = FieldWidget(spec)
                 widget.seed(preview)
                 with st.container(border=(i == index)):
-                    widget.render()
+                    widget.render(language)
             self._nav(index, len(visible))
 
-    def _timeline(self) -> None:
+    def _timeline(self, language: Language) -> None:
         ids = [
             step_id
             for step_id in (*self.runner.history, self.runner.current_id)
