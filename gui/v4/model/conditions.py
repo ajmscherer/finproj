@@ -39,3 +39,4 @@ goal_is_retire_when = Condition(
 goal_is_save_for_income = Condition(
     "goal_is_save_for_income", lambda state: state.goal.kind == "save_for_income"
 )
+

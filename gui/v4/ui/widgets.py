@@ -22,6 +22,7 @@ class FieldWidget:
         return "v4w_" + self.spec.path.replace(".", "_")
 
     def seed(self, state: TourState) -> None:
+        """Seed the widget with the value from the state."""
         key = self.key()
         if key in st.session_state:
             return
@@ -45,8 +46,7 @@ class FieldWidget:
                     labels[value].to(language) if value in labels else value
                 ),
                 key=key,
-                label_visibility="visible",
-                help=spec.help.to(language) if spec.help else None,
+                label_visibility="hidden",
             )
         elif spec.kind == "text":
             st.text_area(spec.label.to(language), key=key, label_visibility="collapsed")

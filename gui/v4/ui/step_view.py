@@ -20,7 +20,7 @@ BUTTON_VERBIAGE: dict[str,  Verbiage] = {
 CLEAR_WIDGETS = False
 
 
-def _chrome(key: str, language: Language) -> str:
+def _button_label(key: str, language: Language) -> str:
     return BUTTON_VERBIAGE[key].to(language)
 
 
@@ -55,7 +55,7 @@ class StepView:
     def render(self, language: Language) -> None:
         step = self.runner.current()
         if step is None:
-            st.success(_chrome("done", language))
+            st.success(_button_label("done", language))
             return
 
         # timeline
@@ -83,20 +83,7 @@ class StepView:
                 widget = FieldWidget(spec)
                 widget.seed(preview)
 
-                focus = i == index
-                if focus:
-                    st.markdown(
-                        """
-                        <style>
-                        .st-key-v4_focus {
-                            background-color: #fff3bf;
-                            border-radius: 0.5rem;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                with st.container(border=True, key="v4_focus" if focus else f"v4_focus_{i}"):
+                with st.container(border=True):
                     widget.render(language)
 
             # navigation buttons
@@ -117,7 +104,7 @@ class StepView:
             return
         with st.container(border=False, horizontal=True):
             for step_id in ids:
-                st.button(
+                if st.button(
                     self.runner.definition.get(step_id).title.to(language),
                     key=f"v4_tl_{step_id}_{len(self.runner.history)}",
                     disabled=False,
@@ -125,7 +112,11 @@ class StepView:
                     type="primary"
                     if step_id == self.runner.current_id
                     else "secondary",
-                )
+                ) and step_id != self.runner.current_id:
+                    self.runner.go_to(step_id, self._draft_answers())
+                    self._clear_widgets(CLEAR_WIDGETS)
+                    st.session_state[f"v4_field_i_{step_id}"] = 0
+                    st.rerun()
 
     def _clear_widgets(self, clear:bool=True) -> None:
         '''
@@ -141,7 +132,7 @@ class StepView:
         button_width = 150
         with st.container(border=False, horizontal=True, width="stretch", horizontal_alignment="right"):
             if (index > 0 or self.runner.history) and st.button(
-                _chrome("previous", language), width=button_width, key="v4_prev"
+                _button_label("previous", language), width=button_width, key="v4_prev"
             ):
                 if index > 0:
                     st.session_state[self._cursor_key()] = index - 1
@@ -152,9 +143,34 @@ class StepView:
                     visible = step.visible_fields(self.runner.state) if step else []
                     st.session_state[self._cursor_key()] = max(0, len(visible) - 1)
                 st.rerun()
+
+            if st.button(  # noqa: SIM102
+                    _button_label("next", language),
+                    type="primary",
+                    width=button_width,
+                    key="v4_next",
+                ):
+                if count and index < count - 1:
+                    st.session_state[self._cursor_key()] = index + 1
+                    st.rerun()
+                else:
+                    step = self.runner.current()
+                    answers: dict[str, object] = {}
+                    if step is not None:
+                        state = self.runner.preview(self._draft_answers())
+                        for spec in step.visible_fields(state):
+                            answers[spec.path] = FieldWidget(spec).read()
+                    self.runner.apply(answers)
+                    self._clear_widgets(CLEAR_WIDGETS)
+                    arrived = self.runner.current()
+                    if arrived is not None:
+                        st.session_state.pop(f"v4_field_i_{arrived.id}", None)
+                    st.rerun()
+
+            '''
             if count and index < count - 1:
                 if st.button(
-                    _chrome("next", language),
+                    _button_label("next", language),
                     type="primary",
                     width=button_width,
                     key="v4_next",
@@ -162,7 +178,7 @@ class StepView:
                     st.session_state[self._cursor_key()] = index + 1
                     st.rerun()
             elif st.button(
-                _chrome("continue", language),
+                _button_label("continue", language),
                 type="primary",
                 width=button_width,
                 key="v4_continue",
@@ -179,3 +195,4 @@ class StepView:
                 if arrived is not None:
                     st.session_state.pop(f"v4_field_i_{arrived.id}", None)
                 st.rerun()
+            '''

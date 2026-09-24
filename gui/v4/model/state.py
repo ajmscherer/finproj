@@ -13,6 +13,8 @@ Goal = Literal["retire_when", "save_for_income", "other"]
 class GoalState:
     kind: Goal | None = None
     other_text: str | None = None
+    target_income: str | None = None
+    years_to_retire: int | None = None
 
 
 @dataclass

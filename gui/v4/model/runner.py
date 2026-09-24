@@ -82,3 +82,16 @@ class TourRunner:
         if self.snapshots:
             self.snapshots.pop()
         return self.current()
+
+    def go_to(self, step_id: str, answers: dict[str, Any] | None = None) -> Step | None:
+        """Move to a step already on the timeline, keeping answers from the step left."""
+        leaving = self.current()
+        if leaving is not None and answers:
+            self.state = merge_answers(self.state, leaving, answers)
+        if step_id == self.current_id or step_id not in self.history:
+            return self.current()
+        while self.history and self.current_id != step_id:
+            self.current_id = self.history.pop()
+            if self.snapshots:
+                self.snapshots.pop()
+        return self.current()

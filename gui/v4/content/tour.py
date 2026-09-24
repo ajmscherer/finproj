@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from model.conditions import goal_is_other
+from model.conditions import goal_is_other, goal_is_retire_when, goal_is_save_for_income
 from model.definition import TourDefinition
 from model.step import FieldSpec, Step
 
@@ -12,92 +12,141 @@ from gui.v4.content.verbiage import Verbiage
 # goal
 goal_title = Verbiage(
     {
-        "en":"Goal",
-        "es":"Objetivo",
-        "fr":"Objectif",
-        "de":"Ziel",
-        "it":"Obiettivo",
-        "ja":"目標",
-        "pt":"Objetivo",
-        "ru":"Цель",
-        "zh":"目标",
+        "en":"Goals",
+        "es":"Objetivos",
+        "fr":"Objectifs",
+        "de":"Ziele",
+        "it":"Obiettivi",
+        "ja":"目標s",
+        "pt":"Objetivos",
+        "ru":"Цели",
+        "zh":"目标s",
     }
 )
 goal_prompt = Verbiage(
     {
-    "en":"What is your goal when using this app? Do you want to evaluate when you can retire, or find out how much you need to save to attain a certain lifestyle when you retire, or some other analysis you are interested in?",
-    "es":"¿Cuál es tu objetivo al usar esta aplicación? ¿Quieres evaluar cuándo puedes retirarte, o averiguar cuánto necesitas ahorrar para alcanzar un cierto estilo de vida cuando te retires, o alguna otra análisis que te interesan?",
-    "fr":"Quel est votre objectif lors de l'utilisation de cette application? Voulez-vous évaluer quand vous pouvez prendre votre retraite, ou découvrir combien vous devez épargner pour atteindre un certain style de vie quand vous prendrez votre retraite, ou quelque autre analyse que vous êtes intéressé?",
-    "de":"Was ist Ihr Ziel bei der Verwendung dieser Anwendung? Möchten Sie evaluieren, wann Sie in Rente gehen können, oder herausfinden, wie viel Sie sparen müssen, um ein bestimmtes Leben zu führen, wenn Sie in Rente gehen, oder eine andere Analyse, die Sie interessiert?",
-    "it":"Che cosa è il tuo obiettivo quando usi questa app? Vuoi valutare quando puoi andare in pensione, o scoprire quanto devi risparmiare per raggiungere un certo stile di vita quando andrai in pensione, o qualche altra analisi che ti interessa?",
-    "ja":"このアプリを使用する目的は何ですか？引退できる時期を評価したいのか、引退後に一定の生活を送るためにどれだけ貯める必要があるかを知りたいのか、それともその他の分析に興味があるのか？",
-    "pt":"Qual é o seu objetivo ao usar este aplicativo? Você quer avaliar quando você pode se aposentar, ou descobrir quanto você precisa poupar para atingir um certo estilo de vida quando você se aposentar, ou alguma outra análise que você está interessado?",
-    "ru":"Ваше цель при использовании этого приложения? Вы хотите оценить, когда вы сможете выйти на пенсию, или узнать, сколько вам нужно сэкономить, чтобы достичь определенного образа жизни при выходе на пенсию, или какую-то другую аналитику, которая вас интересует?",
-    "zh":"你的目标是什么？你想评估何时可以退休，或者想知道为了退休后过上一定的生活需要存多少钱，或者你对其他感兴趣的分析？"
+    "en":"This application is designed to help you make decisions regarding your retirement. There are different manners to approach the problem. This step will help determine which approach is best given the questions on your mind",
+    "es":"Esta aplicación está diseñada para ayudarte a tomar decisiones relacionadas con tu retiro. Hay diferentes maneras de abordar el problema. Este paso te ayudará a determinar qué enfoque es el mejor dado las preguntas en tu mente",
+    "fr":"Cette application est conçue pour vous aider à prendre des décisions concernant votre retraite. Il existe différentes manières d'aborder le problème. Cette étape vous aidera à déterminer quelle approche est la meilleure données les questions sur votre esprit",
+    "de":"Diese Anwendung ist konzipiert, um Ihnen dabei zu helfen, Entscheidungen bezüglich Ihrer Rente zu treffen. Es gibt verschiedene Möglichkeiten, das Problem anzugehen. Dieser Schritt wird Ihnen helfen, zu bestimmen, welche Methode am besten geeignet ist, gegeben die Fragen in Ihrem Kopf",
+    "it":"Questa applicazione è progettata per aiutarti a prendere decisioni relative alla tua pensione. Ci sono diverse maniere di affrontare il problema. Questo passo ti aiuterà a determinare quale approccio è il migliore dato le domande nella tua mente",
+    "ja":"このアプリは、あなたの引退に関する意思決定を支援するように設計されています。問題に対する異なるアプローチがあります。このステップは、あなたの頭にある質問に基づいて、最適なアプローチを決定するのに役立ちます",
+    "pt":"Esta aplicação é projetada para ajudar você a tomar decisões relacionadas com sua aposentadoria. Existem diferentes maneiras de abordar o problema. Este passo ajudará a determinar qual abordagem é a melhor dada as perguntas em sua mente",
+    "ru":"Это приложение разработано для помощи вам принимать решения относительно вашей пенсии. Существуют различные способы решения проблемы. Этот шаг поможет определить, какой подход является наиболее подходящим, учитывая вопросы в вашем уме",
+    "zh":"这个应用程序旨在帮助您做出与退休相关的决策。有不同的方法来解决这个问题。这一步将帮助确定哪种方法最适合您的问题"
     })
 
 goal_kind_title = Verbiage(
     {
-    "en":"What should this projection help you decide?",
-    "es":"¿Qué debería ayudarte a decidir esta proyección?",
-    "fr":"Qu'est-ce que cette projection devrait vous aider à décider?",
-    "de":"Wobei soll diese Projektion Ihnen bei der Entscheidung helfen?",
-    "it":"Che cosa dovrebbe aiutarti a decidere questa proiezione?",
-    "ja":"この試算は、何を決める助けになるべきですか？",
-    "pt":"O que esta projeção deve ajudar você a decidir?",
-    "ru":"Что эта проекция должна помочь вам решить?",
-    "zh":"这项预测应该帮助你决定什么？"
+    "en":"How can this application help you?",
+    "es":"¿Cómo puede esta aplicación ayudarte?",
+    "fr":"Comment cette application peut vous aider?",
+    "de":"Wie kann diese Anwendung Ihnen helfen?",
+    "it":"Come può questa applicazione aiutarti?",
+    "ja":"このアプリは、あなたをどのように助けることができますか？",
+    "pt":"Como esta aplicação pode ajudar-lhe?",
+    "ru":"Как это приложение может помочь вам?",
+    "zh":"这个应用程序如何帮助您？" 
     })
 goal_kind_retire_when = Verbiage(
     {
-    "en":"Decide when I can retire",
-    "es":"Decidir cuándo puedo jubilarme",
-    "fr":"Décider quand je peux prendre ma retraite",
-    "de":"Entscheiden, wann ich in Rente gehen kann",
-    "it":"Decidere quando posso andare in pensione",
-    "ja":"いつ引退できるかを決める",
-    "pt":"Decidir quando posso me aposentar",
-    "ru":"Решить, когда я смогу выйти на пенсию",
-    "zh":"决定我何时可以退休"
+    "en":"When shall I have accumulated enough wealth to retire?",
+    "es":"¿Cuándo acumularás suficiente riqueza para retirarte?",
+    "fr":"Quand aurais-je accumulé suffisamment de richesse pour prendre ma retraite?",
+    "de":"Wann haben Sie genug Vermögen gesammelt, um in Rente zu gehen?",
+    "it":"Quando accumulerete abbastanza ricchezza per andare in pensione?",
+    "ja":"いつあなたが十分な富を蓄えて引退できるかを決める",
+    "pt":"Quando você terá acumulado suficiente riqueza para se aposentar?",
+    "ru":"Когда вы накопите достаточно состояния, чтобы выйти на пенсию?",
+    "zh":"你什么时候能积累足够的财富退休？"
     })
-
 goal_kind_save_for_income = Verbiage(
     {
-    "en":"Decide how much I need to save",
-    "es":"Decidir cuánto necesito ahorrar",
-    "fr":"Décider combien je dois épargner",
-    "de":"Entscheiden, wie viel ich sparen muss",
-    "it":"Decidere quanto devo risparmiare",
+    "en":"How much do I need to save to retire with the income I want/need?",
+    "es":"¿Cuánto necesito ahorrar para retirarte con el ingreso que quiero/necesito?",
+    "fr":"Combien dois-je épargner pour prendre ma retraite avec le revenu que je veux/ai besoin?",
+    "de":"Wie viel muss ich sparen, um in Rente zu gehen mit dem Einkommen, das ich möchte/brauche?",
+    "it":"Quanto devo risparmiare per andare in pensione con l'importo di reddito che voglio/ho bisogno?",
     "ja":"どれだけ貯める必要があるかを決める",
-    "pt":"Decidir quanto preciso poupar",
-    "ru":"Решить, сколько мне нужно накопить",
-    "zh":"决定我需要存多少钱"
+    "pt":"Quanto preciso poupar para se aposentar com o rendimento que quero/preciso?",
+    "ru":"Сколько мне нужно накопить, чтобы выйти на пенсию с доходом, который я хочу/нужен?",
+    "zh":"我需要存多少钱才能退休并获得我想要的收入？"
     })
 goal_kind_other = Verbiage(
     {
-    "en":"Other usage",
-    "es":"Otro uso",
-    "fr":"Autre utilisation",
-    "de":"Andere Verwendung",
-    "it":"Altro utilizzo",
-    "ja":"その他の用途",
-    "pt":"Outro uso",
-    "ru":"Другое применение",
-    "zh":"其他用途"
+    "en":"Other",
+    "es":"Otro",
+    "fr":"Autre",
+    "de":"Andere",
+    "it":"Altro",
+    "ja":"その他",
+    "pt":"Outro",
+    "ru":"Другое",
+    "zh":"其他"
     })
 goal_kind_other_help = Verbiage(
     {
-    "en":"Describe what you want to do.",
-    "es":"Describe lo que quieres hacer.",
-    "fr":"Décrivez ce que vous voulez faire.",
-    "de":"Beschreiben Sie, was Sie tun möchten.",
-    "it":"Descrivi ciò che vuoi fare.",
-    "ja":"やりたいことを説明してください。",
-    "pt":"Descreva o que você quer fazer.",
-    "ru":"Опишите, что вы хотите сделать.",
-    "zh":"描述你想做什么。"
+    "en":"Choose what you want to do.",
+    "es":"Elige lo que quieres hacer.",
+    "fr":"Choisissez ce que vous voulez faire.",
+    "de":"Wählen Sie, was Sie tun möchten.",
+    "it":"Scegli ciò che vuoi fare.",
+    "ja":"何をしたいか選んでください。",
+    "pt":"Escolha o que você quer fazer.",
+    "ru":"Выберите, что вы хотите сделать.",
+    "zh":"选择你想做什么。"
     })
 
+goal_target_income = Verbiage(
+    {
+    "en":"What annual amount do you target for your retirement?",
+    "es":"¿Qué monto anual objetivo tienes para tu retiro?",
+    "fr":"Quel montant annuel ciblez vous pour votre retraite?",
+    "de":"Welches jährliche Ziel haben Sie für Ihre Rente?",
+    "it":"Quale importo annuo obiettivo hai per la tua pensione?",
+    "ja":"引退後に得たい必要な年収はどれくらいですか？",
+    "pt":"Qual montante anual você precisa para sua aposentadoria?",
+    "ru":"Какой ежегодный доход цели вы хотели бы, чтобы ваше состояние генерировало с моментая выхода на пенсию?",
+    "zh":"你退休后需要多少年收入？"
+    })
+
+goal_target_income_help = Verbiage(
+    {
+    "en":"This is the annual amount you will draw from your own assets (your wealth), from the time you retire. Do not include here the amounts you expect to receive from other sources. For example, if you are eligible to social security retirement, do not include corresponding amount in this target. You can type 50k for 50,000.",
+    "es":"Este es el monto anual que vas a retirar de tus propios activos (tu riqueza), desde el momento en que te jubiles. No incluyas aquí los montos que esperas recibir de otras fuentes. Por ejemplo, si eres elegible para la jubilación de la seguridad social, no incluyas el monto correspondiente en este objetivo. Puedes escribir 50k para 50,000.",
+    "fr":"C'est le montant annuel que vous retirerez de vos propres actifs (votre richesse), à partir du moment où vous prenez votre retraite. Ne pas inclure ici les montants que vous espérez recevoir d'autres sources. Par exemple, si vous êtes éligible à la retraite de la sécurité sociale, ne pas inclure le montant correspondant dans cette cible. Vous pouvez taper 50k pour 50,000.",
+    "de":"Dies ist der jährliche Betrag, den Sie aus Ihren eigenen Vermögenswerten (Ihrem Vermögen) abziehen, ab dem Zeitpunkt, wenn Sie in Rente gehen. Schließen Sie hier nicht die Beträge ein, die Sie von anderen Quellen erwarten. Zum Beispiel, wenn Sie rentenversichert sind, schließen Sie nicht den entsprechenden Betrag in dieses Ziel ein. Sie können 50k für 50,000 eingeben.",
+    "it":"Questo è l'importo annuo che si preleva dai propri beni (il tuo patrimonio), dal momento in cui si pensiona. Non includere qui i montanti che aspetti di ricevere da altre fonti. Per esempio, se sei elegibile per la pensione della sicurezza sociale, non includere il corrispondente importo in questo obiettivo. Puoi digitare 50k per 50,000.",
+    "ja":"引退後に必要な年収はどれくらいですか？引退後に受け取る予定の他の収入を引いてください。例えば、社会保険の引退が可能な場合は、この目標に対応する金額を含めないでください。50kと入力すると50,000円になります。",
+    "pt":"Qual montante anual você precisa para sua aposentadoria? Não inclua aqui os montantes que você espera receber de outras fontes. Por exemplo, se você é elegível para a aposentadoria da segurança social, não inclua o montante correspondente nesta meta. Você pode digitar 50k para 50,000.",
+    "ru":"Какой ежегодный доход вам нужен для выхода на пенсию? Не включайте здесь суммы, которые вы ожидаете получить от других источников. Например, если вы имеете право на социальное обеспечение, не включайте соответствующую сумму в эту цель. Можно ввести 50k для 50,000.",
+    "zh":"你退休后需要多少年收入？不要包括你预计从其他来源获得的收入。例如，如果你有资格享受社会养老保险，不要将相应的金额包含在这个目标中。你可以输入50k表示50,000元。"
+    })
+
+goal_years_to_retire = Verbiage(
+    {
+    "en":"How many years until you retire?",
+    "es":"¿Cuántos años hasta que te jubiles?",
+    "fr":"Combien d'années jusqu'à ce que vous preniez votre retraite?",
+    "de":"Wie viele Jahre bis Sie in Rente gehen?",
+    "it":"Quanti anni fino a che ti pensioni?",
+    "ja":"何年後に引退しますか？",
+    "pt":"Quantos anos até você se aposentar?",
+    "ru":"Сколько лет до выхода на пенсию?",
+    "zh":"你还有多少年退休？"
+    })
+goal_years_to_retire_help = Verbiage(
+    {
+    "en":"Count the number of years between now and the time you target to retire.",
+    "es":"Cuenta el número de años entre ahora y el momento en que quieres jubilarte.",
+    "fr":"Comptez le nombre d'années entre maintenant et le moment où vous souhaitez prendre votre retraite.",
+    "de":"Zählen Sie die Anzahl der Jahre zwischen jetzt und dem Zeitpunkt, wenn Sie in Rente gehen.",
+    "it":"Conta il numero di anni tra ora e il momento in cui vuoi pensionarti.",
+    "ja":"今から引退までの年数を数えてください。",
+    "pt":"Conte o número de anos entre agora e o momento em que você quer se aposentar.",
+    "ru":"Подсчитайте количество лет между сейчас и моментом выхода на пенсию, когда вы хотите выйти на пенсию.",
+    "zh":"从现在到你目标退休还有多少年。"
+    })
 wealth_title = Verbiage(
     {
     "en":"Wealth",
@@ -112,39 +161,39 @@ wealth_title = Verbiage(
     })
 wealth_prompt = Verbiage(
     {
-    "en":"Start with what you have now.",
-    "es":"Empieza con lo que tienes ahora.",
-    "fr":"Commencez par ce que vous avez maintenant.",
-    "de":"Beginnen Sie mit dem, was Sie jetzt haben.",
-    "it":"Inizia con ciò che hai ora.",
-    "ja":"今持っているものから始めてください。",
-    "pt":"Comece com o que você tem agora.",
-    "ru":"Начните с того, что у вас есть сейчас.",
-    "zh":"从你现在拥有的开始。"
+    "en":"To do calculations, the model needs to know your current wealth. This includes all assets you own,",
+    "es":"Para hacer cálculos, el modelo necesita saber tu riqueza actual. Esto incluye todos los activos que tienes,",
+    "fr":"Pour faire des calculs, le modèle a besoin de connaître votre richesse actuelle. Cela inclut tous les actifs que vous possédez,",
+    "de":"Um Rechenmodell benötigt Ihre aktuelle Vermögenswerte, um Berechnungen durchzuführen. Dies umfasst alle Vermögenswerte, die Sie besitzen,",
+    "it":"Per fare calcoli, il modello ha bisogno di conoscere la tua ricchezza attuale. Questo include tutti i beni che possiedi,",
+    "ja":"計算を行うために、モデルはあなたの現在の富を知る必要があります。これにはあなたが所有するすべての資産が含まれます。",
+    "pt":"Para fazer cálculos, o modelo precisa saber sua riqueza atual. Isso inclui todos os ativos que você possui,",
+    "ru":"Для выполнения расчетов модель должна знать ваше текущее состояние. Это включает все активы, которыми вы владеете,",
+    "zh":"为了进行计算，模型需要知道你的当前财富。这包括你拥有的所有资产。"
     })
 wealth_starting_wealth = Verbiage(
     {
-    "en":"Starting wealth",
-    "es":"Patrimonio inicial",
-    "fr":"Richesse de départ",
-    "de":"Anfangsvermögen",
-    "it":"Patrimonio iniziale",
-    "ja":"初期資産",
-    "pt":"Patrimônio inicial",
-    "ru":"Начальное состояние",
-    "zh":"初始财富"
+    "en":"Your amount of wealth as of today",
+    "es":"Tu cantidad de riqueza hoy",
+    "fr":"Votre montant de richesse aujourd'hui",
+    "de":"Ihr Vermögen heute",
+    "it":"La tua ricchezza odierna",
+    "ja":"今日のあなたの富の金額",
+    "pt":"Sua quantidade de riqueza hoje",
+    "ru":"Ваше состояние сегодня",
+    "zh":"你今天的财富金额"
     })
 wealth_starting_wealth_help = Verbiage(
     {
-    "en":"You can type 1M for one million, or 250k for 250,000.",
-    "es":"Puedes escribir 1M para un millón, o 250k para 250.000.",
-    "fr":"Vous pouvez taper 1M pour un million, ou 250k pour 250,000.",
-    "de":"Sie können 1M für eine Million eingeben, oder 250k für 250.000.",
-    "it":"Puoi digitare 1M per un milione, o 250k per 250,000.",
-    "ja":"1Mと入力すると100万、250kと入力すると25万になります。",
-    "pt":"Você pode digitar 1M para um milhão, ou 250k para 250,000.",
-    "ru":"Можно ввести 1M для миллиона или 250k для 250 000.",
-    "zh":"你可以输入1M表示一百万，或者250k表示250,000。"
+    "en":"Provide here the total amount of your wealth as of today. Include real estate, stocks, bonds, cash, and other assets. Do not reduce this amount by the debt you owe. The model assumes that the servicing of the debt is covered by your existing income and, after you retire, in the amount you can draw from your wealth. Specific situations will be addressed later, for example in case there is a very substantial amount of capital outstanding that is can't be paid back in your lifetime.",
+    "es":"Proporciona aquí el monto total de tu riqueza hoy. Incluye bienes raíces, acciones, bonos, efectivo y otros activos. No reduzcas este monto por la deuda que debes. El modelo asume que el servicio de la deuda está cubierto por tu ingreso actual y, después de tu retiro, en la cantidad que puedes extraer de tu riqueza. Situaciones específicas se abordarán más adelante, por ejemplo en caso de que haya una cantidad muy sustancial de capital pendiente que no puede ser pagada en tu vida.",
+    "fr":"Fournissez ici le montant total de votre richesse aujourd'hui. Incluez les biens immobiliers, les actions, les obligations, l'argent liquide et les autres actifs. Ne réduisez pas ce montant par la dette que vous devez. Le modèle suppose que le service de la dette est couvert par votre revenu actuel et, après votre retraite, dans la quantité que vous pouvez extraire de votre richesse. Des situations spécifiques seront abordées plus tard, par exemple en cas d'une très importante somme de capital en suspens qui ne peut pas être remboursée dans votre vie.",
+    "de":"Geben Sie hier den Gesamtbetrag Ihres Vermögens zum heutigen Tag an. Enthalten sind Immobilien, Aktien, Anleihen, Bargeld und andere Vermögenswerte. Reduzieren Sie diesen Betrag nicht durch die Schulden, die Sie schulden. Das Modell geht davon aus, dass die Abzahlung der Schulden durch Ihr aktuelles Einkommen gedeckt ist und nach Ihrer Rente durch den Betrag, den Sie aus Ihrem Vermögen ziehen können. Spezielle Situationen werden später behandelt, z. B. im Fall einer sehr großen Summe an Kapital, die nicht in Ihrem Leben zurückgezahlt werden kann.",
+    "it":"Fornisci qui il totale del tuo patrimonio odierno. Includi immobili, azioni, obbligazioni, denaro liquido e altri asset. Non riduci questo importo per il debito che devi. Il modello assume che il servizio del debito sia coperto dal tuo reddito attuale e, dopo il tuo pensionamento, nella quantità che puoi estrarre dal tuo patrimonio. Situazioni specifiche saranno affrontate più tardi, ad esempio nel caso di una notevole somma di capitale in sospeso che non può essere rimborsata nella tua vita.",
+    "ja":"今日のあなたの富の合計金額を提供してください。不動産、株式、債券、現金、その他の資産を含めてください。借入金を差し引かないでください。モデルは、借入金の支払いが現在の収入でカバーされ、引退後に富から引き出せる金額でカバーされると仮定しています。特定の状況は後で対処されます。たとえば、生涯で返済できない非常に大きな金額の資本が残っている場合などです。",
+    "pt":"Forneça aqui o montante total de sua riqueza hoje. Inclua imóveis, ações, títulos, dinheiro e outros ativos. Não reduza este montante pela dívida que você deve. O modelo assume que o serviço da dívida é coberto pelo seu rendimento atual e, após sua aposentadoria, na quantidade que você pode extrair de sua riqueza. Situações específicas serão abordadas mais tarde, por exemplo, no caso de uma quantia substancial de capital pendente que não pode ser paga em sua vida.",
+    "ru":"Укажите здесь общую сумму вашего состояния на сегодня. Включите недвижимость, акции, облигации, наличные и другие активы. Не вычитайте из этой суммы сумму долга, которую вы должны. Модель предполагает, что обслуживание долга покрывается вашим текущим доходом и, после выхода на пенсию, в сумме, которую вы можете извлечь из своего состояния. Специальные ситуации будут рассмотрены позже, например, в случае очень большой суммы просроченного капитала, которая не может быть выплачена в течение вашей жизни.",
+    "zh":"在这里提供你今天的总财富金额。包括房地产、股票、债券、现金和其他资产。不要减去你欠的债务。模型假设债务的偿还由你的现有收入和退休后可以从财富中提取的金额来覆盖。特定情况将在稍后处理，例如在有非常大额的资本无法在您的有生之年偿还的情况下。"
     })
 liquidity_title = Verbiage(
     {
@@ -543,6 +592,22 @@ def build_definition() -> TourDefinition:
                     "text",
                     when=goal_is_other,
                     help=goal_kind_other_help,
+                ),
+                FieldSpec(
+                    path="goal.target_income",
+                    label=goal_target_income,
+                    kind="amount",
+                    #min=0,
+                    when=goal_is_retire_when | goal_is_save_for_income,
+                    help=goal_target_income_help,
+                ),
+                FieldSpec(
+                    path="goal.years_to_retire",
+                    label=goal_years_to_retire,
+                    kind="int",
+                    min=0,
+                    when=goal_is_save_for_income,
+                    help=goal_years_to_retire_help,
                 ),
             ],
             default_next="wealth",
