@@ -29,18 +29,24 @@ def _language() -> Language:
     return st.session_state.v4_language
 
 
+def _set_language(code: str) -> None:
+    st.session_state.v4_language = code
+
+
 def main() -> None:
     st.set_page_config(page_title="finproj", layout="centered")
     with st.container(horizontal=False):
     
         with st.container(horizontal=True, horizontal_alignment="right", gap=None):
-            for code, name in LANGUAGE_NAMES.items():
-                if st.button(code, key=f"v4_language_{code}", help=name):
-                    st.session_state.v4_language = code
-        language = _language()
+            language = _language()
+            if st.button(f"🌐 {language}", key="v4_language_toggle", help=f"{LANGUAGE_NAMES[language]}"):                
+                for code, name in LANGUAGE_NAMES.items():
+                    if code !=language:
+                        st.button(code, key=f"v4_language_{code}", help=name, on_click=lambda c=code:_set_language(c))
+                
         st.title("Serenity")
         st.caption(_CAPTION.to(language))
-    StepView(_runner()).render(st.session_state.v4_language)
+    StepView(_runner()).render(_language())
 
 
 main()

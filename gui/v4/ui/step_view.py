@@ -89,11 +89,8 @@ class StepView:
             # navigation buttons
             self._nav(index, len(visible), language)
             
-        st.divider()
-        st.markdown("### Debug")
-        st.write(self._draft_answers())
-        st.write(self.runner.preview(self._draft_answers()))
-
+        self._debug()
+        
     def _timeline(self, language: Language) -> None:
         ids = [
             step_id
@@ -117,6 +114,12 @@ class StepView:
                     self._clear_widgets(CLEAR_WIDGETS)
                     st.session_state[f"v4_field_i_{step_id}"] = 0
                     st.rerun()
+    
+    def _debug(self) -> None:
+        st.divider()
+        st.markdown("### Debug")
+        #st.write(self._draft_answers())
+        st.write(self.runner.preview(self._draft_answers()))
 
     def _clear_widgets(self, clear:bool=True) -> None:
         '''
