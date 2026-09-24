@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from model.conditions import goal_is_other, goal_is_retire_when, goal_is_save_for_income
+from model.conditions import goal_is_retire_when, goal_is_save_for_income
 from model.definition import TourDefinition
 from model.step import FieldSpec, Step
 
@@ -48,6 +48,21 @@ goal_kind_title = Verbiage(
     "ru":"Как это приложение может помочь вам?",
     "zh":"这个应用程序如何帮助您？" 
     })
+
+goal_kind_help = Verbiage(
+    {
+    "en":"Choose the question that corresponds to your situation.",
+    "es":"Elige la pregunta que corresponda a tu situación.",
+    "fr":"Choisissez la question qui correspond à votre situation.",
+    "de":"Wählen Sie die Frage, die Ihrer Situation entspricht.",
+    "it":"Scegli la domanda che corrisponde alla tua situazione.",
+    "ja":"あなたの状況に対応する質問を選んでください。",
+    "pt":"Escolha a pergunta que corresponde à sua situação.",
+    "ru":"Выберите вопрос, который соответствует вашей ситуации.",
+    "zh":"选择与您的情况相对应的问题。"
+    })
+
+
 goal_kind_retire_when = Verbiage(
     {
     "en":"When shall I have accumulated enough wealth to retire?",
@@ -62,15 +77,15 @@ goal_kind_retire_when = Verbiage(
     })
 goal_kind_save_for_income = Verbiage(
     {
-    "en":"How much do I need to save to retire with the income I want/need?",
-    "es":"¿Cuánto necesito ahorrar para retirarte con el ingreso que quiero/necesito?",
-    "fr":"Combien dois-je épargner pour prendre ma retraite avec le revenu que je veux/ai besoin?",
-    "de":"Wie viel muss ich sparen, um in Rente zu gehen mit dem Einkommen, das ich möchte/brauche?",
-    "it":"Quanto devo risparmiare per andare in pensione con l'importo di reddito che voglio/ho bisogno?",
-    "ja":"どれだけ貯める必要があるかを決める",
-    "pt":"Quanto preciso poupar para se aposentar com o rendimento que quero/preciso?",
-    "ru":"Сколько мне нужно накопить, чтобы выйти на пенсию с доходом, который я хочу/нужен?",
-    "zh":"我需要存多少钱才能退休并获得我想要的收入？"
+    "en":"I know when I want to retire. How much do I need to save annually?",
+    "es":"Sé cuándo quiero retirarme. ¿Cuánto necesito ahorrar anualmente?",
+    "fr":"Je sais quand je veux prendre ma retraite. Combien dois-je épargner annuellement?",
+    "de":"Ich weiß, wann ich in Rente gehen möchte. Wie viel muss ich jährlich sparen?",
+    "it":"So quando vuoi andare in pensione. Quanto devo risparmiare annualmente?",
+    "ja":"引退したい時期がわかっています。年間でどれくらいの金額を貯める必要がありますか？",
+    "pt":"Sei quando você quer se aposentar. Quanto preciso poupar anualmente?",
+    "ru":"Я знаю, когда я хочу выйти на пенсию. Сколько мне нужно накопить ежегодно?",
+    "zh":"我知道我什么时候想退休。我每年需要存多少钱？"
     })
 goal_kind_other = Verbiage(
     {
@@ -96,7 +111,55 @@ goal_kind_other_help = Verbiage(
     "ru":"Выберите, что вы хотите сделать.",
     "zh":"选择你想做什么。"
     })
+goal_thinking_mode_title = Verbiage(
+    {
+    "en":"What is your thinking mode for retirement?",
+    "es":"¿Qué modo de pensamiento tienes para tu retiro?",
+    "fr":"Quel mode de pensée avez-vous pour votre retraite?",
+    "de":"Welcher Denkmodus haben Sie für Ihre Rente?",
+    "it":"Quale modalità di pensiero hai per la tua pensione?",
+    "ja":"あなたの引退に対する思考モードは何ですか？",
+    "pt":"Qual o modo de pensamento você tem para sua aposentadoria?",
+    "ru":"Какой режим мышления у вас для выхода на пенсию?",
+    "zh":"你退休时的思考模式是什么？"
+    })
+goal_thinking_mode_help = Verbiage(
+    {
+    "en":"Capital vs. Income: Choose the mode you want to use to think about your retirement.",
+    "es":"Capital vs. Ingreso: Elige el modo de pensamiento que quieres usar para pensar sobre tu retiro.",
+    "fr":"Capital vs. Revenu: Choisissez le mode de pensée que vous voulez utiliser pour penser à votre retraite.",
+    "de":"Kapital vs. Einkommen: Wählen Sie den Denkmodus, den Sie für Ihre Rente verwenden möchten.",
+    "it":"Capital vs. Reddito: Scegli la modalità di pensiero che vuoi usare per pensare alla tua pensione.",
+    "ja":"資本 vs. 収入: あなたの引退に対する思考モードを選んでください。",
+    "pt":"Capital vs. Rendimento: Escolha o modo de pensamento que você quer usar para pensar sobre sua aposentadoria.",
+    "ru":"Капитал vs. Доход: Выберите режим мышления, который вы хотите использовать для выхода на пенсию.",
+    "zh":"资本 vs. 收入: 选择你退休时的思考模式。"
+    })
 
+goal_thinking_mode_capital = Verbiage(
+    {
+    "en":"I'm interested in priority by the amount of wealth I can achieve when I retire",
+    "es":"Estoy interesado en priorizar la cantidad de riqueza que puedo lograr cuando mejubile",
+    "fr":"Je suis intéressé par la priorité de la quantité de richesse que je peux atteindre lorsque je prends ma retraite",
+    "de":"Ich bin interessiert an der Priorität der Menge an Vermögen, die ich erreichen kann, wenn ich in Rente gehe",
+    "it":"Sono interessato alla priorità della quantità di ricchezza che posso raggiungere quando mi pensiono",
+    "ja":"私は引退したときに達成できる富の量を優先することに興味があります",
+    "pt":"Estou interessado na prioridade da quantidade de riqueza que posso alcançar quando me aposento",
+    "ru":"Я интересуюсь приоритетом количества состояния, которое я могу достичь, когда я выхожу на пенсию",
+    "zh":"我对退休时能达到的财富量感兴趣"
+    })
+goal_thinking_mode_income = Verbiage(
+    {
+    "en":"My focus is more on the amount of annual income I can extract from my wealth when I'm retired",
+    "es":"Mi enfoque es más en la cantidad de ingreso anual que puedo extraer de mi riqueza cuando mejubile",
+    "fr":"Mon focus est plus sur la quantité de revenu annuel que je peux extraire de ma richesse lorsque je suis en retraite",
+    "de":"Mein Fokus ist mehr auf der Menge an jährlichem Einkommen, die ich aus meinem Vermögen extrahieren kann, wenn ich in Rente gehe",
+    "it":"Il mio focus è più sulla quantità di reddito annuo che posso estrarre dai miei beni quando mi pensiono",
+    "ja":"私の焦点は、私が引退したときに私の富から抽出できる年収の量にあります",
+    "pt":"Meu foco é mais na quantidade de rendimento anual que posso extrair de minha riqueza quando me aposento",
+    "ru":"Мой фокус больше на количестве ежегодного дохода, которое я могу извлечь из моего состояния, когда я выхожу на пенсию",
+    "zh":"我对退休时能从我的财富中提取的年收入量更感兴趣"
+    })
 goal_target_income = Verbiage(
     {
     "en":"What annual amount do you target for your retirement?",
@@ -571,6 +634,11 @@ _GOAL_LABELS: dict[str, Verbiage] = {
 }
 
 
+_THINKING_MODE_LABELS: dict[str, Verbiage] = {
+    "capital": goal_thinking_mode_capital,
+    "income": goal_thinking_mode_income,
+}
+
 def build_definition() -> TourDefinition:
     steps = [
         Step(
@@ -584,14 +652,15 @@ def build_definition() -> TourDefinition:
                     "choice",
                     choices=("retire_when", "save_for_income", "other"),
                     choice_labels=_GOAL_LABELS,
-                    help=goal_kind_other_help,
+                    help=goal_kind_help,
                 ),
                 FieldSpec(
-                    "goal.other_text",
-                    goal_kind_other,
-                    "text",
-                    when=goal_is_other,
-                    help=goal_kind_other_help,
+                    "goal.thinking_mode",
+                    goal_thinking_mode_title,
+                    "choice",
+                    choices=("capital", "income"),
+                    choice_labels=_THINKING_MODE_LABELS,
+                    help=goal_thinking_mode_help,
                 ),
                 FieldSpec(
                     path="goal.target_income",

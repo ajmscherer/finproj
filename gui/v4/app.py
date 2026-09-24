@@ -31,19 +31,15 @@ def _language() -> Language:
 
 def main() -> None:
     st.set_page_config(page_title="finproj", layout="centered")
-    language = _language()
-    title_col, lang_col = st.columns([4, 1], vertical_alignment="center")
-    with title_col:
+    with st.container(horizontal=False):
+    
+        with st.container(horizontal=True, horizontal_alignment="right", gap=None):
+            for code, name in LANGUAGE_NAMES.items():
+                if st.button(code, key=f"v4_language_{code}", help=name):
+                    st.session_state.v4_language = code
+        language = _language()
         st.title("Serenity")
         st.caption(_CAPTION.to(language))
-    with lang_col:
-        st.selectbox(
-            "Language",
-            options=list(LANGUAGE_NAMES),
-            format_func=lambda code: LANGUAGE_NAMES[code],
-            key="v4_language",
-            label_visibility="collapsed",
-        )
     StepView(_runner()).render(st.session_state.v4_language)
 
 
