@@ -4,10 +4,22 @@
 from __future__ import annotations
 
 import streamlit as st
-from content.verbiage import Language
+from content.verbiage import Language, Verbiage
 from model.runner import TourRunner
 from model.step import FieldSpec
 from ui.widgets import FieldWidget
+
+_CHROME: dict[str,  Verbiage] = {
+    "previous": Verbiage("Previous[en]|Anterior[es]|Précédent[fr]|Zurück[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Назад[ru]|上一题[zh]"),
+    "back": Verbiage("Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|К шагу[ru]|返回[zh]"),
+    "next": Verbiage("Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一题[zh]"),
+    "continue": Verbiage("Continue[en]|Continuar[es]|Continuer[fr]|Fortfahren[de]|Continua[it]|続ける[ja]|Continuar[pt]|Продолжить[ru]|继续[zh]"),
+    "done": Verbiage("Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Опрос завершён.[ru]|引导已完成。[zh]"),
+}
+
+
+def _chrome(key: str, language: Language) -> str:
+    return _CHROME[key].to(language)
 
 
 class StepView:
@@ -38,11 +50,10 @@ class StepView:
         state = self.runner.preview(self._draft_answers())
         return step.visible_fields(state)
 
-    def render(self) -> None:
-        language: Language = "fr"
+    def render(self, language: Language) -> None:
         step = self.runner.current()
         if step is None:
-            st.success("Tour complete.")
+            st.success(_chrome("done", language))
             return
 
         self._timeline(language)
@@ -58,7 +69,7 @@ class StepView:
             st.markdown(f"### {step.title.to(language)}")
             st.caption(step.prompt.to(language))
             if not visible:
-                self._nav(index, 0)
+                self._nav(index, 0, language)
                 return
             preview = self.runner.preview(self._draft_answers())
             for i, spec in enumerate(visible):
@@ -68,7 +79,7 @@ class StepView:
                 widget.seed(preview)
                 with st.container(border=(i == index)):
                     widget.render(language)
-            self._nav(index, len(visible))
+            self._nav(index, len(visible), language)
 
     def _timeline(self, language: Language) -> None:
         ids = [
@@ -95,23 +106,33 @@ class StepView:
             if str(key).startswith("v4w_") or str(key).startswith("v4_field_i_"):
                 del st.session_state[key]
 
-    def _nav(self, index: int, count: int) -> None:
+    def _nav(self, index: int, count: int, language: Language) -> None:
         back_col, next_col = st.columns(2)
         with back_col:
-            if index > 0 and st.button("Previous", width="stretch", key="v4_prev"):
+            if index > 0 and st.button(
+                _chrome("previous", language), width="stretch", key="v4_prev"
+            ):
                 st.session_state[self._cursor_key()] = index - 1
                 st.rerun()
-            elif st.button("Back", width="stretch", key="v4_back"):
+            elif st.button(_chrome("back", language), width="stretch", key="v4_back"):
                 self.runner.back()
                 self._clear_widgets()
                 st.rerun()
         with next_col:
             if count and index < count - 1:
-                if st.button("Next", type="primary", width="stretch", key="v4_next"):
+                if st.button(
+                    _chrome("next", language),
+                    type="primary",
+                    width="stretch",
+                    key="v4_next",
+                ):
                     st.session_state[self._cursor_key()] = index + 1
                     st.rerun()
             elif st.button(
-                "Continue", type="primary", width="stretch", key="v4_continue"
+                _chrome("continue", language),
+                type="primary",
+                width="stretch",
+                key="v4_continue",
             ):
                 step = self.runner.current()
                 answers: dict[str, object] = {}

@@ -3,8 +3,21 @@ from typing import Literal, cast
 
 Language = Literal["en", "es", "fr", "de", "it", "ja", "pt", "ru", "zh"]
 
+# Languages offered in the page picker. Names are in that language.
+LANGUAGE_NAMES: dict[Language, str] = {
+    "en": "English",
+    "es": "Español(Spanish)",
+    "fr": "Français(French)",
+    "de": "Deutsch(German)",
+    "it": "Italiano(Italian)",
+    "ja": "日本語(Japanese)",
+    "pt": "Português(Portuguese)",
+    "ru": "Русский(Russian)",
+    "zh": "中文(Chinese)",
+}
+
 class Verbiage:
-    def __init__(self, source:str="Hello, world![en]|Bonjour, le monde![fr]|Hallo, Welt![de]|Ciao, mondo![it]|こんにちは, 世界![ja]|Olá, mundo![pt]|Привет, мир![ru]|你好, 世界![zh]"):
+    def __init__(self, source:str="Hello, world![en]|Hola, mundo![es]|Bonjour, le monde![fr]|Hallo, Welt![de]|Ciao, mondo![it]|こんにちは, 世界![ja]|Olá, mundo![pt]|Привет, мир![ru]|你好, 世界![zh]"):
         self.source:dict[Language, str] = {}
         for line in source.split("|"):
             match = re.match(r"^(.*)\[([a-z]+)\]$", line)
@@ -14,9 +27,14 @@ class Verbiage:
                 raise ValueError(f"Invalid line: {line}")
             lang = cast(Language, lang)
             self.source[lang] = text
-        
+        if "en" not in self.source:
+            raise ValueError(f"No English text for {self.source}")
 
-    def to(self, language:Language) -> str:
-        return self.source[language]
+    def to(self, language: Language) -> str:
+        if language in self.source:
+            return self.source[language]
+        else:
+            return self.source["en"]
+
 
 
