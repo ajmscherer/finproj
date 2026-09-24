@@ -100,15 +100,15 @@ goal_kind_other_help = Verbiage(
 
 wealth_title = Verbiage(
     {
-    "en":"Your Wealth",
-    "es":"Tu riqueza",
-    "fr":"Votre richesse",
-    "de":"Ihr Vermögen",
-    "it":"Il tuo patrimonio",
-    "ja":"あなたの資産",
-    "pt":"Seu patrimônio",
-    "ru":"Ваше состояние",
-    "zh":"你的财富"
+    "en":"Wealth",
+    "es":"Riqueza",
+    "fr":"Richesse",
+    "de":"Vermögen",
+    "it":"Patrimonio",
+    "ja":"資産",
+    "pt":"Patrimônio",
+    "ru":"Состояние",
+    "zh":"财富"
     })
 wealth_prompt = Verbiage(
     {
@@ -174,14 +174,14 @@ wealth_cash_buffer_help = Verbiage(
 # flows
 flows_title = Verbiage(
     {
-    "en":"Contributions & Withdrawals",
-    "es":"Contribuciones y retiros",
+    "en":"In & Out",
+    "es":"Entradas y salidas",
     "fr":"Contributions et retraits",
     "de":"Zahlungen und Abhebungen",
-    "it":"Contributi e prelievi",
-    "ja":"出し入れ",
-    "pt":"Contribuições e retiradas",
-    "ru":"Вклады и выводы",
+    "it":"Entrate e uscite",
+    "ja":"入出金",
+    "pt":"Entradas e saídas",
+    "ru":"Внесенные и снятые средства",
     "zh":"存入和取出"
     })
     
@@ -407,15 +407,15 @@ markets_stocks_bumpiness = Verbiage(
 
 run_title = Verbiage(
     {
-    "en":"Run the projection",
-    "es":"Ejecutar la proyección",
-    "fr":"Exécuter la projection",
-    "de":"Die Projektion ausführen",
-    "it":"Eseguire la proiezione",
-    "ja":"試算を実行",
-    "pt":"Executar a projeção",
-    "ru":"Запустить проекцию",
-    "zh":"运行预测"
+    "en":"Run",
+    "es":"Ejecutar",
+    "fr":"Exécuter",
+    "de":"Ausführen",
+    "it":"Eseguire",
+    "ja":"実行",
+    "pt":"Executar",
+    "ru":"Запустить",
+    "zh":"运行"
     })
 run_prompt = Verbiage(
     {
