@@ -66,8 +66,8 @@ class StepView:
         st.session_state[self._cursor_key()] = index
 
         with st.container(border=True):
-            st.markdown(f"### {step.title.to(language)}")
-            st.caption(step.prompt.to(language))
+            #st.markdown(f"### {step.title.to(language)}")
+            st.caption(f"{step.prompt.to(language)}")
             if not visible:
                 self._nav(index, 0, language)
                 return

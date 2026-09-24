@@ -14,7 +14,7 @@ goal_title = Verbiage(
     "Your goal[en]|Tu objetivo[es]|Votre objectif[fr]|Ihr Ziel[de]|Il tuo obiettivo[it]|目標[ja]|Seu objetivo[pt]|Ваша цель[ru]|你的目标[zh]"
 )
 goal_prompt = Verbiage(
-    "How would you like to use this app?[en]|¿Cómo te gustaría usar esta aplicación?[es]|Comment aimeriez-vous utiliser cette application?[fr]|Wie möchten Sie diese Anwendung nutzen?[de]|Come vorresti utilizzare questa applicazione?[it]|このアプリをどのように使いたいですか？[ja]|Como você gostaria de usar este aplicativo?[pt]|Как бы вы хотели пользоваться этим приложением?[ru]|你希望如何使用这个应用程序？[zh]"
+    "What is your goal when using this app? Do you want to evaluate when you can retire, or find out how much you need to save to attain a certain lifestyle when you retire, or some other analysis you are interested in?[en]|¿Cuál es tu objetivo al usar esta aplicación? ¿Quieres evaluar cuándo puedes retirarte, o averiguar cuánto necesitas ahorrar para alcanzar un cierto estilo de vida cuando te retires, o alguna otra análisis que te interesan?[es]|Quel est votre objectif lors de l'utilisation de cette application? Voulez-vous évaluer quand vous pouvez prendre votre retraite, ou découvrir combien vous devez épargner pour atteindre un certain style de vie quand vous prendrez votre retraite, ou quelque autre analyse que vous êtes intéressé?[fr]|Was ist Ihr Ziel bei der Verwendung dieser Anwendung? Möchten Sie evaluieren, wann Sie in Rente gehen können, oder herausfinden, wie viel Sie sparen müssen, um ein bestimmtes Leben zu führen, wenn Sie in Rente gehen, oder eine andere Analyse, die Sie interessiert?[de]|Was ist Ihr Ziel bei der Verwendung dieser Anwendung? Möchten Sie evaluieren, wann Sie in Rente gehen können, oder herausfinden, wie viel Sie sparen müssen, um ein bestimmtes Leben zu führen, wenn Sie in Rente gehen, oder eine andere Analyse, die Sie interessiert?[it]|このアプリを使用する目的は何ですか？引退できる時期を評価したいのか、引退後に一定の生活を送るためにどれだけ貯める必要があるかを知りたいのか、それともその他の分析に興味があるのか？[ja]|Qual é o seu objetivo ao usar este aplicativo? Você quer avaliar quando você pode se aposentar, ou descobrir quanto você precisa poupar para atingir um certo estilo de vida quando você se aposentar, ou alguma outra análise que você está interessado?[pt]|Ваше цель при использовании этого приложения? Вы хотите оценить, когда вы сможете выйти на пенсию, или узнать, сколько вам нужно сэкономить, чтобы достичь определенного образа жизни при выходе на пенсию, или какую-то другую аналитику, которая вас интересует?[ru]|你的目标是什么？你想评估何时可以退休，或者想知道为了退休后过上一定的生活需要存多少钱，或者你对其他感兴趣的分析？[zh]"
 )
 goal_kind_title = Verbiage(
     "What should this projection help you decide?[en]|¿Qué debería ayudarte a decidir esta proyección?[es]|Qu'est-ce que cette projection devrait vous aider à décider?[fr]|Wobei soll diese Projektion Ihnen bei der Entscheidung helfen?[de]|Che cosa dovrebbe aiutarti a decidere questa proiezione?[it]|この試算は、何を決める助けになるべきですか？[ja]|O que esta projeção deve ajudar você a decidir?[pt]|Что эта проекция должна помочь вам решить?[ru]|这项预测应该帮助你决定什么？[zh]"
@@ -164,6 +164,12 @@ def build_definition() -> TourDefinition:
                     when=goal_is_other,
                     help=goal_kind_other_help,
                 ),
+                FieldSpec(
+                    "wealth.cash_buffer",
+                    wealth_cash_buffer,
+                    "amount",
+                    help=wealth_cash_buffer_help,
+                ),
             ],
             default_next="wealth",
             clears_on_change=("goal.other_text",),
@@ -178,12 +184,6 @@ def build_definition() -> TourDefinition:
                     wealth_starting_wealth,
                     "amount",
                     help=wealth_starting_wealth_help,
-                ),
-                FieldSpec(
-                    "wealth.cash_buffer",
-                    wealth_cash_buffer,
-                    "amount",
-                    help=wealth_cash_buffer_help,
                 ),
             ],
             default_next="flows",
