@@ -80,6 +80,10 @@ class StepView:
                 with st.container(border=(i == index)):
                     widget.render(language)
             self._nav(index, len(visible), language)
+        st.divider()
+        st.markdown("### Debug")
+        st.write(self._draft_answers())
+        st.write(self.runner.preview(self._draft_answers()))
 
     def _timeline(self, language: Language) -> None:
         ids = [

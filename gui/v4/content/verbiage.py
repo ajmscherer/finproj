@@ -16,17 +16,21 @@ LANGUAGE_NAMES: dict[Language, str] = {
     "zh": "中文(Chinese)",
 }
 
+
 class Verbiage:
-    def __init__(self, source:str="Hello, world![en]|Hola, mundo![es]|Bonjour, le monde![fr]|Hallo, Welt![de]|Ciao, mondo![it]|こんにちは, 世界![ja]|Olá, mundo![pt]|Привет, мир![ru]|你好, 世界![zh]"):
-        self.source:dict[Language, str] = {}
-        for line in source.split("|"):
-            match = re.match(r"^(.*)\[([a-z]+)\]$", line)
-            if match:
-                text, lang = match.groups()
-            else:
-                raise ValueError(f"Invalid line: {line}")
-            lang = cast(Language, lang)
-            self.source[lang] = text
+    def __init__(self, source: str | dict[Language, str]):
+        if isinstance(source, str):
+            self.source: dict[Language, str] = {}
+            for line in source.split("|"):
+                match = re.match(r"^(.*)\[([a-z]+)\]$", line)
+                if match:
+                    text, lang = match.groups()
+                else:
+                    raise ValueError(f"Invalid line: {line}")
+                lang = cast(Language, lang)
+                self.source[lang] = text
+        else:
+            self.source = source
         if "en" not in self.source:
             raise ValueError(f"No English text for {self.source}")
 
@@ -35,6 +39,3 @@ class Verbiage:
             return self.source[language]
         else:
             return self.source["en"]
-
-
-
