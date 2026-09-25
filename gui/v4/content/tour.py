@@ -51,53 +51,53 @@ goal_kind_title = Verbiage(
 
 goal_kind_help = Verbiage(
     {
-    "en":"Choose the question that corresponds to your situation.",
-    "es":"Elige la pregunta que corresponda a tu situación.",
-    "fr":"Choisissez la question qui correspond à votre situation.",
-    "de":"Wählen Sie die Frage, die Ihrer Situation entspricht.",
-    "it":"Scegli la domanda che corrisponde alla tua situazione.",
-    "ja":"あなたの状況に対応する質問を選んでください。",
-    "pt":"Escolha a pergunta que corresponde à sua situação.",
-    "ru":"Выберите вопрос, который соответствует вашей ситуации.",
-    "zh":"选择与您的情况相对应的问题。"
+    "en":"Choose the option below that best corresponds to your situation.",
+    "es":"Elige la opción que mejor corresponda a tu situación.",
+    "fr":"Choisissez l'option qui correspond le mieux à votre situation.",
+    "de":"Wählen Sie die Option, die am besten zu Ihrer Situation passt.",
+    "it":"Scegli l'opzione che corrisponde meglio alla tua situazione.",
+    "ja":"あなたの状況に最も適したオプションを選んでください。",
+    "pt":"Escolha a opção que melhor corresponde à sua situação.",
+    "ru":"Выберите опцию, которая лучше всего соответствует вашей ситуации.",
+    "zh":"选择最适合您情况的选项。"
     })
 
 
 goal_kind_retire_when = Verbiage(
     {
-    "en":"When shall I have accumulated enough wealth to retire?",
-    "es":"¿Cuándo acumularás suficiente riqueza para retirarte?",
-    "fr":"Quand aurais-je accumulé suffisamment de richesse pour prendre ma retraite?",
-    "de":"Wann haben Sie genug Vermögen gesammelt, um in Rente zu gehen?",
-    "it":"Quando accumulerete abbastanza ricchezza per andare in pensione?",
-    "ja":"いつあなたが十分な富を蓄えて引退できるかを決める",
-    "pt":"Quando você terá acumulado suficiente riqueza para se aposentar?",
-    "ru":"Когда вы накопите достаточно состояния, чтобы выйти на пенсию?",
-    "zh":"你什么时候能积累足够的财富退休？"
+    "en":"When can I retire?",
+    "es":"¿Cuándo puedo jubilarme?",
+    "fr":"Quand puis-je prendre ma retraite?",
+    "de":"Wann kann ich in Rente gehen?",
+    "it":"Quando posso andare in pensione?",
+    "ja":"いつ引退できますか？",
+    "pt":"Quando posso se aposentar?",
+    "ru":"Когда я могу выйти на пенсию?",
+    "zh":"我什么时候可以退休？"
     })
 goal_kind_save_for_income = Verbiage(
     {
-    "en":"I know when I want to retire. How much do I need to save annually?",
-    "es":"Sé cuándo quiero retirarme. ¿Cuánto necesito ahorrar anualmente?",
-    "fr":"Je sais quand je veux prendre ma retraite. Combien dois-je épargner annuellement?",
-    "de":"Ich weiß, wann ich in Rente gehen möchte. Wie viel muss ich jährlich sparen?",
-    "it":"So quando vuoi andare in pensione. Quanto devo risparmiare annualmente?",
-    "ja":"引退したい時期がわかっています。年間でどれくらいの金額を貯める必要がありますか？",
-    "pt":"Sei quando você quer se aposentar. Quanto preciso poupar anualmente?",
-    "ru":"Я знаю, когда я хочу выйти на пенсию. Сколько мне нужно накопить ежегодно?",
-    "zh":"我知道我什么时候想退休。我每年需要存多少钱？"
-    })
+    "en":"How much do I need to save?",
+    "es":"¿Cuánto necesito ahorrar?",
+    "fr":"Combien dois-je épargner?",
+    "de":"Wie viel muss ich sparen?",
+    "it":"Quanto devo risparmiare?",
+    "ja":"いくら貯める必要がありますか？",
+    "pt":"Quanto preciso poupar?",
+    "ru":"Сколько мне нужно накопить?",
+    "zh":"我需要存多少钱？"
+    })   
 goal_kind_other = Verbiage(
     {
-    "en":"Other",
-    "es":"Otro",
-    "fr":"Autre",
-    "de":"Andere",
-    "it":"Altro",
-    "ja":"その他",
-    "pt":"Outro",
-    "ru":"Другое",
-    "zh":"其他"
+    "en":"Not sure",
+    "es":"No estoy seguro",
+    "fr":"Je ne suis pas sûr",
+    "de":"Ich bin nicht sicher",
+    "it":"Non sono sicuro",
+    "ja":"わかりません",
+    "pt":"Não estou seguro",
+    "ru":"Я не уверен",
+    "zh":"我不确定"
     })
 goal_kind_other_help = Verbiage(
     {
@@ -111,6 +111,85 @@ goal_kind_other_help = Verbiage(
     "ru":"Выберите, что вы хотите сделать.",
     "zh":"选择你想做什么。"
     })
+
+goal_legacy_title = Verbiage(
+    {
+    "en":"What do you want to use your wealth for?",
+    "es":"¿Qué quieres usar tu riqueza para?",
+    "fr":"Que voulez-vous utiliser votre richesse pour?",
+    "de":"Was möchten Sie mit Ihrem Vermögen tun?",
+    "it":"Che cosa vuoi usare il tuo patrimonio per?",
+    "ja":"あなたの富を何に使いたいですか？",
+    "pt":"O que você quer usar seu patrimônio para?",
+    "ru":"Что вы хотите использовать свое состояние для?",
+    "zh":"你希望用你的财富做什么？"
+    })  
+
+goal_legacy_title_help = Verbiage(
+    {
+    "en":"Choose the option below that will best corresponds to your situation when you are retired .",
+    "es":"Elige la opción que mejor corresponda a tu situación cuando te jubiles.",
+    "fr":"Choisissez l'option qui correspond le mieux à votre situation lorsque vous prenez votre retraite.",
+    "de":"Wählen Sie die Option, die am besten zu Ihrer Situation passt, wenn Sie in Rente gehen.",
+    "it":"Scegli l'opzione che corrisponde meglio alla tua situazione quando ti pensioni.",
+    "ja":"引退したときに最も適したオプションを選んでください。",
+    "pt":"Escolha a opção que melhor corresponde à sua situação quando você se aposenta.",
+    "ru":"Выберите опцию, которая лучше всего соответствует вашей ситуации, когда вы выходите на пенсию.",
+    "zh":"选择最适合您情况的选项，当您退休时。"
+    })
+
+goal_legacy_option1 = Verbiage(
+    {
+    "en":"Spend as much as I need/can even if it means my wealth decreases",
+    "es":"Gasta lo que necesites/puedes incluso si significa que tu riqueza disminuye",
+    "fr":"Dépense autant que vous avez besoin/pouvez même si cela signifie que votre richesse diminue",
+    "de":"Verbrauche so viel wie ich brauche/kann, auch wenn es bedeutet, dass mein Vermögen abnimmt",
+    "it":"Spesa quanto ne hai bisogno/puoi anche se significa che il tuo patrimonio diminuisce",
+    "ja":"必要なだけ使っても構いませんし、富が減少することを意味しても構いません",
+    "pt":"Gaste o quanto precisa/pode mesmo se isso significa que seu patrimônio diminui",
+    "ru":"Потратите столько, сколько нужно/можете, даже если это означает, что ваше состояние уменьшается",
+    "zh":"即使这意味着我的财富减少，我也会花掉我需要的/可以花的钱"
+    })
+
+goal_legacy_option2 = Verbiage(
+    {
+    "en":"Spend some but preserve my wealth level",
+    "es":"Gasta algo pero preserva tu nivel de riqueza",
+    "fr":"Dépense quelque chose mais conserve votre niveau de richesse",
+    "de":"Verbrauche etwas aber behalte dein Vermögen",
+    "it":"Spesa qualcosa ma conserva il tuo livello di patrimonio",
+    "ja":"少し使いますが、富のレベルを保持します",
+    "pt":"Gaste algo mas conserva seu nível de patrimônio",
+    "ru":"Потратите немного, но сохраните уровень вашего состояния",
+    "zh":"花一些钱，但保持你的财富水平"
+    })
+
+goal_legacy_option3 = Verbiage(
+    {
+    "en":"Favor my wealth growth, in the interest of my heirs",
+    "es":"Prefiero el crecimiento de mi riqueza, en beneficio de mis herederos",
+    "fr":"Préférer le croissance de ma richesse, pour le bénéfice de mes héritiers",
+    "de":"Vermehrung meines Vermögens für den Nutzen meiner Erben bevorzugen",
+    "it":"Preferire il crescimento del mio patrimonio, per il beneficio dei miei eredi",
+    "ja":"子孫のために富の増加を希望します",
+    "pt":"Preferir o crescimento do meu patrimônio, para o benefício dos meus herdeiros",
+    "ru":"Предпочитать рост моего состояния, для пользы моих наследников",
+    "zh":"我希望我的财富增长，以利于我的继承人"
+    })
+
+option_legacy_option4 = Verbiage(
+    {
+    "en":"I'm not sure",
+    "es":"No estoy seguro",
+    "fr":"Je ne suis pas sûr",
+    "de":"Ich bin nicht sicher",
+    "it":"Non sono sicuro",
+    "ja":"わかりません",
+    "pt":"Não estou seguro",
+    "ru":"Я не уверен",
+    "zh":"我不确定"
+    })
+
 goal_thinking_mode_title = Verbiage(
     {
     "en":"What is your thinking mode for retirement?",
@@ -138,15 +217,15 @@ goal_thinking_mode_help = Verbiage(
 
 goal_thinking_mode_capital = Verbiage(
     {
-    "en":"I'm interested in priority by the amount of wealth I can achieve when I retire",
-    "es":"Estoy interesado en priorizar la cantidad de riqueza que puedo lograr cuando mejubile",
-    "fr":"Je suis intéressé par la priorité de la quantité de richesse que je peux atteindre lorsque je prends ma retraite",
-    "de":"Ich bin interessiert an der Priorität der Menge an Vermögen, die ich erreichen kann, wenn ich in Rente gehe",
-    "it":"Sono interessato alla priorità della quantità di ricchezza che posso raggiungere quando mi pensiono",
-    "ja":"私は引退したときに達成できる富の量を優先することに興味があります",
-    "pt":"Estou interessado na prioridade da quantidade de riqueza que posso alcançar quando me aposento",
-    "ru":"Я интересуюсь приоритетом количества состояния, которое я могу достичь, когда я выхожу на пенсию",
-    "zh":"我对退休时能达到的财富量感兴趣"
+    "en":"I'm focused on the wealth I can achieve when I retire",
+    "es":"Estoy enfocado en la riqueza que puedo lograr cuando mejubile",
+    "fr":"Je suis concentré sur la richesse que je peux atteindre lorsque je prends ma retraite",
+    "de":"Ich bin auf die Vermögen fokussiert, die ich erreichen kann, wenn ich in Rente gehe",
+    "it":"Sono concentrato sulla ricchezza che posso raggiungere quando mi pensiono",
+    "ja":"私は引退時に達成できる富に焦点を当てています",
+    "pt":"Estou focado na riqueza que posso alcançar quando me aposento",
+    "ru":"Я сосредоточен на состоянии, которое я могу достичь в момент выхода на пенсию",
+    "zh":"我对退休时能达到的财富更感兴趣"
     })
 goal_thinking_mode_income = Verbiage(
     {
@@ -653,6 +732,14 @@ def build_definition() -> TourDefinition:
                     choices=("retire_when", "save_for_income", "other"),
                     choice_labels=_GOAL_LABELS,
                     help=goal_kind_help,
+                ),
+                FieldSpec(
+                    "goal.legacy",
+                    goal_legacy_title,
+                    "choice",
+                    choices=("use_it_all", "preserve_capital", "favor_heirs", "not_sure"),
+                    choice_labels={"use_it_all": goal_legacy_option1, "preserve_capital": goal_legacy_option2, "favor_heirs": goal_legacy_option3, "not_sure": option_legacy_option4},
+                    help=goal_legacy_title_help,
                 ),
                 FieldSpec(
                     "goal.thinking_mode",
