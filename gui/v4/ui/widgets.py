@@ -21,9 +21,12 @@ class FieldWidget:
     def key(self) -> str:
         return "v4w_" + self.spec.path.replace(".", "_")
 
+    def choice_key(self) -> str:
+        return "v4_choice_" + self.spec.path.replace(".", "_")
+
     def seed(self, state: TourState) -> None:
         """Seed the widget with the value from the state."""
-        key = self.key()
+        key = self.choice_key() if self.spec.kind == "choice" else self.key()
         if key in st.session_state:
             return
         value = get_path(state, self.spec.path)
@@ -39,15 +42,23 @@ class FieldWidget:
         key = self.key()
         if spec.kind == "choice":
             labels = spec.choice_labels or {}
+            options = list(spec.choices or ())
+            widget_key = f"{key}_{language}"
+            chosen = st.session_state.get(self.choice_key())
+            if widget_key not in st.session_state and chosen in options:
+                st.session_state[widget_key] = chosen
             st.radio(
                 spec.label.to(language),
-                options=list(spec.choices or ()),
+                options=options,
                 format_func=lambda value: (
                     labels[value].to(language) if value in labels else value
                 ),
-                key=key,
+                key=widget_key,
                 label_visibility="hidden",
             )
+            selected = st.session_state.get(widget_key)
+            if selected in options:
+                st.session_state[self.choice_key()] = selected
         elif spec.kind == "text":
             st.text_area(spec.label.to(language), key=key, label_visibility="collapsed")
         elif spec.kind == "amount":
@@ -72,6 +83,9 @@ class FieldWidget:
             )
 
     def read(self) -> Any:
+        if self.spec.kind == "choice":
+            value = st.session_state.get(self.choice_key())
+            return value if value in (self.spec.choices or ()) else None
         key = self.key()
         if key not in st.session_state:
             return None

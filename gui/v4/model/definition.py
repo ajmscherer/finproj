@@ -8,8 +8,8 @@ from model.step import Step
 
 class TourDefinition:
     def __init__(self, steps: list[Step], start: str) -> None:
-        self.start = start
-        self.steps = {step.id: step for step in steps}
+        self.start: str = start
+        self.steps: dict[str, Step] = {step.id: step for step in steps}
         if len(self.steps) != len(steps):
             raise ValueError("duplicate step ids")
         if start not in self.steps:

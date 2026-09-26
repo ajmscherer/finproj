@@ -6,16 +6,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-Goal = Literal["retire_when", "save_for_income", "other"]
+Goal = Literal["retire_when", "save_for_income", "heirs", "other"]
 Legacy = Literal["use_it_all", "preserve_capital", "favor_heirs", "not_sure"]
-ThinkingMode = Literal["capital", "income"]
 
 
 @dataclass
 class GoalState:
     kind: Goal | None = None
     legacy: Legacy | None = None
-    thinking_mode: ThinkingMode | None = None
     target_income: str | None = None
     years_to_retire: int | None = None
 

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from model.conditions import goal_is_retire_when, goal_is_save_for_income
+from model.conditions import goal_is_heirs, goal_is_retire_when, goal_is_save_for_income
 from model.definition import TourDefinition
 from model.step import FieldSpec, Step
 
@@ -25,28 +25,28 @@ goal_title = Verbiage(
 )
 goal_prompt = Verbiage(
     {
-    "en":"This application is designed to help you make decisions regarding your retirement. There are different manners to approach the problem. This step will help determine which approach is best given the questions on your mind",
-    "es":"Esta aplicación está diseñada para ayudarte a tomar decisiones relacionadas con tu retiro. Hay diferentes maneras de abordar el problema. Este paso te ayudará a determinar qué enfoque es el mejor dado las preguntas en tu mente",
-    "fr":"Cette application est conçue pour vous aider à prendre des décisions concernant votre retraite. Il existe différentes manières d'aborder le problème. Cette étape vous aidera à déterminer quelle approche est la meilleure données les questions sur votre esprit",
-    "de":"Diese Anwendung ist konzipiert, um Ihnen dabei zu helfen, Entscheidungen bezüglich Ihrer Rente zu treffen. Es gibt verschiedene Möglichkeiten, das Problem anzugehen. Dieser Schritt wird Ihnen helfen, zu bestimmen, welche Methode am besten geeignet ist, gegeben die Fragen in Ihrem Kopf",
-    "it":"Questa applicazione è progettata per aiutarti a prendere decisioni relative alla tua pensione. Ci sono diverse maniere di affrontare il problema. Questo passo ti aiuterà a determinare quale approccio è il migliore dato le domande nella tua mente",
-    "ja":"このアプリは、あなたの引退に関する意思決定を支援するように設計されています。問題に対する異なるアプローチがあります。このステップは、あなたの頭にある質問に基づいて、最適なアプローチを決定するのに役立ちます",
-    "pt":"Esta aplicação é projetada para ajudar você a tomar decisões relacionadas com sua aposentadoria. Existem diferentes maneiras de abordar o problema. Este passo ajudará a determinar qual abordagem é a melhor dada as perguntas em sua mente",
-    "ru":"Это приложение разработано для помощи вам принимать решения относительно вашей пенсии. Существуют различные способы решения проблемы. Этот шаг поможет определить, какой подход является наиболее подходящим, учитывая вопросы в вашем уме",
-    "zh":"这个应用程序旨在帮助您做出与退休相关的决策。有不同的方法来解决这个问题。这一步将帮助确定哪种方法最适合您的问题"
+    "en":"This application is designed to help you make decisions regarding the management of your wealth. There are different manners to approach the problem. All the parameters are linked. Some work in the same direction, others in opposite directions. For example, your wealth will obviously increase if your save more. Also, if you spend more, your heirs will have less. It's all about clarifying your priorities. This step will help clarify your priorities and determine which approach is best given the questions on your mind.",
+    "es":"Esta aplicación está diseñada para ayudarte a tomar decisiones relacionadas con la gestión de tu riqueza. Hay diferentes maneras de abordar el problema. Todos los parámetros están relacionados. Algunos trabajan en la misma dirección, otros en direcciones opuestas. Por ejemplo, tu riqueza aumentará obviamente si ahorras más. También, si gastas más, tus herederos tendrán menos. Todo es sobre clarificar tus prioridades. Este paso te ayudará a clarificar tus prioridades y determinar qué enfoque es el mejor dado las preguntas en tu mente.",
+    "fr":"Cette application est conçue pour vous aider à prendre des décisions concernant la gestion de votre richesse. Il existe différentes manières d'aborder le problème. Tous les paramètres sont liés. Certains fonctionnent dans la même direction, d'autres dans des directions opposées. Par exemple, votre richesse augmentera évidemment si vous épargnez plus. De plus, si vous dépensez plus, vos héritiers auront moins. C'est tout sur la clarification de vos priorités. Cette étape vous aidera à clarifier vos priorités et déterminer quelle approche est la meilleure données les questions sur votre esprit.",
+    "de":"Diese Anwendung ist konzipiert, um Ihnen dabei zu helfen, Entscheidungen bezüglich der Verwaltung Ihres Vermögens zu treffen. Es gibt verschiedene Möglichkeiten, das Problem anzugehen. Alle Parameter sind miteinander verbunden. Einige funktionieren in die gleiche Richtung, andere in entgegengesetzte Richtungen. Zum Beispiel wird Ihr Vermögen offensichtlich mehr, wenn Sie mehr sparen. Außerdem, wenn Sie mehr ausgeben, haben Ihre Erben weniger. Es geht alles darum, Ihre Prioritäten zu klären. Dieser Schritt wird Ihnen helfen, Ihre Prioritäten zu klären und zu bestimmen, welche Methode am besten geeignet ist, gegeben die Fragen in Ihrem Kopf.",
+    "it":"Questa applicazione è progettata per aiutarti a prendere decisioni relative alla gestione del tuo patrimonio. Ci sono diverse maniere di affrontare il problema. Tutti i parametri sono collegati. Alcuni funzionano nella stessa direzione, altri in direzioni opposte. Per esempio, il tuo patrimonio aumenterà ovviamente se risparmi di più. Inoltre, se spendi di più, i tuoi eredi avranno meno. Tutto riguarda la chiarezza delle tue priorità. Questo passo ti aiuterà a chiarire le tue priorità e determinare quale approccio è il migliore dato le domande nella tua mente.",
+    "ja":"このアプリは、あなたの富の管理に関する意思決定を支援するように設計されています。問題に対する異なるアプローチがあります。すべてのパラメータはリンクされています。いくつかは同じ方向に作用し、いくつかは反対方向に作用します。例えば、あなたの富は明らかに増えますが、あなたがより多く節約する場合。また、あなたがより多く支出する場合、あなたの子孫はより少なくなります。すべてはあなたの優先事項の明確化についてです。このステップは、あなたの頭にある質問に基づいて、最適なアプローチを決定するのに役立ちます。",
+    "pt":"Esta aplicação é projetada para ajudar você a tomar decisões relacionadas com a gestão do seu patrimônio. Existem diferentes maneiras de abordar o problema. Todos os parâmetros estão ligados. Alguns funcionam na mesma direção, outros em direções opostas. Por exemplo, seu patrimônio aumentará obviamente se você poupar mais. Além disso, se você gastar mais, seus herdeiros terão menos. Tudo é sobre clarificar suas prioridades. Este passo ajudará a clarificar suas prioridades e determinar qual abordagem é a melhor dada as perguntas em sua mente.",
+    "ru":"Это приложение разработано для помощи вам принимать решения относительно управления вашим состоянием. Существуют различные способы решения проблемы. Все параметры связаны. Некоторые работают в одном направлении, другие в противоположном. Например, ваше состояние очевидно увеличится, если вы будете экономить больше. Кроме того, если вы тратите больше, ваши наследники будут иметь меньше. Все это об очищении ваших приоритетов. Этот шаг поможет очистить ваши приоритеты и определить, какой подход является наиболее подходящим, учитывая вопросы в вашем уме.",
+    "zh":"这个应用程序旨在帮助您做出与财富管理相关的决策。有不同的方法来解决这个问题。所有参数都是相关的。有些工作在同一方向，有些在相反的方向。例如，如果你的财富会明显增加，如果你节省更多。此外，如果你花更多，你的继承人会有更少。一切都关于澄清你的优先事项。这一步将帮助澄清你的优先事项，并确定哪种方法最适合您的问题。"
     })
 
 goal_kind_title = Verbiage(
     {
-    "en":"How can this application help you?",
-    "es":"¿Cómo puede esta aplicación ayudarte?",
-    "fr":"Comment cette application peut vous aider?",
-    "de":"Wie kann diese Anwendung Ihnen helfen?",
-    "it":"Come può questa applicazione aiutarti?",
-    "ja":"このアプリは、あなたをどのように助けることができますか？",
-    "pt":"Como esta aplicação pode ajudar-lhe?",
-    "ru":"Как это приложение может помочь вам?",
-    "zh":"这个应用程序如何帮助您？" 
+    "en":"What's the more important question on your mind?",
+    "es":"¿Cuál es la pregunta más importante en tu mente?",
+    "fr":"Quelle est la question la plus importante sur votre esprit?",
+    "de":"Welche Frage ist am wichtigsten in Ihrem Kopf?",
+    "it":"Qual è la domanda più importante nella tua mente?",
+    "ja":"あなたの頭にある最も重要な質問は何ですか？",
+    "pt":"Qual é a pergunta mais importante em sua mente?",
+    "ru":"Какая самая важная вопрос в вашем уме?",
+    "zh":"你头脑中最重要的问题是什么？" 
     })
 
 goal_kind_help = Verbiage(
@@ -99,6 +99,20 @@ goal_kind_other = Verbiage(
     "ru":"Я не уверен",
     "zh":"我不确定"
     })
+
+goal_kind_heirs = Verbiage(
+    {
+    "en":"What am I going to leave to my heirs?",
+    "es":"¿Qué voy a dejar a mis herederos?",
+    "fr":"Qu'est-ce que je vais laisser à mes héritiers?",
+    "de":"Was werde ich meinen Erben hinterlassen?",
+    "it":"Cosa lascerò ai miei eredi?",
+    "ja":"私は子孫に何を残しますか？",
+    "pt":"O que vou deixar para meus herdeiros?",
+    "ru":"Что я останусь для моих наследников?",
+    "zh":"我留给我的继承人什么？"
+    })
+
 goal_kind_other_help = Verbiage(
     {
     "en":"Choose what you want to do.",
@@ -709,6 +723,7 @@ review_prompt = Verbiage(
 _GOAL_LABELS: dict[str, Verbiage] = {
     "retire_when": goal_kind_retire_when,
     "save_for_income": goal_kind_save_for_income,
+    "heirs": goal_kind_heirs,
     "other": goal_kind_other,
 }
 
@@ -729,7 +744,7 @@ def build_definition() -> TourDefinition:
                     "goal.kind",
                     goal_kind_title,
                     "choice",
-                    choices=("retire_when", "save_for_income", "other"),
+                    choices=("retire_when", "save_for_income", "heirs", "other"),
                     choice_labels=_GOAL_LABELS,
                     help=goal_kind_help,
                 ),
@@ -742,19 +757,11 @@ def build_definition() -> TourDefinition:
                     help=goal_legacy_title_help,
                 ),
                 FieldSpec(
-                    "goal.thinking_mode",
-                    goal_thinking_mode_title,
-                    "choice",
-                    choices=("capital", "income"),
-                    choice_labels=_THINKING_MODE_LABELS,
-                    help=goal_thinking_mode_help,
-                ),
-                FieldSpec(
                     path="goal.target_income",
                     label=goal_target_income,
                     kind="amount",
                     #min=0,
-                    when=goal_is_retire_when | goal_is_save_for_income,
+                    when=goal_is_retire_when | goal_is_save_for_income | goal_is_heirs,
                     help=goal_target_income_help,
                 ),
                 FieldSpec(
@@ -762,7 +769,7 @@ def build_definition() -> TourDefinition:
                     label=goal_years_to_retire,
                     kind="int",
                     min=0,
-                    when=goal_is_save_for_income,
+                    when=goal_is_save_for_income | goal_is_heirs,
                     help=goal_years_to_retire_help,
                 ),
             ],

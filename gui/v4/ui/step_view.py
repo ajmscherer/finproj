@@ -9,12 +9,22 @@ from model.runner import TourRunner
 from model.step import FieldSpec
 from ui.widgets import FieldWidget
 
-BUTTON_VERBIAGE: dict[str,  Verbiage] = {
-    "previous": Verbiage("Previous[en]|Anterior[es]|Précédent[fr]|Vorheriger[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Предыдущий[ru]|上一步[zh]"),
-    "back": Verbiage("Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|Назад[ru]|返回[zh]"),
-    "next": Verbiage("Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一步[zh]"),
-    "continue": Verbiage("Continue[en]|Continuar[es]|Continuer[fr]|Fortfahren[de]|Continua[it]|続ける[ja]|Continuar[pt]|Продолжить[ru]|继续[zh]"),
-    "done": Verbiage("Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Обход завершён.[ru]|引导已完成。[zh]"),
+BUTTON_VERBIAGE: dict[str, Verbiage] = {
+    "previous": Verbiage(
+        "Previous[en]|Anterior[es]|Précédent[fr]|Vorheriger[de]|Precedente[it]|前へ[ja]|Anterior[pt]|Предыдущий[ru]|上一步[zh]"
+    ),
+    "back": Verbiage(
+        "Back[en]|Atrás[es]|Retour[fr]|Zurück[de]|Indietro[it]|戻る[ja]|Voltar[pt]|Назад[ru]|返回[zh]"
+    ),
+    "next": Verbiage(
+        "Next[en]|Siguiente[es]|Suivant[fr]|Weiter[de]|Avanti[it]|次へ[ja]|Seguinte[pt]|Далее[ru]|下一步[zh]"
+    ),
+    "continue": Verbiage(
+        "Continue[en]|Continuar[es]|Continuer[fr]|Fortfahren[de]|Continua[it]|続ける[ja]|Continuar[pt]|Продолжить[ru]|继续[zh]"
+    ),
+    "done": Verbiage(
+        "Tour complete.[en]|Recorrido terminado.[es]|Parcours terminé.[fr]|Rundgang abgeschlossen.[de]|Percorso completato.[it]|案内は終わりです。[ja]|Percurso concluído.[pt]|Обход завершён.[ru]|引导已完成。[zh]"
+    ),
 }
 
 CLEAR_WIDGETS = False
@@ -40,7 +50,8 @@ class StepView:
         answers: dict[str, object] = {}
         for spec in step.fields:
             widget = FieldWidget(spec)
-            if widget.key() in st.session_state:
+            stored = widget.choice_key() if spec.kind == "choice" else widget.key()
+            if stored in st.session_state:
                 answers[spec.path] = widget.read()
         return answers
 
@@ -71,7 +82,7 @@ class StepView:
         st.session_state[self._cursor_key()] = index
 
         with st.container(border=False):
-            #st.markdown(f"### {step.title.to(language)}")
+            # st.markdown(f"### {step.title.to(language)}")
             st.caption(f"{step.prompt.to(language)}")
             if not visible:
                 self._nav(index, 0, language)
@@ -88,9 +99,9 @@ class StepView:
 
             # navigation buttons
             self._nav(index, len(visible), language)
-            
+
         self._debug()
-        
+
     def _timeline(self, language: Language) -> None:
         ids = [
             step_id
@@ -101,30 +112,33 @@ class StepView:
             return
         with st.container(border=False, horizontal=True):
             for step_id in ids:
-                if st.button(
-                    self.runner.definition.get(step_id).title.to(language),
-                    key=f"v4_tl_{step_id}_{len(self.runner.history)}",
-                    disabled=False,
-                    #width=100,
-                    type="primary"
-                    if step_id == self.runner.current_id
-                    else "secondary",
-                ) and step_id != self.runner.current_id:
+                if (
+                    st.button(
+                        self.runner.definition.get(step_id).title.to(language),
+                        key=f"v4_tl_{step_id}_{len(self.runner.history)}",
+                        disabled=False,
+                        # width=100,
+                        type="primary"
+                        if step_id == self.runner.current_id
+                        else "secondary",
+                    )
+                    and step_id != self.runner.current_id
+                ):
                     self.runner.go_to(step_id, self._draft_answers())
                     self._clear_widgets(CLEAR_WIDGETS)
                     st.session_state[f"v4_field_i_{step_id}"] = 0
                     st.rerun()
-    
+
     def _debug(self) -> None:
         st.divider()
         st.markdown("### Debug")
-        #st.write(self._draft_answers())
+        # st.write(self._draft_answers())
         st.write(self.runner.preview(self._draft_answers()))
 
-    def _clear_widgets(self, clear:bool=True) -> None:
-        '''
+    def _clear_widgets(self, clear: bool = True) -> None:
+        """
         Clear all widgets from the session state.
-        '''
+        """
         if not clear:
             return
         for key in list(st.session_state.keys()):
@@ -133,7 +147,9 @@ class StepView:
 
     def _nav(self, index: int, count: int, language: Language) -> None:
         button_width = 150
-        with st.container(border=False, horizontal=True, width="stretch", horizontal_alignment="right"):
+        with st.container(
+            border=False, horizontal=True, width="stretch", horizontal_alignment="right"
+        ):
             if (index > 0 or self.runner.history) and st.button(
                 _button_label("previous", language), width=button_width, key="v4_prev"
             ):
@@ -148,11 +164,11 @@ class StepView:
                 st.rerun()
 
             if st.button(  # noqa: SIM102
-                    _button_label("next", language),
-                    type="primary",
-                    width=button_width,
-                    key="v4_next",
-                ):
+                _button_label("next", language),
+                type="primary",
+                width=button_width,
+                key="v4_next",
+            ):
                 if count and index < count - 1:
                     st.session_state[self._cursor_key()] = index + 1
                     st.rerun()
@@ -170,7 +186,7 @@ class StepView:
                         st.session_state.pop(f"v4_field_i_{arrived.id}", None)
                     st.rerun()
 
-            '''
+            """
             if count and index < count - 1:
                 if st.button(
                     _button_label("next", language),
@@ -198,4 +214,4 @@ class StepView:
                 if arrived is not None:
                     st.session_state.pop(f"v4_field_i_{arrived.id}", None)
                 st.rerun()
-            '''
+            """

@@ -1,0 +1,32 @@
+---
+config:
+  theme: forest
+---
+flowchart TD
+    goalKind["How can this application help you?"]
+    retireWhen["When can I retire?"]
+    saveForIncome["How much do I need to save?"]
+    other["Not sure"]
+    yearsToRetire["Years until retirement"]
+    wealth["Wealth today<br/>starting wealth"]
+    liquidity["Liquidity<br/>cash kept aside"]
+    flows["Money in and out<br/>yearly contributions · yearly withdrawals"]
+    mix["Invested mix<br/>money market · bonds · stocks"]
+    markets["Market assumptions<br/>growth and bumpiness for each asset"]
+    run["Run<br/>horizon · number of futures · seed"]
+    review["Review<br/>collected answers, engine not called yet"]
+    targetIncome["Target retirement income"]
+
+    goalKind --> retireWhen
+    goalKind --> saveForIncome
+    goalKind --> other
+    retireWhen --> yearsToRetire
+    retireWhen --> wealth
+    retireWhen --> liquidity
+    retireWhen --> flows
+    retireWhen --> mix
+    retireWhen --> markets
+    retireWhen --> run
+    retireWhen --> review
+    saveForIncome --> targetIncome
+    saveForIncome --> yearsToRetire
