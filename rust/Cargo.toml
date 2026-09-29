@@ -1,0 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["hello", "engine"]
+default-members = ["hello"]
+
+[profile.release]
+lto = "thin"

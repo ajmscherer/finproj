@@ -1,0 +1,8 @@
+[package]
+name = "finproj_engine"
+version = "0.1.0"
+edition = "2024"
+description = "Monte Carlo projection engine called from Python"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
