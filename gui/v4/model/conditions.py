@@ -32,13 +32,11 @@ class Condition:
         )
 
 
-goal_is_other = Condition("goal_is_other", lambda state: state.goal.kind == "other")
+goal_is_other = Condition("goal_is_other", lambda state: state.goal.goal == "other")
 goal_is_retire_when = Condition(
-    "goal_is_retire_when", lambda state: state.goal.kind == "retire_when"
+    "goal_is_retire_when", lambda state: state.intro.goal == "retire_when"
 )
 goal_is_save_for_income = Condition(
-    "goal_is_save_for_income", lambda state: state.goal.kind == "save_for_income"
+    "goal_is_save_for_income", lambda state: state.intro.goal == "save_for_income"
 )
-goal_is_heirs = Condition(
-    "goal_is_heirs", lambda state: state.goal.kind == "heirs"
-)
+goal_is_heirs = Condition("goal_is_heirs", lambda state: state.intro.goal == "heirs")

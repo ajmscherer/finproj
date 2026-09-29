@@ -11,25 +11,13 @@ Legacy = Literal["use_it_all", "preserve_capital", "favor_heirs", "not_sure"]
 
 
 @dataclass
-class GoalState:
-    kind: Goal | None = None
+class IntroState:
+    goal: Goal | None = None
     legacy: Legacy | None = None
     target_income: str | None = None
     years_to_retire: int | None = None
-
-
-@dataclass
-class WealthState:
-    """Amounts stay as typed strings (1M, 150k) until an adapter parses them."""
-
-    initial_capital: str | None = None
-
-
-@dataclass
-class LiquidityState:
-    """Cash kept outside the invested mix. Same string form as wealth."""
-
     cash_buffer: str | None = None
+    initial_capital: str | None = None
 
 
 @dataclass
@@ -67,9 +55,7 @@ class RunState:
 
 @dataclass
 class TourState:
-    goal: GoalState = field(default_factory=GoalState)
-    wealth: WealthState = field(default_factory=WealthState)
-    liquidity: LiquidityState = field(default_factory=LiquidityState)
+    intro: IntroState = field(default_factory=IntroState)
     flows: FlowsState = field(default_factory=FlowsState)
     mix: MixState = field(default_factory=MixState)
     markets: MarketsState = field(default_factory=MarketsState)

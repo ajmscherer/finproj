@@ -10,20 +10,20 @@ from model.step import FieldSpec, Step
 from gui.v4.content.verbiage import Verbiage
 
 # goal
-goal_title = Verbiage(
+intro_title = Verbiage(
     {
-        "en":"Goals",
-        "es":"Objetivos",
-        "fr":"Objectifs",
-        "de":"Ziele",
-        "it":"Obiettivi",
-        "ja":"目標s",
-        "pt":"Objetivos",
-        "ru":"Цели",
-        "zh":"目标s",
+        "en":"Intro",
+        "es":"Introducción",
+        "fr":"Introduction",
+        "de":"Einführung",
+        "it":"Introduzione",
+        "ja":"紹介",
+        "pt":"Introdução",
+        "ru":"Введение",
+        "zh":"介绍"
     }
 )
-goal_prompt = Verbiage(
+intro_prompt = Verbiage(
     {
     "en":"This application is designed to help you make decisions regarding the management of your wealth. There are different manners to approach the problem. All the parameters are linked. Some work in the same direction, others in opposite directions. For example, your wealth will obviously increase if your save more. Also, if you spend more, your heirs will have less. It's all about clarifying your priorities. This step will help clarify your priorities and determine which approach is best given the questions on your mind.",
     "es":"Esta aplicación está diseñada para ayudarte a tomar decisiones relacionadas con la gestión de tu riqueza. Hay diferentes maneras de abordar el problema. Todos los parámetros están relacionados. Algunos trabajan en la misma dirección, otros en direcciones opuestas. Por ejemplo, tu riqueza aumentará obviamente si ahorras más. También, si gastas más, tus herederos tendrán menos. Todo es sobre clarificar tus prioridades. Este paso te ayudará a clarificar tus prioridades y determinar qué enfoque es el mejor dado las preguntas en tu mente.",
@@ -36,7 +36,7 @@ goal_prompt = Verbiage(
     "zh":"这个应用程序旨在帮助您做出与财富管理相关的决策。有不同的方法来解决这个问题。所有参数都是相关的。有些工作在同一方向，有些在相反的方向。例如，如果你的财富会明显增加，如果你节省更多。此外，如果你花更多，你的继承人会有更少。一切都关于澄清你的优先事项。这一步将帮助澄清你的优先事项，并确定哪种方法最适合您的问题。"
     })
 
-goal_kind_title = Verbiage(
+intro_goal_title = Verbiage(
     {
     "en":"What's the more important question on your mind?",
     "es":"¿Cuál es la pregunta más importante en tu mente?",
@@ -49,7 +49,7 @@ goal_kind_title = Verbiage(
     "zh":"你头脑中最重要的问题是什么？" 
     })
 
-goal_kind_help = Verbiage(
+intro_goal_help = Verbiage(
     {
     "en":"Choose the option below that best corresponds to your situation.",
     "es":"Elige la opción que mejor corresponda a tu situación.",
@@ -63,7 +63,7 @@ goal_kind_help = Verbiage(
     })
 
 
-goal_kind_retire_when = Verbiage(
+intro_goal_retire_when = Verbiage(
     {
     "en":"When can I retire?",
     "es":"¿Cuándo puedo jubilarme?",
@@ -75,7 +75,7 @@ goal_kind_retire_when = Verbiage(
     "ru":"Когда я могу выйти на пенсию?",
     "zh":"我什么时候可以退休？"
     })
-goal_kind_save_for_income = Verbiage(
+intro_goal_save_for_income = Verbiage(
     {
     "en":"How much do I need to save?",
     "es":"¿Cuánto necesito ahorrar?",
@@ -87,7 +87,7 @@ goal_kind_save_for_income = Verbiage(
     "ru":"Сколько мне нужно накопить?",
     "zh":"我需要存多少钱？"
     })   
-goal_kind_other = Verbiage(
+intro_goal_other = Verbiage(
     {
     "en":"Not sure",
     "es":"No estoy seguro",
@@ -100,7 +100,7 @@ goal_kind_other = Verbiage(
     "zh":"我不确定"
     })
 
-goal_kind_heirs = Verbiage(
+intro_goal_heirs = Verbiage(
     {
     "en":"What am I going to leave to my heirs?",
     "es":"¿Qué voy a dejar a mis herederos?",
@@ -113,7 +113,7 @@ goal_kind_heirs = Verbiage(
     "zh":"我留给我的继承人什么？"
     })
 
-goal_kind_other_help = Verbiage(
+intro_goal_other_help = Verbiage(
     {
     "en":"Choose what you want to do.",
     "es":"Elige lo que quieres hacer.",
@@ -126,7 +126,7 @@ goal_kind_other_help = Verbiage(
     "zh":"选择你想做什么。"
     })
 
-goal_legacy_title = Verbiage(
+intro_legacy_title = Verbiage(
     {
     "en":"What do you want to use your wealth for?",
     "es":"¿Qué quieres usar tu riqueza para?",
@@ -139,7 +139,7 @@ goal_legacy_title = Verbiage(
     "zh":"你希望用你的财富做什么？"
     })  
 
-goal_legacy_title_help = Verbiage(
+intro_legacy_title_help = Verbiage(
     {
     "en":"Choose the option below that will best corresponds to your situation when you are retired .",
     "es":"Elige la opción que mejor corresponda a tu situación cuando te jubiles.",
@@ -152,7 +152,7 @@ goal_legacy_title_help = Verbiage(
     "zh":"选择最适合您情况的选项，当您退休时。"
     })
 
-goal_legacy_option1 = Verbiage(
+intro_legacy_option1 = Verbiage(
     {
     "en":"Spend as much as I need/can even if it means my wealth decreases",
     "es":"Gasta lo que necesites/puedes incluso si significa que tu riqueza disminuye",
@@ -165,7 +165,7 @@ goal_legacy_option1 = Verbiage(
     "zh":"即使这意味着我的财富减少，我也会花掉我需要的/可以花的钱"
     })
 
-goal_legacy_option2 = Verbiage(
+intro_legacy_option2 = Verbiage(
     {
     "en":"Spend some but preserve my wealth level",
     "es":"Gasta algo pero preserva tu nivel de riqueza",
@@ -178,7 +178,7 @@ goal_legacy_option2 = Verbiage(
     "zh":"花一些钱，但保持你的财富水平"
     })
 
-goal_legacy_option3 = Verbiage(
+intro_legacy_option3 = Verbiage(
     {
     "en":"Favor my wealth growth, in the interest of my heirs",
     "es":"Prefiero el crecimiento de mi riqueza, en beneficio de mis herederos",
@@ -191,7 +191,7 @@ goal_legacy_option3 = Verbiage(
     "zh":"我希望我的财富增长，以利于我的继承人"
     })
 
-option_legacy_option4 = Verbiage(
+intro_legacy_option4 = Verbiage(
     {
     "en":"I'm not sure",
     "es":"No estoy seguro",
@@ -204,7 +204,7 @@ option_legacy_option4 = Verbiage(
     "zh":"我不确定"
     })
 
-goal_thinking_mode_title = Verbiage(
+intro_thinking_mode_title = Verbiage(
     {
     "en":"What is your thinking mode for retirement?",
     "es":"¿Qué modo de pensamiento tienes para tu retiro?",
@@ -216,7 +216,8 @@ goal_thinking_mode_title = Verbiage(
     "ru":"Какой режим мышления у вас для выхода на пенсию?",
     "zh":"你退休时的思考模式是什么？"
     })
-goal_thinking_mode_help = Verbiage(
+    
+intro_thinking_mode_help = Verbiage(
     {
     "en":"Capital vs. Income: Choose the mode you want to use to think about your retirement.",
     "es":"Capital vs. Ingreso: Elige el modo de pensamiento que quieres usar para pensar sobre tu retiro.",
@@ -229,7 +230,7 @@ goal_thinking_mode_help = Verbiage(
     "zh":"资本 vs. 收入: 选择你退休时的思考模式。"
     })
 
-goal_thinking_mode_capital = Verbiage(
+intro_thinking_mode_capital = Verbiage(
     {
     "en":"I'm focused on the wealth I can achieve when I retire",
     "es":"Estoy enfocado en la riqueza que puedo lograr cuando mejubile",
@@ -241,7 +242,7 @@ goal_thinking_mode_capital = Verbiage(
     "ru":"Я сосредоточен на состоянии, которое я могу достичь в момент выхода на пенсию",
     "zh":"我对退休时能达到的财富更感兴趣"
     })
-goal_thinking_mode_income = Verbiage(
+intro_thinking_mode_income = Verbiage(
     {
     "en":"My focus is more on the amount of annual income I can extract from my wealth when I'm retired",
     "es":"Mi enfoque es más en la cantidad de ingreso anual que puedo extraer de mi riqueza cuando mejubile",
@@ -253,7 +254,7 @@ goal_thinking_mode_income = Verbiage(
     "ru":"Мой фокус больше на количестве ежегодного дохода, которое я могу извлечь из моего состояния, когда я выхожу на пенсию",
     "zh":"我对退休时能从我的财富中提取的年收入量更感兴趣"
     })
-goal_target_income = Verbiage(
+intro_target_income = Verbiage(
     {
     "en":"What annual amount do you target for your retirement?",
     "es":"¿Qué monto anual objetivo tienes para tu retiro?",
@@ -266,7 +267,7 @@ goal_target_income = Verbiage(
     "zh":"你退休后需要多少年收入？"
     })
 
-goal_target_income_help = Verbiage(
+intro_target_income_help = Verbiage(
     {
     "en":"This is the annual amount you will draw from your own assets (your wealth), from the time you retire. Do not include here the amounts you expect to receive from other sources. For example, if you are eligible to social security retirement, do not include corresponding amount in this target. You can type 50k for 50,000.",
     "es":"Este es el monto anual que vas a retirar de tus propios activos (tu riqueza), desde el momento en que te jubiles. No incluyas aquí los montos que esperas recibir de otras fuentes. Por ejemplo, si eres elegible para la jubilación de la seguridad social, no incluyas el monto correspondiente en este objetivo. Puedes escribir 50k para 50,000.",
@@ -279,7 +280,7 @@ goal_target_income_help = Verbiage(
     "zh":"你退休后需要多少年收入？不要包括你预计从其他来源获得的收入。例如，如果你有资格享受社会养老保险，不要将相应的金额包含在这个目标中。你可以输入50k表示50,000元。"
     })
 
-goal_years_to_retire = Verbiage(
+intro_years_to_retire = Verbiage(
     {
     "en":"How many years until you retire?",
     "es":"¿Cuántos años hasta que te jubiles?",
@@ -291,7 +292,7 @@ goal_years_to_retire = Verbiage(
     "ru":"Сколько лет до выхода на пенсию?",
     "zh":"你还有多少年退休？"
     })
-goal_years_to_retire_help = Verbiage(
+intro_years_to_retire_help = Verbiage(
     {
     "en":"Count the number of years between now and the time you target to retire.",
     "es":"Cuenta el número de años entre ahora y el momento en que quieres jubilarte.",
@@ -303,7 +304,7 @@ goal_years_to_retire_help = Verbiage(
     "ru":"Подсчитайте количество лет между сейчас и моментом выхода на пенсию, когда вы хотите выйти на пенсию.",
     "zh":"从现在到你目标退休还有多少年。"
     })
-wealth_title = Verbiage(
+intro_wealth_title = Verbiage(
     {
     "en":"Wealth",
     "es":"Riqueza",
@@ -315,7 +316,7 @@ wealth_title = Verbiage(
     "ru":"Состояние",
     "zh":"财富"
     })
-wealth_prompt = Verbiage(
+intro_wealth_prompt = Verbiage(
     {
     "en":"To do calculations, the model needs to know your current wealth. This includes all assets you own,",
     "es":"Para hacer cálculos, el modelo necesita saber tu riqueza actual. Esto incluye todos los activos que tienes,",
@@ -327,7 +328,7 @@ wealth_prompt = Verbiage(
     "ru":"Для выполнения расчетов модель должна знать ваше текущее состояние. Это включает все активы, которыми вы владеете,",
     "zh":"为了进行计算，模型需要知道你的当前财富。这包括你拥有的所有资产。"
     })
-wealth_starting_wealth = Verbiage(
+intro_starting_wealth = Verbiage(
     {
     "en":"Your amount of wealth as of today",
     "es":"Tu cantidad de riqueza hoy",
@@ -339,7 +340,7 @@ wealth_starting_wealth = Verbiage(
     "ru":"Ваше состояние сегодня",
     "zh":"你今天的财富金额"
     })
-wealth_starting_wealth_help = Verbiage(
+intro_starting_wealth_help = Verbiage(
     {
     "en":"Provide here the total amount of your wealth as of today. Include real estate, stocks, bonds, cash, and other assets. Do not reduce this amount by the debt you owe. The model assumes that the servicing of the debt is covered by your existing income and, after you retire, in the amount you can draw from your wealth. Specific situations will be addressed later, for example in case there is a very substantial amount of capital outstanding that is can't be paid back in your lifetime.",
     "es":"Proporciona aquí el monto total de tu riqueza hoy. Incluye bienes raíces, acciones, bonos, efectivo y otros activos. No reduzcas este monto por la deuda que debes. El modelo asume que el servicio de la deuda está cubierto por tu ingreso actual y, después de tu retiro, en la cantidad que puedes extraer de tu riqueza. Situaciones específicas se abordarán más adelante, por ejemplo en caso de que haya una cantidad muy sustancial de capital pendiente que no puede ser pagada en tu vida.",
@@ -351,7 +352,7 @@ wealth_starting_wealth_help = Verbiage(
     "ru":"Укажите здесь общую сумму вашего состояния на сегодня. Включите недвижимость, акции, облигации, наличные и другие активы. Не вычитайте из этой суммы сумму долга, которую вы должны. Модель предполагает, что обслуживание долга покрывается вашим текущим доходом и, после выхода на пенсию, в сумме, которую вы можете извлечь из своего состояния. Специальные ситуации будут рассмотрены позже, например, в случае очень большой суммы просроченного капитала, которая не может быть выплачена в течение вашей жизни.",
     "zh":"在这里提供你今天的总财富金额。包括房地产、股票、债券、现金和其他资产。不要减去你欠的债务。模型假设债务的偿还由你的现有收入和退休后可以从财富中提取的金额来覆盖。特定情况将在稍后处理，例如在有非常大额的资本无法在您的有生之年偿还的情况下。"
     })
-liquidity_title = Verbiage(
+intro_liquidity_title = Verbiage(
     {
     "en":"Liquidity",
     "es":"Liquidez",
@@ -363,7 +364,7 @@ liquidity_title = Verbiage(
     "ru":"Ликвидность",
     "zh":"流动性"
     })
-liquidity_prompt = Verbiage(
+intro_liquidity_prompt = Verbiage(
     {
     "en":"Cash you keep aside.",
     "es":"Efectivo que mantienes aparte.",
@@ -375,7 +376,7 @@ liquidity_prompt = Verbiage(
     "ru":"Наличные, которые вы оставляете в стороне.",
     "zh":"你另外留出的现金。"
     })
-liquidity_cash_buffer = Verbiage(
+intro_cash_buffer = Verbiage(
     {
     "en":"Cash you keep aside",
     "es":"Liquide que vous gardez de côté",
@@ -387,7 +388,7 @@ liquidity_cash_buffer = Verbiage(
     "ru":"Наличные, которые вы оставляете в стороне",
     "zh":"你另外留出的现金"
     })
-liquidity_cash_buffer_help = Verbiage(
+intro_cash_buffer_help = Verbiage(
     {
     "en":"A reserve that is not part of the invested mix.",
     "es":"Una reserva que no forma parte de la mezcla invertida.",
@@ -721,85 +722,68 @@ review_prompt = Verbiage(
 
 
 _GOAL_LABELS: dict[str, Verbiage] = {
-    "retire_when": goal_kind_retire_when,
-    "save_for_income": goal_kind_save_for_income,
-    "heirs": goal_kind_heirs,
-    "other": goal_kind_other,
+    "retire_when": intro_goal_retire_when,
+    "save_for_income": intro_goal_save_for_income,
+    "heirs": intro_goal_heirs,
+    "other": intro_goal_other,
 }
 
 
 _THINKING_MODE_LABELS: dict[str, Verbiage] = {
-    "capital": goal_thinking_mode_capital,
-    "income": goal_thinking_mode_income,
+    "capital": intro_thinking_mode_capital,
+    "income": intro_thinking_mode_income,
 }
 
 def build_definition() -> TourDefinition:
     steps = [
         Step(
-            id="goal",
-            title=goal_title,
-            prompt=goal_prompt,
+            id="intro",
+            title=intro_title,
+            prompt=intro_prompt,
             fields=[
                 FieldSpec(
-                    "goal.kind",
-                    goal_kind_title,
+                    "intro.goal",
+                    intro_goal_title,
                     "choice",
                     choices=("retire_when", "save_for_income", "heirs", "other"),
                     choice_labels=_GOAL_LABELS,
-                    help=goal_kind_help,
+                    help=intro_goal_help,
                 ),
                 FieldSpec(
-                    "goal.legacy",
-                    goal_legacy_title,
+                    "intro.legacy",
+                    intro_legacy_title,
                     "choice",
                     choices=("use_it_all", "preserve_capital", "favor_heirs", "not_sure"),
-                    choice_labels={"use_it_all": goal_legacy_option1, "preserve_capital": goal_legacy_option2, "favor_heirs": goal_legacy_option3, "not_sure": option_legacy_option4},
-                    help=goal_legacy_title_help,
+                    choice_labels={"use_it_all": intro_legacy_option1, "preserve_capital": intro_legacy_option2, "favor_heirs": intro_legacy_option3, "not_sure": intro_legacy_option4},
+                    help=intro_legacy_title_help,
                 ),
                 FieldSpec(
-                    path="goal.target_income",
-                    label=goal_target_income,
+                    path="intro.target_income",
+                    label=intro_target_income,
                     kind="amount",
                     #min=0,
                     when=goal_is_retire_when | goal_is_save_for_income | goal_is_heirs,
-                    help=goal_target_income_help,
+                    help=intro_target_income_help,
                 ),
                 FieldSpec(
-                    path="goal.years_to_retire",
-                    label=goal_years_to_retire,
+                    path="intro.years_to_retire",
+                    label=intro_years_to_retire,
                     kind="int",
                     min=0,
                     when=goal_is_save_for_income | goal_is_heirs,
-                    help=goal_years_to_retire_help,
+                    help=intro_years_to_retire_help,
                 ),
-            ],
-            default_next="wealth",
-            clears_on_change=("goal.other_text",),
-        ),
-        Step(
-            id="wealth",
-            title=wealth_title,
-            prompt=wealth_prompt,
-            fields=[
                 FieldSpec(
-                    "wealth.initial_capital",
-                    wealth_starting_wealth,
+                    "intro.initial_capital",
+                    intro_starting_wealth,
                     "amount",
-                    help=wealth_starting_wealth_help,
+                    help=intro_starting_wealth_help,
                 ),
-            ],
-            default_next="liquidity",
-        ),
-        Step(
-            id="liquidity",
-            title=liquidity_title,
-            prompt=liquidity_prompt,
-            fields=[
                 FieldSpec(
-                    "liquidity.cash_buffer",
-                    liquidity_cash_buffer,
+                    "intro.cash_buffer",
+                    intro_cash_buffer,
                     "amount",
-                    help=liquidity_cash_buffer_help,
+                    help=intro_cash_buffer_help,
                 ),
             ],
             default_next="flows",
@@ -903,4 +887,4 @@ def build_definition() -> TourDefinition:
             fields=[],
         ),
     ]
-    return TourDefinition(steps, start="goal")
+    return TourDefinition(steps, start="intro")
