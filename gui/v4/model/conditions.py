@@ -32,7 +32,7 @@ class Condition:
         )
 
 
-goal_is_other = Condition("goal_is_other", lambda state: state.goal.goal == "other")
+goal_is_other = Condition("goal_is_other", lambda state: state.intro.goal == "other")
 goal_is_retire_when = Condition(
     "goal_is_retire_when", lambda state: state.intro.goal == "retire_when"
 )

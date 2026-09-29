@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import copy
+import importlib.util
 import sys
 import unittest
 from pathlib import Path
@@ -22,6 +23,22 @@ from unittest.mock import patch
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "gui" / "v1"))
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
+
+
+def _v1_app():
+    """Load gui/v1/app.py by path so another folder's app.py cannot shadow it."""
+    name = "finproj_gui_v1_app"
+    cached = sys.modules.get(name)
+    if cached is not None:
+        return cached
+    path = PROJECT_ROOT / "gui" / "v1" / "app.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 class FakeSessionState(dict[str, Any]):
@@ -133,7 +150,7 @@ class SetupFieldsLifecycleTest(unittest.TestCase):
             "withdrawals_from_period": 1,
             "withdrawals_to_period": 20,
         }
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.app = gui_app
         self.patcher = patch.object(gui_app.st, "session_state", self.state)
@@ -209,7 +226,7 @@ class Step1FlowsLifecycleTest(unittest.TestCase):
             "withdrawals_from_period": 5,
             "withdrawals_to_period": 15,
         }
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.app = gui_app
         self.patcher = patch.object(gui_app.st, "session_state", self.state)
@@ -280,7 +297,7 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
             "withdrawals_from_period": 1,
             "withdrawals_to_period": 20,
         }
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.app = gui_app
         self.patcher = patch.object(gui_app.st, "session_state", self.state)
@@ -446,7 +463,7 @@ class Step3ReturnsLifecycleTest(unittest.TestCase):
             self.state[f"mu_{asset_id}"] = float(entries[0]["mu"])
             self.state[f"sigma_{asset_id}"] = float(entries[0]["sigma"])
 
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.app = gui_app
         self.patcher = patch.object(gui_app.st, "session_state", self.state)
@@ -512,7 +529,7 @@ class CrossSectionIsolationTest(unittest.TestCase):
             self.state[f"mu_{asset_id}"] = float(entries[0]["mu"])
             self.state[f"sigma_{asset_id}"] = float(entries[0]["sigma"])
 
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.app = gui_app
         self.patcher = patch.object(gui_app.st, "session_state", self.state)
@@ -588,14 +605,14 @@ class CrossSectionIsolationTest(unittest.TestCase):
 
 class SectionWiringTest(unittest.TestCase):
     def test_editable_sections_have_lifecycle_hooks(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
 
         for section in (gui_app.section1, gui_app.section2, gui_app.section3):
             self.assertIsNotNone(section.on_enter_edit, section.name)
             self.assertIsNotNone(section.on_exit_edit, section.name)
 
     def test_section_names_are_steps_1_through_4(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
 
         self.assertEqual(gui_app.section1.name, "Step 1")
         self.assertEqual(
@@ -611,7 +628,7 @@ class SectionWiringTest(unittest.TestCase):
         self.assertFalse(hasattr(gui_app, "section5"))
 
     def test_section_is_editing_uses_display_names(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
 
         state = FakeSessionState()
         state["section_step_1_editing"] = True
@@ -679,7 +696,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         self.assertEqual(events, [])
 
     def test_force_close_commits_open_step1_and_clears_editing_flag(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
 
         state = FakeSessionState()
         state.portfolio = {
@@ -716,7 +733,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         self.assertIsNotNone(state.get("result"))
 
     def test_force_close_closes_all_three_editable_sections(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
         from asset_classes import default_asset_catalog
         from inv_proj_runner import (
             DEFAULT_RISK_CORRELATION,
@@ -763,7 +780,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         self.assertFalse(state.get("section_step_3_editing"))
 
     def test_request_simulation_run_closes_edits_sets_flags_and_reruns(self) -> None:
-        import app as gui_app
+        gui_app = _v1_app()
 
         state = FakeSessionState()
         state.portfolio = {
@@ -836,7 +853,7 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
 
     def test_force_close_then_idle_layout_is_readonly_not_edit(self) -> None:
         """After Run is requested, all sections must be non-editing for next render."""
-        import app as gui_app
+        gui_app = _v1_app()
 
         state = FakeSessionState()
         state.portfolio = {
