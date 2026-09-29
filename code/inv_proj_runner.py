@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -400,9 +401,9 @@ class SimulationJob:
             correlations=config.risk_correlation,
             rng_seed=config.rng_seed,
         )
-
+        self._stack = ExitStack()
         self.audit_path = config.output_dir / "audit.txt"
-        self._audit_out = open(self.audit_path, mode="w", encoding="utf-8")
+        self._audit_out = self._stack.enter_context(open(self.audit_path, mode="w", encoding="utf-8"))  # noqa: SIM115
         self.nav, self.nav_fan = _define_observers(
             self.simulation, config, self._audit_out
         )
@@ -415,8 +416,7 @@ class SimulationJob:
         """Run up to ``batch_size`` more projections. Returns ``running`` or ``done``."""
         if self._closed:
             raise RuntimeError("SimulationJob is closed")
-        if batch_size < 1:
-            batch_size = 1
+        batch_size = max(batch_size, 1)
         target = min(self.completed + batch_size, self.nb_projections)
         while self.completed < target:
             idx = self.completed
@@ -449,10 +449,7 @@ class SimulationJob:
         if self._closed:
             return
         self._closed = True
-        try:
-            self._audit_out.close()
-        except Exception:
-            pass
+        self._stack.close()
 
 
 def run_simulation(
