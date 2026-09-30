@@ -902,6 +902,7 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
 
     for asset in assumptions.asset_catalog.assets:
         st.session_state[f"asset_name_{asset.id}"] = asset.name
+        st.session_state[f"rebalance_{asset.id}"] = asset.rebalance
 
     for asset_id, weight in assumptions.allocation.items():
         st.session_state[f"alloc_{asset_id}"] = float(weight)
@@ -972,6 +973,7 @@ def _step_3_edit_keys(catalog: AssetCatalog | None = None) -> list[str]:
     for asset in _investable_assets(cat):
         keys.append(f"asset_name_{asset.id}")
         keys.append(f"alloc_{asset.id}")
+        keys.append(f"rebalance_{asset.id}")
     return keys
 
 
@@ -998,6 +1000,7 @@ def _seed_step_3_edit_from_session() -> None:
     for asset in _investable_assets(catalog):
         st.session_state[f"asset_name_{asset.id}"] = asset.name
         st.session_state[f"alloc_{asset.id}"] = float(allocation.get(asset.id, 0.0))
+        st.session_state[f"rebalance_{asset.id}"] = bool(asset.rebalance)
 
 
 def _commit_step_3_edit_to_session() -> None:
@@ -1025,6 +1028,9 @@ def _commit_step_3_edit_to_session() -> None:
             allocation[asset.id] = float(st.session_state[alloc_key])
         else:
             allocation[asset.id] = float(st.session_state.allocation.get(asset.id, 0.0))
+        rebalance_key = f"rebalance_{asset.id}"
+        if rebalance_key in st.session_state:
+            catalog.set_rebalance(asset.id, bool(st.session_state[rebalance_key]))
     st.session_state.asset_catalog = catalog
     if allocation:
         st.session_state.allocation = allocation
@@ -1036,7 +1042,7 @@ def _clear_step_3_edit_keys(catalog: AssetCatalog | None = None) -> None:
     _clear_edit_keys(PORTFOLIO_CAPITAL_EDIT_KEYS)
     # Also drop orphan alloc_/asset_name_ keys no longer in the catalog.
     for key in list(st.session_state.keys()):
-        if isinstance(key, str) and key.startswith(("asset_name_", "alloc_")):
+        if isinstance(key, str) and key.startswith(("asset_name_", "alloc_", "rebalance_")):
             st.session_state.pop(key, None)
 
 
@@ -1685,13 +1691,14 @@ def _render_step_2_edit() -> None:
             "Define types of investable assets used in the projection and set corresponding allocation percentages. "
             "Required: Money Market, Bonds, and Stocks. Optional classes can be added or removed. "
             "Cash (liquidity buffer) is separate from Money Market: cash has zero return and zero volatility. "
-            "The total allocation percentage must sum to 100% for investable assets."
+            "The total allocation percentage must sum to 100% for investable assets. "
+            "Uncheck Rebalance to let that holding drift; it still earns its own return."
         )
 
         left_part, center_part, right_part = st.columns([3, 1, 2], gap="small")
 
         with left_part:
-            col_size = [5, 3, 1]
+            col_size = [4, 2, 2, 1]
 
             def render_header():
                 header_cols = st.columns(
@@ -1701,6 +1708,8 @@ def _render_step_2_edit() -> None:
                     st.markdown("**Asset**")
                 with header_cols[1]:
                     st.markdown("**Allocation %**")
+                with header_cols[2]:
+                    st.markdown("**Rebalance**")
 
             allocation: dict[str, float] = {}
 
@@ -1738,6 +1747,22 @@ def _render_step_2_edit() -> None:
                         label_visibility="collapsed",
                     )
                 with cols[2]:
+                    rebalance_key = f"rebalance_{asset.id}"
+                    if rebalance_key not in st.session_state:
+                        st.session_state[rebalance_key] = bool(asset.rebalance)
+                    checked = st.checkbox(
+                        "Rebalance",
+                        key=rebalance_key,
+                        label_visibility="collapsed",
+                        help=(
+                            "When checked, this asset is pulled back to its allocation each year. "
+                            "When unchecked, its balance is left to drift. "
+                            "Either way it earns the return attached to it."
+                        ),
+                    )
+                    if checked != asset.rebalance:
+                        catalog.set_rebalance(asset.id, checked)
+                with cols[3]:
                     if not asset.required and st.button(
                         "×", help="Remove asset", key=f"delete_{asset.id}"
                     ):
@@ -1747,6 +1772,7 @@ def _render_step_2_edit() -> None:
                             st.session_state.allocation.pop(asset.id, None)
                             st.session_state.pop(f"asset_name_{asset.id}", None)
                             st.session_state.pop(f"alloc_{asset.id}", None)
+                            st.session_state.pop(f"rebalance_{asset.id}", None)
                             st.session_state.correlation_values = (
                                 _default_correlation_values(catalog)
                             )
@@ -1768,7 +1794,7 @@ def _render_step_2_edit() -> None:
                 for k, asset in enumerate(_investable_assets(catalog)):
                     render_asset_line(asset)
 
-                c1, c2, _ = st.columns(col_size)
+                c1, c2, _, _ = st.columns(col_size)
 
                 alloc_total = sum(allocation.values())
                 error = abs(alloc_total - 100.0) > 0.01
@@ -1814,6 +1840,7 @@ def _render_step_2_edit() -> None:
                     st.session_state.allocation.setdefault(added.id, 0.0)
                     st.session_state[f"asset_name_{added.id}"] = added.name
                     st.session_state[f"alloc_{added.id}"] = 0.0
+                    st.session_state[f"rebalance_{added.id}"] = True
                     st.session_state.correlation_values = _default_correlation_values(
                         catalog
                     )

@@ -41,6 +41,9 @@ class AssetClass:
     name: str
     required: bool = False
     roles: frozenset[str] = frozenset()
+    # When true, the in-year rebalance pulls this holding back to its allocation.
+    # When false, the balance is left alone and still earns its own return.
+    rebalance: bool = True
 
     def has_role(self, role: str) -> bool:
         return role in self.roles
@@ -138,6 +141,18 @@ class AssetCatalog:
             name=name,
             required=asset.required,
             roles=asset.roles,
+            rebalance=asset.rebalance,
+        )
+
+    def set_rebalance(self, asset_id: str, enabled: bool) -> None:
+        asset = self.get(asset_id)
+        index = self.assets.index(asset)
+        self.assets[index] = AssetClass(
+            id=asset.id,
+            name=asset.name,
+            required=asset.required,
+            roles=asset.roles,
+            rebalance=bool(enabled),
         )
 
     def add(self, name: str, roles: Iterable[str] | None = None) -> AssetClass:

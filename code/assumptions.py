@@ -44,6 +44,7 @@ def catalog_to_dict(catalog: AssetCatalog) -> list[dict[str, Any]]:
             'name': asset.name,
             'required': asset.required,
             'roles': sorted(asset.roles),
+            'rebalance': asset.rebalance,
         }
         for asset in catalog.assets
     ]
@@ -56,6 +57,7 @@ def catalog_from_dict(items: list[dict[str, Any]]) -> AssetCatalog:
             name=item['name'],
             required=bool(item.get('required', False)),
             roles=frozenset(item.get('roles', [])),
+            rebalance=bool(item.get('rebalance', True)),
         )
         for item in items
     ]

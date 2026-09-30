@@ -17,7 +17,8 @@
       "required": true,
       "roles": [
         "liquidity"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "money_market",
@@ -25,7 +26,8 @@
       "required": true,
       "roles": [
         "investable"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "bonds",
@@ -35,7 +37,8 @@
         "investable",
         "replenishment",
         "shortfall"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "stocks",
@@ -43,7 +46,8 @@
       "required": true,
       "roles": [
         "investable"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "crypto",
@@ -51,7 +55,8 @@
       "required": false,
       "roles": [
         "investable"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "pmetal",
@@ -59,7 +64,8 @@
       "required": false,
       "roles": [
         "investable"
-      ]
+      ],
+      "rebalance": true
     },
     {
       "id": "real_estate",
@@ -67,15 +73,17 @@
       "required": false,
       "roles": [
         "investable"
-      ]
+      ],
+      "rebalance": false
     }
   ],
   "allocation": {
-    "bonds": 30,
-    "stocks": 40,
-    "pmetal": 5,
-    "crypto": 5,
-    "real_estate": 20
+    "money_market": 0.0,
+    "bonds": 30.0,
+    "stocks": 40.0,
+    "crypto": 5.0,
+    "pmetal": 5.0,
+    "real_estate": 20.0
   },
   "mu_sigma": {
     "cash": {

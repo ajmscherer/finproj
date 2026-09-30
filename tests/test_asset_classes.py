@@ -21,8 +21,18 @@ class AssetCatalogTest(unittest.TestCase):
 
     def test_rename_asset(self):
         catalog = default_asset_catalog()
+        catalog.set_rebalance('stocks', False)
         catalog.rename('stocks', 'Equities')
         self.assertEqual(catalog.name('stocks'), 'Equities')
+        self.assertFalse(catalog.get('stocks').rebalance)
+
+    def test_rebalance_defaults_on_and_can_be_turned_off(self):
+        catalog = default_asset_catalog()
+        self.assertTrue(all(asset.rebalance for asset in catalog.assets))
+        added = catalog.add('Commodities')
+        self.assertTrue(added.rebalance)
+        catalog.set_rebalance(added.id, False)
+        self.assertFalse(catalog.get(added.id).rebalance)
 
     def test_add_and_remove_optional_asset(self):
         catalog = default_asset_catalog()

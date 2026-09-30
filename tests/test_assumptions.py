@@ -46,6 +46,38 @@ class AssumptionsTest(unittest.TestCase):
         self.assertEqual(restored.max_year, 20)
         self.assertEqual(restored.rng_seed, 1)
         self.assertEqual(restored.allocation['bonds'], 45.0)
+        self.assertTrue(restored.asset_catalog.get('stocks').rebalance)
+
+    def test_rebalance_round_trip_and_legacy_default(self):
+        catalog = default_config().asset_catalog
+        catalog.set_rebalance('stocks', False)
+        assumptions = Assumptions.from_gui_state(
+            name='Drift',
+            initial_capital='1M',
+            contributions='0k',
+            withdrawals='0k',
+            cash_buffer='100k',
+            max_year=15,
+            nb_projections=100,
+            output_dir='output',
+            mix_preset='performance',
+            asset_catalog=catalog,
+            allocation=DEFAULT_RISK_MIX_PRESETS['performance'],
+            mu_sigma={
+                asset_id: (entry[0]['mu'], entry[0]['sigma'])
+                for asset_id, entry in default_config().risk_param.items()
+            },
+            correlation_values=default_config().risk_correlation,
+        )
+        payload = assumptions.to_dict()
+        stocks = next(item for item in payload['asset_catalog'] if item['id'] == 'stocks')
+        bonds = next(item for item in payload['asset_catalog'] if item['id'] == 'bonds')
+        self.assertFalse(stocks['rebalance'])
+        self.assertTrue(bonds['rebalance'])
+        del bonds['rebalance']
+        restored = Assumptions.from_dict(payload)
+        self.assertFalse(restored.asset_catalog.get('stocks').rebalance)
+        self.assertTrue(restored.asset_catalog.get('bonds').rebalance)
 
     def test_description_defaults_when_missing_from_json(self):
         catalog = default_config().asset_catalog

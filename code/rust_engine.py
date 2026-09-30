@@ -99,6 +99,9 @@ class _Packer:
     def bytes(self, data: bytes) -> None:
         self._buf.extend(data)
 
+    def u8(self, value: int) -> None:
+        self._buf.extend(struct.pack("<B", int(value) & 0xFF))
+
     def u32(self, value: int) -> None:
         self._buf.extend(struct.pack("<I", int(value)))
 
@@ -201,6 +204,7 @@ def _pack_spec(
             raise ValueError(f"mix asset {asset_id} has no return distribution")
         pack.u32(index[asset_id])
         pack.f64(weight)
+        pack.u8(1 if config.asset_catalog.get(asset_id).rebalance else 0)
 
     for asset_id in asset_ids:
         segments = config.risk_param[asset_id]

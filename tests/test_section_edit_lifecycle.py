@@ -315,6 +315,7 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
             float(self.state.alloc_stocks),
             float(self.state.allocation["stocks"]),
         )
+        self.assertTrue(self.state.rebalance_stocks)
 
     def test_exit_commits_rename_allocation_and_capital(self) -> None:
         self.app._on_enter_step_2_edit()
@@ -324,6 +325,7 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.state.alloc_stocks = 55.0
         self.state.alloc_bonds = 25.0
         self.state.alloc_money_market = 20.0
+        self.state.rebalance_stocks = False
         for asset_id in list(self.state.allocation):
             key = f"alloc_{asset_id}"
             if (
@@ -342,8 +344,10 @@ class Step2AllocationLifecycleTest(unittest.TestCase):
         self.assertEqual(self.state.portfolio["initial_capital"], "2M")
         self.assertEqual(self.state.portfolio["cash_buffer"], "200k")
         self.assertAlmostEqual(self.state.allocation["stocks"], 55.0)
+        self.assertFalse(self.state.asset_catalog.get("stocks").rebalance)
         self.assertNotIn("asset_name_stocks", self.state)
         self.assertNotIn("alloc_stocks", self.state)
+        self.assertNotIn("rebalance_stocks", self.state)
         self.assertNotIn("portfolio_edit_initial_capital", self.state)
 
     def test_reenter_shows_committed_allocation(self) -> None:

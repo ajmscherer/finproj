@@ -137,6 +137,62 @@ class RustEngineMatchTest(unittest.TestCase):
                     full.nav_fan.values_by_year[year],
                 )
 
+    def test_rebalance_off_keeps_balance_and_still_applies_return(self) -> None:
+        """A holding left out of rebalance keeps its drifted dollars and still earns its mu."""
+        config = default_config()
+        config.max_year = 2
+        config.nb_projections = 1
+        config.rng_seed = 1
+        config.initial_capital = "1000000"
+        config.cash_buffer = "0"
+        config.contributions = "0"
+        config.withdrawals = "0"
+        config.contributions_to_period = 2
+        config.withdrawals_to_period = 2
+        config.risk_mix = {"stocks": 50.0, "bonds": 50.0}
+        config.asset_catalog.set_rebalance("stocks", False)
+        for segments in config.risk_param.values():
+            for segment in segments:
+                segment["mu"] = 0.0
+                segment["sigma"] = 0.0
+        config.risk_param["stocks"][0]["mu"] = 10.0
+
+        with tempfile.TemporaryDirectory() as tmp_py, tempfile.TemporaryDirectory() as tmp_rs:
+            python_config = copy.deepcopy(config)
+            python_config.output_dir = Path(tmp_py)
+            python_result = run_simulation_python(python_config)
+            rust_config = copy.deepcopy(config)
+            rust_config.output_dir = Path(tmp_rs)
+            rust_result = run_simulation_rust(rust_config, write_outputs=True)
+
+            def load(path: Path) -> dict[tuple[str, str, str], float]:
+                with path.open(newline="", encoding="utf-8") as handle:
+                    return {
+                        (row["period"], row["variable"], row["risk"]): float(row["value"])
+                        for row in csv.DictReader(handle)
+                    }
+
+            python_rows = load(Path(tmp_py) / "output.csv")
+            rust_rows = load(Path(tmp_rs) / "output.csv")
+
+        # Year 1 starts 500/500. Stocks earn 10% and are not pulled back, so year 2
+        # applies that same 10% to 550_000 rather than to a reset 525_000.
+        self.assertTrue(_close(python_rows[("2", "ptf2", "Stocks")], 550_000.0))
+        self.assertTrue(_close(python_rows[("2", "ptf3", "Stocks")], 605_000.0))
+        self.assertTrue(_close(python_rows[("2", "returns", "Stocks")], 0.1))
+        self.assertTrue(_close(python_rows[("2", "ptf5", "Stocks")], 605_000.0))
+        self.assertTrue(_close(python_rows[("2", "ptf5", "Bonds")], 500_000.0))
+        for key, value in python_rows.items():
+            self.assertIn(key, rust_rows, msg=str(key))
+            self.assertTrue(_close(value, rust_rows[key]), msg=f"{key}: {value} vs {rust_rows[key]}")
+        self.assertTrue(_close(python_result.nav_fan.values_by_year[2][0], 1_105_000.0))
+        self.assertTrue(
+            _close(
+                python_result.nav_fan.values_by_year[2][0],
+                rust_result.nav_fan.values_by_year[2][0],
+            )
+        )
+
     def test_rust_prefix_matches_longer_run(self) -> None:
         short = default_config()
         short.max_year = 4

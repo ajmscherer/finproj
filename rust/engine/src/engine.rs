@@ -5,7 +5,9 @@
 //! `u32` index of the first projection (0-based, so seeds stay aligned),
 //! `u64` master seed,
 //! `f64` initial capital, `f64` cash buffer, `u32` liquidity / shortfall / replenishment
-//! indexes, `u32` mix count, then mix pairs (`u32` index, `f64` weight),
+//! indexes, `u32` mix count, then mix pairs (`u32` index, `f64` weight,
+//! `u8` rebalance flag: `1` is pulled back to its weight during the year,
+//! `0` keeps its balance and still earns its return),
 //! then for each asset `u32` segment count and segments (`u32` from_year, `f64` mu, `f64` sigma),
 //! then `u32` correlation count and triples (`u32` i, `u32` j, `f64` rho),
 //! then `u32` flow mode (`0` = one shared vector of `years` f64s,
@@ -47,6 +49,8 @@ struct Spec {
     shortfall: usize,
     replenishment: usize,
     mix: Vec<(usize, f64)>,
+    /// Subset of `mix` whose flag is on. Empty means leave every line alone.
+    rebalance_mix: Vec<(usize, f64)>,
     mu: Vec<Vec<f64>>,
     sigma: Vec<Vec<f64>>,
     cholesky: Vec<Vec<f64>>,
@@ -80,6 +84,10 @@ impl<'a> Reader<'a> {
         let slice = &self.data[self.at..end];
         self.at = end;
         Ok(slice)
+    }
+
+    fn u8(&mut self) -> Result<u8, String> {
+        Ok(self.take(1)?[0])
     }
 
     fn u32(&mut self) -> Result<u32, String> {
@@ -185,9 +193,15 @@ fn parse_spec(data: &[u8]) -> Result<Spec, String> {
         return Err("risk mix is empty".to_string());
     }
     let mut mix = Vec::with_capacity(n_mix);
+    let mut rebalance_mix = Vec::with_capacity(n_mix);
     for _ in 0..n_mix {
         let index = checked_index(reader.u32()?, n_assets, "mix")?;
-        mix.push((index, reader.f64()?));
+        let weight = reader.f64()?;
+        let participates = reader.u8()? != 0;
+        mix.push((index, weight));
+        if participates {
+            rebalance_mix.push((index, weight));
+        }
     }
 
     let mut mu = vec![vec![0.0; n_years]; n_assets];
@@ -294,6 +308,7 @@ fn parse_spec(data: &[u8]) -> Result<Spec, String> {
         shortfall,
         replenishment,
         mix,
+        rebalance_mix,
         mu,
         sigma,
         cholesky,
@@ -315,6 +330,9 @@ fn total(lines: &[f64]) -> f64 {
 }
 
 fn rebalance(lines: &mut [f64], mix: &[(usize, f64)]) -> Result<(), String> {
+    if mix.is_empty() {
+        return Ok(());
+    }
     let mut portfolio_value = 0.0;
     let mut weight = 0.0;
     for (index, mix_weight) in mix {
@@ -322,7 +340,7 @@ fn rebalance(lines: &mut [f64], mix: &[(usize, f64)]) -> Result<(), String> {
         weight += *mix_weight;
     }
     if weight == 0.0 {
-        return Err("risk mix weights sum to zero".to_string());
+        return Ok(());
     }
     for (index, mix_weight) in mix {
         lines[*index] = portfolio_value * mix_weight / weight;
@@ -444,7 +462,7 @@ fn run_projection(
         ptf1[spec.liquidity] -= cash_depletion;
         ptf1[spec.shortfall] -= shortfall;
         let mut ptf2 = ptf1.clone();
-        rebalance(&mut ptf2, &spec.mix)?;
+        rebalance(&mut ptf2, &spec.rebalance_mix)?;
         let value_before_returns = total(&ptf2);
 
         for shock in &mut z {
@@ -470,7 +488,7 @@ fn run_projection(
             ptf4[spec.liquidity] += replenishment;
             ptf4[spec.replenishment] -= replenishment;
             let mut ptf5 = ptf4.clone();
-            rebalance(&mut ptf5, &spec.mix)?;
+            rebalance(&mut ptf5, &spec.rebalance_mix)?;
             (ptf4, ptf5, replenishment)
         } else {
             (ptf3.clone(), ptf3.clone(), 0.0)

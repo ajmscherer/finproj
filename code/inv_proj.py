@@ -393,8 +393,10 @@ class Portfolio:
     def rebalance(self, targetMix=None):
         if targetMix is None:
             targetMix = {}
-        v = self.value(targetMix.keys())
         total_weight = sum(targetMix.values())
+        if not targetMix or total_weight == 0:
+            return
+        v = self.value(targetMix.keys())
         for risk_class in targetMix:
             self.lines[risk_class] = v * targetMix[risk_class] / total_weight
 
@@ -503,6 +505,11 @@ class Projection(Observable):
             self.set_flows(flows)
         self.cashBuffer = cv(cashBuffer)
         self.risk_mix = risk_mix
+        self.rebalance_mix = {
+            asset_id: weight
+            for asset_id, weight in risk_mix.items()
+            if asset_catalog.get(asset_id).rebalance
+        }
         self.risk_distribution = risk_distrib
         self.correlated_returns = CorrelatedReturns(
             risk_distrib, correlations=correlations
@@ -590,9 +597,9 @@ class Projection(Observable):
             self.ptf1.lines[self.shortfall_asset_id] = 0.0
         self.ptf1.lines[self.shortfall_asset_id] -= self.shortfall
 
-        # rebalance portfolio
+        # rebalance portfolio (holdings with rebalance off keep their balance)
         self.ptf2 = self.ptf1.dup()
-        self.ptf2.rebalance(self.risk_mix)
+        self.ptf2.rebalance(self.rebalance_mix)
         v1 = self.ptf2.total_value()
 
         # investment income (correlated draws via Cholesky decomposition)
@@ -624,7 +631,7 @@ class Projection(Observable):
                 }
             )
             self.ptf5 = self.ptf4.dup()
-            self.ptf5.rebalance(self.risk_mix)
+            self.ptf5.rebalance(self.rebalance_mix)
         else:
             self.cashReplenishment = 0
             self.ptf5 = self.ptf4 = self.ptf3
