@@ -360,7 +360,7 @@ def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
     if not HAS_VIVA:
         raise ImportError(
             "Viva cash-flow model is configured but viva is not installed. "
-            "Install with: pip install -r requirements-gui.txt"
+            "Install with: pip install -r requirements.txt"
         )
     viva_source = _compose_flow_engine_source(config)
     flow_engine = VivaFlowEngine.build(

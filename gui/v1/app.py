@@ -1567,7 +1567,7 @@ def _render_step_1_edit() -> None:
         if not HAS_VIVA:
             st.warning(
                 "Viva is not installed in this environment. "
-                "Re-run `./run_gui.sh` or `pip install -r requirements-gui.txt`."
+                "Re-run `./run_gui.sh` or `pip install -r requirements.txt`."
             )
         with st.container(border=True, horizontal=True):
             st.text_area(

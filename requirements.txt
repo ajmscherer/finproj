@@ -1,5 +1,6 @@
-# Streamlit Community Cloud reads this file by default.
-# Same dependencies as requirements-gui.txt.
+# Python dependencies for the GUI and the simulation (Python 3.10+).
+# Streamlit Community Cloud reads this filename by default.
+# Viva builds the per-projection cash-flow schedules.
 streamlit>=1.55.0,<2
 matplotlib>=3.10.0,<4
 viva @ git+https://github.com/ajmscherer/viva.git

@@ -110,7 +110,7 @@ def summarize_viva_source(source: str) -> VivaProgramSummary:
     if not HAS_VIVA:
         raise ImportError(
             "viva is not installed. Install GUI dependencies with "
-            "pip install -r requirements-gui.txt"
+            "pip install -r requirements.txt"
         )
     from viva import parse
 

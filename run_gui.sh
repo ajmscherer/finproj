@@ -36,8 +36,8 @@ else
 fi
 
 if ! "$VENV_PYTHON" -c "import streamlit" 2>/dev/null; then
-  echo "Installing GUI dependencies from requirements-gui.txt ..."
-  "$VENV_PYTHON" -m pip install -r requirements-gui.txt
+  echo "Installing dependencies from requirements.txt ..."
+  "$VENV_PYTHON" -m pip install -r requirements.txt
 fi
 
 PORT=8501

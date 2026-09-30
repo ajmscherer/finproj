@@ -29,8 +29,8 @@ call ".venv\Scripts\activate.bat"
 
 python -c "import streamlit" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-  echo Installing GUI dependencies from requirements-gui.txt ...
-  python -m pip install -r requirements-gui.txt
+  echo Installing dependencies from requirements.txt ...
+  python -m pip install -r requirements.txt
   if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 )
 

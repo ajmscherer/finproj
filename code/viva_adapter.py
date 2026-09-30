@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Alex Scherer
 #
 # Viva (https://github.com/ajmscherer/viva) is an optional dependency installed
-# via requirements-gui.txt. Deterministic flows are MIT-licensed; probabilistic
+# via requirements.txt. Deterministic flows are MIT-licensed; probabilistic
 # features require a Viva Pro license after the 30-day evaluation period.
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ class VivaFlowEngine(FlowEngine):
         if not HAS_VIVA:
             raise ImportError(
                 "viva is not installed. Install GUI dependencies with "
-                "pip install -r requirements-gui.txt"
+                "pip install -r requirements.txt"
             )
         from viva import generateFlowEngine
 

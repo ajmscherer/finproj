@@ -67,7 +67,7 @@ Python 3.10 or higher is required. From the project root (after cloning or downl
 - **Mac / Linux:** `./run_gui.sh`
 - **Windows:** double-click `run_gui.bat`, or run it from Command Prompt
 
-On the first run, the launcher creates a `.venv` folder in the project and installs GUI dependencies from `requirements-gui.txt` (this avoids system-wide `pip`, which modern Linux distributions often block).
+On the first run, the launcher creates a `.venv` folder in the project and installs dependencies from `requirements.txt` (this avoids system-wide `pip`, which modern Linux distributions often block).
 
 On Debian or Ubuntu, if virtual-environment creation fails, install: `sudo apt install python3-venv python3-full`, then run the launcher again.
 
@@ -140,7 +140,7 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `gui/v1/formatting.py` — Compact number formatting and summary table HTML
 - `gui/v1/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
 - `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
-- `requirements-gui.txt` — GUI dependencies (Streamlit, matplotlib, Viva)
+- `requirements.txt` — Python dependencies (Streamlit, matplotlib, Viva)
 - `assumptions/` — Default location for saved scenario JSON files
 - `screenshots/` — README illustration and example Excel output screenshots
 - `output/finproj.xlsx` — Companion Excel workbook for visualization and analysis
