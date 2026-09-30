@@ -28,6 +28,31 @@
 
 ## Quick Start
 
+You can run finproj in either of two ways.
+
+**Download the code and install it.** Use the steps in the rest of this section. They cover Python, cloning the repository, and starting the app with `./run_gui.sh` on Mac or Linux, or `run_gui.bat` on Windows.
+
+**Run the published image.** Install [Docker Desktop](https://docs.docker.com/desktop/) on Mac or Windows, or Docker Engine on Linux, when `docker` is not already available. Podman runs the same commands when it is already installed. Start Docker Desktop, then:
+
+```bash
+docker pull ghcr.io/ajmscherer/finproj:latest
+docker run --rm -p 127.0.0.1:8501:8501 ghcr.io/ajmscherer/finproj:latest
+```
+
+Open http://localhost:8501. Publishing the port on `127.0.0.1` keeps the app on this computer. The image is updated when a new release is published on GitHub.
+
+Docker Desktop is free for personal use, education, non-commercial open source, and small businesses (fewer than 250 employees and under $10 million in annual revenue). Larger companies and government users need a paid Docker subscription. Docker Engine on Linux is free.
+
+Files the app writes stay inside that container. To keep `output/output.csv` and open it from Excel on your machine, mount a folder:
+
+```bash
+docker run --rm -p 127.0.0.1:8501:8501 \
+  -v "$PWD/finproj-output:/app/output" \
+  ghcr.io/ajmscherer/finproj:latest
+```
+
+Saved assumption files live in the container's `assumptions` folder. Add `-v "$PWD/finproj-assumptions:/app/assumptions"` to keep those as well. On Mac, Linux, and PowerShell, `$PWD` is the folder you are in. In Windows Command Prompt, use `%CD%\finproj-output` instead.
+
 The first thing to do is to download the program from the GitHub repository and install the required dependencies. If you are not familiar with GitHub, you may want to ask your favorite AI assistant to guide you with this. Here is a prompt that you can use:
 ```
 I'm non-technical. Please help me install and run finproj (https://github.com/ajmscherer/finproj) on [Windows/Mac/Linux]. One step at a time. Phases: (1) explain requirements shortly, in plain English, (2) diagnose my PC for Python 3.10+, gh, disk, port 8501, (3) install only what's missing using official sources, (4) clone with `gh repo clone ajmscherer/finproj`, (5) run run_gui.bat or ./run_gui.sh and open http://localhost:8501. Use the project's .venv launcher — don't make me install Streamlit globally unless troubleshooting. Wait for my output after each step. Assume I don't have a GitHub account.
@@ -135,6 +160,8 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `gui/v1/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize
 - `.streamlit/config.toml` — Base Streamlit theme (primary color, backgrounds)
 - `requirements-gui.txt` — GUI dependencies (Streamlit, matplotlib, Viva)
+- `Dockerfile` — image that runs this same GUI; published as `ghcr.io/ajmscherer/finproj` when a GitHub Release is published
+- `.github/workflows/docker-publish.yml` — builds and publishes that image
 - `assumptions/` — Default location for saved scenario JSON files
 - `screenshots/` — README illustration and example Excel output screenshots
 - `output/finproj.xlsx` — Companion Excel workbook for visualization and analysis
