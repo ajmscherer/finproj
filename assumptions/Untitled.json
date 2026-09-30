@@ -7,7 +7,7 @@
   "withdrawals": "50k",
   "cash_buffer": "150k",
   "max_year": 20,
-  "nb_projections": 2000,
+  "nb_projections": 20000,
   "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
   "mix_preset": "performance",
   "asset_catalog": [
@@ -74,16 +74,15 @@
       "roles": [
         "investable"
       ],
-      "rebalance": false
+      "rebalance": true
     }
   ],
   "allocation": {
-    "money_market": 0.0,
-    "bonds": 30.0,
-    "stocks": 40.0,
-    "crypto": 5.0,
-    "pmetal": 5.0,
-    "real_estate": 20.0
+    "bonds": 30,
+    "stocks": 40,
+    "pmetal": 5,
+    "crypto": 5,
+    "real_estate": 20
   },
   "mu_sigma": {
     "cash": {

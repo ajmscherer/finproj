@@ -892,5 +892,24 @@ class SimulationRunSectionStabilityTest(unittest.TestCase):
         self.assertTrue(state.get("simulation_running"))
 
 
+class RunDurationLabelTest(unittest.TestCase):
+    def test_format_spans_subsecond_and_longer_runs(self) -> None:
+        gui_app = _v1_app()
+        self.assertEqual(gui_app._format_run_seconds(0.04), "0.04 seconds")
+        self.assertEqual(gui_app._format_run_seconds(1.26), "1.3 seconds")
+        self.assertEqual(gui_app._format_run_seconds(12.4), "12 seconds")
+
+    def test_record_duration_builds_completed_label(self) -> None:
+        gui_app = _v1_app()
+        state = FakeSessionState()
+        with (
+            patch.object(gui_app.st, "session_state", state),
+            patch.object(gui_app.time, "perf_counter", side_effect=[10.0, 13.25]),
+        ):
+            gui_app._mark_run_started()
+            gui_app._record_run_duration()
+            self.assertEqual(gui_app._completed_in_label(), "Completed in 3.2 seconds.")
+
+
 if __name__ == "__main__":
     unittest.main()

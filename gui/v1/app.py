@@ -27,6 +27,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -731,9 +732,45 @@ def _discard_active_sim_job() -> None:
         _set_active_sim_job(None)
 
 
+def _format_run_seconds(seconds: float) -> str:
+    """Duration phrase for a finished run, always in seconds."""
+    seconds = max(0.0, float(seconds))
+    if seconds < 1:
+        text = f"{seconds:.2f}"
+    elif seconds < 10:
+        text = f"{seconds:.1f}"
+    else:
+        text = f"{seconds:.0f}"
+    return f"{text} seconds"
+
+
+def _completed_in_label() -> str | None:
+    seconds = st.session_state.get("sim_run_seconds")
+    if seconds is None:
+        return None
+    return f"Completed in {_format_run_seconds(seconds)}."
+
+
+def _mark_run_started() -> None:
+    st.session_state["_sim_run_started"] = time.perf_counter()
+
+
+def _record_run_duration() -> None:
+    started = st.session_state.pop("_sim_run_started", None)
+    if started is None:
+        return
+    st.session_state.sim_run_seconds = time.perf_counter() - float(started)
+
+
+def _clear_run_duration() -> None:
+    st.session_state.pop("sim_run_seconds", None)
+    st.session_state.pop("_sim_run_started", None)
+
+
 def _start_active_sim_job() -> Any:
     """Create a SimulationJob from current GUI assumptions."""
     _discard_active_sim_job()
+    _mark_run_started()
     # Do not reload inv_proj modules mid-session: it breaks class identity for
     # any object still held in session_state and is unnecessary each Run click.
     assumptions = _collect_assumptions()
@@ -890,6 +927,7 @@ def _apply_assumptions(assumptions: Assumptions, file_path: Path | None = None) 
     st.session_state.correlation_values = assumptions.correlation_values()
     st.session_state.assumptions_file = str(file_path) if file_path else ""
     st.session_state.result = None
+    _clear_run_duration()
     st.session_state.portfolio_assumptions_editing = False
     st.session_state.asset_allocation_editing = False
     st.session_state.return_assumptions_editing = False
@@ -2272,6 +2310,7 @@ def _simulation_overlay() -> None:
             return
 
         if status == "done":
+            _record_run_duration()
             st.session_state.result = job.result()
             st.session_state.result_max_year = int(job.config.max_year)
             _discard_active_sim_job()
@@ -2284,6 +2323,7 @@ def _simulation_overlay() -> None:
 
     # Edge: job finished but still referenced
     if job is not None:
+        _record_run_duration()
         st.session_state.result = job.result()
         st.session_state.result_max_year = int(job.config.max_year)
         _discard_active_sim_job()
@@ -2303,7 +2343,7 @@ def _simulation_overlay() -> None:
             _result_year(),
             include_summary=False,
         )
-        status_msg.success("Simulation complete.")
+        status_msg.success(_completed_in_label() or "Simulation complete.")
     else:
         st.info("No simulation result to display.")
         st.caption("Dismiss this dialog when ready.")
@@ -2335,6 +2375,9 @@ def _render_step_4_panel_content() -> None:
             )
         elif has_result:
             # Persistent record on the main page after the run finishes.
+            completed = _completed_in_label()
+            if completed:
+                st.success(completed)
             _render_step_5_results(st.session_state.result, _result_year())
         elif not _config_can_run():
             problems = st.session_state.config_problems or []
@@ -2370,6 +2413,7 @@ def _render_step_4_panel_content() -> None:
             and not running
         ):
             st.session_state.result = None
+            _clear_run_duration()
             _close_sim_overlay()
             st.rerun()
 
