@@ -143,9 +143,11 @@ def normalize_correlation_pair(
 
 
 def sync_config_with_catalog(config: SimulationConfig) -> None:
+    """Sync the configuration with the asset catalog. this is used to ensure that the configuration is valid. It checks that the asset ids are valid and that the correlation matrix is valid."""
     catalog = config.asset_catalog
     catalog.validate()
 
+    # Ensure that the risk mix is valid.
     valid_investable = set(catalog.investable_ids())
     config.risk_mix = {
         asset_id: weight
@@ -153,20 +155,24 @@ def sync_config_with_catalog(config: SimulationConfig) -> None:
         if asset_id in valid_investable
     }
 
+    # Ensure that the risk parameters are valid.
     for asset_id in catalog.return_model_ids():
         if asset_id not in config.risk_param:
             config.risk_param[asset_id] = [copy.deepcopy(DEFAULT_NEW_ASSET_RISK)]
 
+    # Ensure that the risk parameters are valid.
     for asset_id in list(config.risk_param.keys()):
         if asset_id not in catalog.ids:
             del config.risk_param[asset_id]
 
+    # Ensure that the risk correlation is valid.
     asset_order = catalog.return_model_ids()
     valid_pairs = {
         normalize_correlation_pair(left, right, asset_order)
         for i, left in enumerate(asset_order)
         for right in asset_order[i + 1 :]
     }
+    # Ensure that the risk correlation is valid.
     config.risk_correlation = {
         normalize_correlation_pair(left, right, asset_order): rho
         for (left, right), rho in config.risk_correlation.items()

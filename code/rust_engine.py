@@ -146,7 +146,8 @@ def _flow_matrix(config: SimulationConfig) -> list[list[float]] | None:
     return matrix
 
 
-def _pack_spec(config: SimulationConfig, flows: list[float] | list[list[float]]) -> bytes:
+def _pack_spec(config: SimulationConfig, flows) -> bytes:
+    """Pack the simulation configuration into a binary specification. Used by Rust."""
     asset_ids = list(config.risk_param.keys())
     index = {asset_id: i for i, asset_id in enumerate(asset_ids)}
 
