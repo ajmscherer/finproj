@@ -42,18 +42,29 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     return parser.parse_args(argv)
 
+def section_header(title: str):
+    print(f"\n{title}\n{'='*len(title)}")
 
 def run(argv: list[str] | None = None):
     """Main procedure to run investment projection simulation."""
     args = _parse_args(argv)
     config = default_config()
+    config.nb_projections = 20000
     if args.reseed:
         config.rng_seed = secrets.randbelow(2**31 - 2) + 1
     elif args.seed is not None:
         config.rng_seed = int(args.seed)
+    section_header("Configuration")
     print(f"rng_seed={config.rng_seed}")
+    print(f"nb_projections={config.nb_projections}")
+    print(f"max_year={config.max_year}")
+    print(f"initial_capital={config.initial_capital}")
+    print(f"risk_mix={config.risk_mix}")
+
+    section_header("Running simulation...")
     result = run_simulation(config)
 
+    section_header("Results")
     for period in result.nav_observers:
         print(f"{period:<20}: {result.nav_observers[period]}")
 
