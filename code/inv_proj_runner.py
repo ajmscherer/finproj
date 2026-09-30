@@ -371,7 +371,7 @@ def _build_flow_engine(config: SimulationConfig) -> FlowEngine:
     return flow_engine
 
 
-class SimulationJob:
+class PythonSimulationJob:
     """Resumable Monte Carlo job (GUI advances in batches so Cancel/Close stay live)."""
 
     def __init__(self, config: SimulationConfig) -> None:
@@ -458,14 +458,140 @@ class SimulationJob:
         self._stack.close()
 
 
+def run_simulation_python(
+    config: SimulationConfig,
+    progress_callback: Callable[..., None] | None = None,
+) -> RunResult:
+    """Run the projection loop in Python. Kept so the Rust engine can be checked against it."""
+    job = PythonSimulationJob(config)
+    try:
+        job.run_batch(job.nb_projections, progress_callback)
+        return job.result()
+    finally:
+        job.close()
+
+
+class SimulationJob:
+    """Monte Carlo job backed by the Rust engine.
+
+    ``run_batch`` runs the next slice and reports progress. The GUI redraws
+    the bar and charts between slices.
+    """
+
+    def __init__(self, config: SimulationConfig) -> None:
+        sync_config_with_catalog(config)
+        config.asset_catalog.validate()
+        validate_allocation(config.risk_mix, config.asset_catalog)
+        validate_correlation(config.risk_param, config.risk_correlation)
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.config = config
+        self.nb_projections = int(config.nb_projections)
+        self.completed = 0
+        self._closed = False
+        self._result: RunResult | None = None
+        self._flows: list[float] | list[list[float]] | None = None
+        self._outputs_started = False
+        self.nav: dict[str, StatisticalObserver] = {}
+        self.nav_fan = NavFanObserver(config.max_year)
+        self.audit_path = config.output_dir / "audit.txt"
+
+    def _slice_flows(self, start: int, count: int) -> list[float] | list[list[float]]:
+        if self._flows is None:
+            from rust_engine import prepare_flows
+
+            self._flows = prepare_flows(self.config)
+        flows = self._flows
+        if flows and isinstance(flows[0], list):
+            return flows[start : start + count]
+        return flows
+
+    def _start_output_files(self) -> None:
+        if self._outputs_started:
+            return
+        csv_path = self.config.output_dir / "output.csv"
+        csv_path.write_text(
+            "simulation,period,variable,risk,value\n",
+            encoding="utf-8",
+        )
+        self.audit_path.write_text(
+            f"rng_seed={int(self.config.rng_seed)} "
+            f"projections={self.nb_projections} "
+            f"years={int(self.config.max_year)}\n",
+            encoding="utf-8",
+        )
+        self._outputs_started = True
+
+    def run_batch(
+        self,
+        batch_size: int,
+        progress_callback: Callable[..., None] | None = None,
+    ) -> str:
+        """Run the next ``batch_size`` projections in Rust. Returns ``running`` or ``done``."""
+        if self._closed:
+            raise RuntimeError("SimulationJob is closed")
+        if self.completed >= self.nb_projections:
+            return "done"
+        count = min(max(int(batch_size), 1), self.nb_projections - self.completed)
+        start = self.completed
+        self._start_output_files()
+        from rust_engine import run_simulation_rust
+
+        partial = run_simulation_rust(
+            self.config,
+            write_outputs=True,
+            start_projection=start,
+            projection_count=count,
+            append_outputs=True,
+            flows=self._slice_flows(start, count),
+        )
+        for year, values in partial.nav_fan.values_by_year.items():
+            self.nav_fan.values_by_year[year].extend(values)
+        for name, observer in partial.nav_observers.items():
+            stored = self.nav.get(name)
+            if stored is None:
+                self.nav[name] = observer
+            else:
+                stored.values.extend(observer.values)
+                stored._reset_moment_data()
+        self.completed += count
+        if self.completed >= self.nb_projections:
+            self._result = RunResult(
+                nav_observers=self.nav,
+                nav_fan=self.nav_fan,
+                output_csv=self.config.output_dir / "output.csv",
+                audit_path=self.audit_path,
+            )
+        _call_progress_callback(
+            progress_callback,
+            self.completed,
+            self.nb_projections,
+            self.nav_fan,
+        )
+        return "done" if self.completed >= self.nb_projections else "running"
+
+    def result(self) -> RunResult:
+        if self._result is not None:
+            return self._result
+        return RunResult(
+            nav_observers=self.nav,
+            nav_fan=self.nav_fan,
+            output_csv=self.config.output_dir / "output.csv",
+            audit_path=self.audit_path,
+        )
+
+    def close(self) -> None:
+        self._closed = True
+
+
 def run_simulation(
     config: SimulationConfig,
     progress_callback: Callable[..., None] | None = None,
 ) -> RunResult:
     """
-    Run a simulation.
+    Run a simulation in the Rust engine.
     config: the configuration for the simulation
-    progress_callback: the callback to call to update the progress bar
+    progress_callback: called after the run, with the finished fan chart
     """
     job = SimulationJob(config)
     try:

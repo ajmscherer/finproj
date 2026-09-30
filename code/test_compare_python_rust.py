@@ -2,7 +2,7 @@ import time
 
 import viva
 from inv_proj_runner import default_config
-from inv_proj_runner import run_simulation as run_simulation_python
+from inv_proj_runner import run_simulation_python
 from lark.exceptions import UnexpectedCharacters
 from rust_engine import run_simulation_rust
 

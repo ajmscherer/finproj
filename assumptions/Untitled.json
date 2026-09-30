@@ -71,12 +71,11 @@
     }
   ],
   "allocation": {
-    "money_market": 0.0,
-    "bonds": 30.0,
-    "stocks": 40.0,
-    "crypto": 5.0,
-    "pmetal": 5.0,
-    "real_estate": 20.0
+    "bonds": 30,
+    "stocks": 40,
+    "pmetal": 5,
+    "crypto": 5,
+    "real_estate": 20
   },
   "mu_sigma": {
     "cash": {

@@ -700,8 +700,14 @@ _SIM_JOB_KEY = "_active_sim_job"
 
 
 def _sim_batch_size(nb_projections: int) -> int:
-    """Projections per script run so the dialog × control stays responsive."""
-    return max(10, min(40, int(nb_projections) // 50 or 10))
+    """Projections to finish before the dialog redraws the bar and charts.
+
+    The Rust engine is fast, so redrawing every few dozen paths spends the
+    time in the browser update. Eight updates across the run is enough to
+    watch it move.
+    """
+    total = max(1, int(nb_projections))
+    return max(1, (total + 7) // 8)
 
 
 def _get_active_sim_job() -> Any | None:
@@ -1455,8 +1461,8 @@ def _render_setup_fields() -> None:
         if st.button("New seed", help="Draw a new master seed for the next run."):
             st.session_state["_pending_new_rng_seed"] = secrets.randbelow(2**31 - 2) + 1
             st.rerun()
-    if int(st.session_state.portfolio_edit_nb_projections) > 5000:
-        st.warning("Large projection counts can take several minutes.")
+    if int(st.session_state.portfolio_edit_nb_projections) > 20000:
+        st.warning("Large projection counts take longer to run.")
     _commit_step_1_edit_to_portfolio()
 
 
@@ -2210,10 +2216,7 @@ def _simulation_overlay() -> None:
     if job is not None and int(job.completed) < int(job.nb_projections):
         total = max(1, int(job.nb_projections))
         current = int(job.completed)
-        st.caption(
-            "Live progress — charts update as projections complete. "
-            f"Seed {int(job.config.rng_seed)}."
-        )
+        
         st.progress(
             current / total,
             text=(
@@ -2264,7 +2267,7 @@ def _simulation_overlay() -> None:
 
     # --- Completed results view (dismiss via native dialog ✕) ---
     if _has_result():
-        st.success("Simulation complete.")
+        status_msg = st.success("Saving results...")
         st.caption(
             f"Seed {int(st.session_state.portfolio.get('rng_seed', 1))}."
         )
@@ -2273,6 +2276,7 @@ def _simulation_overlay() -> None:
             _result_year(),
             include_summary=False,
         )
+        status_msg.success("Simulation complete.")
     else:
         st.info("No simulation result to display.")
         st.caption("Dismiss this dialog when ready.")

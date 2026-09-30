@@ -23,7 +23,8 @@ the same seed produces the same net-asset-value paths. Plain contribution and
 withdrawal schedules are passed in as one vector. A custom Viva program is
 still drawn in Python, once per projection, and the portfolio math runs in Rust.
 
-This path does not write ``audit.txt`` or ``output.csv``.
+Pass ``write_outputs=True`` to also write ``output/output.csv`` and
+``output/audit.txt``.
 """
 
 from __future__ import annotations
@@ -107,6 +108,11 @@ class _Packer:
     def f64(self, value: float) -> None:
         self._buf.extend(struct.pack("<d", float(value)))
 
+    def text(self, value: str) -> None:
+        raw = value.encode("utf-8")
+        self.u32(len(raw))
+        self.bytes(raw)
+
     def finish(self) -> bytes:
         return bytes(self._buf)
 
@@ -146,7 +152,23 @@ def _flow_matrix(config: SimulationConfig) -> list[list[float]] | None:
     return matrix
 
 
-def _pack_spec(config: SimulationConfig, flows) -> bytes:
+def prepare_flows(config: SimulationConfig) -> list[float] | list[list[float]]:
+    """Cash-flow schedule for every projection. Viva draws use the global projection id."""
+    matrix = _flow_matrix(config)
+    if matrix is not None:
+        return matrix
+    return _flat_flows(config)
+
+
+def _pack_spec(
+    config: SimulationConfig,
+    flows,
+    outputs: tuple[Path, Path] | None = None,
+    *,
+    projection_count: int | None = None,
+    start_projection: int = 0,
+    append_outputs: bool = False,
+) -> bytes:
     """Pack the simulation configuration into a binary specification. Used by Rust."""
     asset_ids = list(config.risk_param.keys())
     index = {asset_id: i for i, asset_id in enumerate(asset_ids)}
@@ -157,10 +179,12 @@ def _pack_spec(config: SimulationConfig, flows) -> bytes:
         return index[asset_id]
 
     pack = _Packer()
+    count = int(config.nb_projections if projection_count is None else projection_count)
     pack.bytes(b"FPR1")
     pack.u32(len(asset_ids))
     pack.u32(config.max_year)
-    pack.u32(config.nb_projections)
+    pack.u32(count)
+    pack.u32(start_projection)
     pack.u64(config.rng_seed)
     pack.f64(cv(config.initial_capital))
     pack.f64(cv(config.cash_buffer))
@@ -202,7 +226,7 @@ def _pack_spec(config: SimulationConfig, flows) -> bytes:
 
     if flows and isinstance(flows[0], list):
         matrix = flows
-        if len(matrix) != int(config.nb_projections):
+        if len(matrix) != count:
             raise ValueError("flow matrix does not match the number of projections")
         pack.u32(1)
         for row in matrix:
@@ -217,6 +241,17 @@ def _pack_spec(config: SimulationConfig, flows) -> bytes:
         pack.u32(0)
         for value in shared:
             pack.f64(value)
+
+    if outputs is not None:
+        name_map = config.asset_catalog.name_map()
+        asset_ids = list(config.risk_param.keys())
+        pack.u32(len(asset_ids))
+        for asset_id in asset_ids:
+            pack.text(str(name_map.get(asset_id, asset_id)))
+        csv_path, audit_path = outputs
+        pack.u32(1 if append_outputs else 0)
+        pack.text(str(csv_path))
+        pack.text(str(audit_path))
     return pack.finish()
 
 
@@ -243,25 +278,59 @@ def _call_engine(spec: bytes) -> list[float]:
     return values
 
 
-def run_simulation_rust(config: SimulationConfig) -> RunResult:
-    """Project ``config`` in the Rust engine and return Python observer objects."""
+def run_simulation_rust(
+    config: SimulationConfig,
+    write_outputs: bool = False,
+    *,
+    start_projection: int = 0,
+    projection_count: int | None = None,
+    append_outputs: bool = False,
+    flows: list[float] | list[list[float]] | None = None,
+) -> RunResult:
+    """Project ``config`` in the Rust engine and return Python observer objects.
+
+    ``start_projection`` is the 0-based index of the first path in this call.
+    ``projection_count`` limits how many paths this call runs. Seeds stay the
+    same as a full run, so the GUI can redraw every few hundred paths.
+    """
     if int(config.nb_projections) < 1:
         raise ValueError("nb_projections must be at least 1")
     if int(config.max_year) < 1:
         raise ValueError("max_year must be at least 1")
+    count = int(config.nb_projections if projection_count is None else projection_count)
+    start = int(start_projection)
+    if count < 1 or start < 0 or start + count > int(config.nb_projections):
+        raise ValueError("projection slice is outside the run")
 
     sync_config_with_catalog(config)
     config.asset_catalog.validate()
     validate_allocation(config.risk_mix, config.asset_catalog)
     validate_correlation(config.risk_param, config.risk_correlation)
 
-    matrix = _flow_matrix(config)
-    flows: list[float] | list[list[float]]
-    flows = matrix if matrix is not None else _flat_flows(config)
-    spec = _pack_spec(config, flows)
+    if flows is None:
+        full = prepare_flows(config)
+        if full and isinstance(full[0], list):
+            flows = full[start : start + count]
+        else:
+            flows = full
+    outputs = None
+    if write_outputs:
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        outputs = (
+            config.output_dir / "output.csv",
+            config.output_dir / "audit.txt",
+        )
+    spec = _pack_spec(
+        config,
+        flows,
+        outputs,
+        projection_count=count,
+        start_projection=start,
+        append_outputs=append_outputs,
+    )
     flat = _call_engine(spec)
 
-    n_proj = int(config.nb_projections)
+    n_proj = count
     n_years = int(config.max_year)
     expected = n_proj * n_years
     if len(flat) != expected:

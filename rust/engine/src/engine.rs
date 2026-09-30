@@ -1,13 +1,24 @@
 //! One Monte Carlo projection, matching `Projection` in `code/inv_proj.py`.
 //!
 //! The packed input (little-endian) is:
-//! `b"FPR1"`, `u32` asset count, `u32` years, `u32` projections, `u64` master seed,
+//! `b"FPR1"`, `u32` asset count, `u32` years, `u32` projections in this call,
+//! `u32` index of the first projection (0-based, so seeds stay aligned),
+//! `u64` master seed,
 //! `f64` initial capital, `f64` cash buffer, `u32` liquidity / shortfall / replenishment
 //! indexes, `u32` mix count, then mix pairs (`u32` index, `f64` weight),
 //! then for each asset `u32` segment count and segments (`u32` from_year, `f64` mu, `f64` sigma),
 //! then `u32` correlation count and triples (`u32` i, `u32` j, `f64` rho),
 //! then `u32` flow mode (`0` = one shared vector of `years` f64s,
 //! `1` = `projections * years` f64s, projection by projection).
+//!
+//! An optional trailer asks the engine to also write `output.csv` and
+//! `audit.txt`: `u32` name count, then each display name as `u32` byte
+//! length plus UTF-8, then `u32` append (`0` creates the files and writes
+//! the header, `1` appends rows), then the CSV path and the audit path.
+//! A length of zero skips that file.
+
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write};
 
 use crate::py_random::PyRandom;
 
@@ -27,6 +38,8 @@ struct Spec {
     n_assets: usize,
     n_years: usize,
     n_projections: usize,
+    /// 0-based index of the first projection in this call.
+    start_projection: usize,
     rng_seed: u64,
     initial_capital: f64,
     cash_buffer: f64,
@@ -40,6 +53,10 @@ struct Spec {
     /// `None` means one shared schedule lives in `flows`.
     per_projection_flows: bool,
     flows: Vec<f64>,
+    names: Vec<String>,
+    csv_path: Option<String>,
+    audit_path: Option<String>,
+    append_outputs: bool,
 }
 
 struct Reader<'a> {
@@ -88,6 +105,15 @@ impl<'a> Reader<'a> {
             .map_err(|_| "truncated spec".to_string())?;
         Ok(f64::from_le_bytes(bytes))
     }
+
+    fn string(&mut self) -> Result<String, String> {
+        let len = self.u32()? as usize;
+        if len > 1_048_576 {
+            return Err("string in spec is too long".to_string());
+        }
+        let bytes = self.take(len)?.to_vec();
+        String::from_utf8(bytes).map_err(|_| "spec string is not utf-8".to_string())
+    }
 }
 
 fn checked_index(index: u32, n: usize, label: &str) -> Result<usize, String> {
@@ -131,6 +157,7 @@ fn parse_spec(data: &[u8]) -> Result<Spec, String> {
     let n_assets = reader.u32()? as usize;
     let n_years = reader.u32()? as usize;
     let n_projections = reader.u32()? as usize;
+    let start_projection = reader.u32()? as usize;
     if n_assets == 0 {
         return Err("at least one asset is required".to_string());
     }
@@ -227,14 +254,39 @@ fn parse_spec(data: &[u8]) -> Result<Spec, String> {
     for _ in 0..n_flows {
         flows.push(reader.f64()?);
     }
-    if reader.at != reader.data.len() {
-        return Err("spec has trailing bytes".to_string());
-    }
+    let (names, csv_path, audit_path, append_outputs) = if reader.at == reader.data.len() {
+        (Vec::new(), None, None, false)
+    } else {
+        let name_count = reader.u32()? as usize;
+        if name_count != n_assets {
+            return Err(format!(
+                "expected {n_assets} asset names, spec has {name_count}"
+            ));
+        }
+        let mut names = Vec::with_capacity(name_count);
+        for _ in 0..name_count {
+            names.push(reader.string()?);
+        }
+        let append_outputs = reader.u32()? != 0;
+        let csv_path = {
+            let path = reader.string()?;
+            if path.is_empty() { None } else { Some(path) }
+        };
+        let audit_path = {
+            let path = reader.string()?;
+            if path.is_empty() { None } else { Some(path) }
+        };
+        if reader.at != reader.data.len() {
+            return Err("spec has trailing bytes".to_string());
+        }
+        (names, csv_path, audit_path, append_outputs)
+    };
 
     Ok(Spec {
         n_assets,
         n_years,
         n_projections,
+        start_projection,
         rng_seed,
         initial_capital,
         cash_buffer,
@@ -247,6 +299,10 @@ fn parse_spec(data: &[u8]) -> Result<Spec, String> {
         cholesky,
         per_projection_flows,
         flows,
+        names,
+        csv_path,
+        audit_path,
+        append_outputs,
     })
 }
 
@@ -295,26 +351,101 @@ fn flows_for<'a>(spec: &'a Spec, projection: usize) -> &'a [f64] {
     }
 }
 
-fn run_projection(spec: &Spec, projection: usize) -> Result<Vec<f64>, String> {
-    let seed = mix_seed(spec.rng_seed, STREAM_RETURNS, (projection as u64) + 1);
+struct Outputs {
+    names: Vec<String>,
+    csv: Option<BufWriter<File>>,
+    audit: Option<BufWriter<File>>,
+}
+
+fn py_num(value: f64) -> String {
+    let text = format!("{value}");
+    if text.contains('.') || text.contains('e') || text.contains('E') {
+        text
+    } else {
+        format!("{text}.0")
+    }
+}
+
+fn write_csv_line(
+    csv: &mut BufWriter<File>,
+    id: usize,
+    period: usize,
+    variable: &str,
+    risk: &str,
+    value: f64,
+) -> Result<(), String> {
+    writeln!(csv, "{id},{period},{variable},{risk},{}", py_num(value)).map_err(|err| err.to_string())
+}
+
+fn write_portfolio(
+    csv: &mut BufWriter<File>,
+    id: usize,
+    period: usize,
+    variable: &str,
+    names: &[String],
+    lines: &[f64],
+) -> Result<(), String> {
+    for (asset, value) in lines.iter().enumerate() {
+        write_csv_line(csv, id, period, variable, &names[asset], *value)?;
+    }
+    Ok(())
+}
+
+fn write_audit_portfolio(
+    audit: &mut BufWriter<File>,
+    id: usize,
+    period: usize,
+    names: &[String],
+    lines: &[f64],
+) -> Result<(), String> {
+    writeln!(
+        audit,
+        "simulation {id} period {period} total {}",
+        py_num(total(lines))
+    )
+    .map_err(|err| err.to_string())?;
+    for (asset, value) in lines.iter().enumerate() {
+        writeln!(audit, "  {} {}", names[asset], py_num(*value)).map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+fn run_projection(
+    spec: &Spec,
+    projection: usize,
+    outputs: &mut Outputs,
+) -> Result<Vec<f64>, String> {
+    let id = spec.start_projection + projection + 1;
+    let names = outputs.names.clone();
+    let seed = mix_seed(spec.rng_seed, STREAM_RETURNS, id as u64);
     let mut rng = PyRandom::seed_u64(seed);
     let mut lines = starting_portfolio(spec)?;
+    if let Some(audit) = outputs.audit.as_mut() {
+        write_audit_portfolio(audit, id, 0, &names, &lines)?;
+    }
     let flows = flows_for(spec, projection);
     let n = spec.n_assets;
     let mut z = vec![0.0; n];
+    let mut returns = vec![0.0; n];
     let mut nav = Vec::with_capacity(spec.n_years);
+    let record = outputs.csv.is_some();
 
     for period in 1..=spec.n_years {
         let flow = flows[period - 1];
         let contributions = flow.max(0.0);
         let withdrawals = (-flow).max(0.0);
-        lines[spec.liquidity] += contributions;
-        let available_cash = lines[spec.liquidity];
+        let mut bop = lines.clone();
+        bop[spec.liquidity] += contributions;
+        let available_cash = bop[spec.liquidity];
         let cash_depletion = withdrawals.min(available_cash);
-        lines[spec.liquidity] -= cash_depletion;
-        lines[spec.shortfall] -= withdrawals - cash_depletion;
-        rebalance(&mut lines, &spec.mix)?;
-        let value_before_returns = total(&lines);
+        let available_after = available_cash - cash_depletion;
+        let shortfall = withdrawals - cash_depletion;
+        let mut ptf1 = bop.clone();
+        ptf1[spec.liquidity] -= cash_depletion;
+        ptf1[spec.shortfall] -= shortfall;
+        let mut ptf2 = ptf1.clone();
+        rebalance(&mut ptf2, &spec.mix)?;
+        let value_before_returns = total(&ptf2);
 
         for shock in &mut z {
             *shock = rng.gauss(0.0, 1.0);
@@ -325,27 +456,112 @@ fn run_projection(spec: &Spec, projection: usize) -> Result<Vec<f64>, String> {
                 correlated += spec.cholesky[asset][source] * shock;
             }
             let year = period - 1;
-            let ret = (spec.mu[asset][year] + spec.sigma[asset][year] * correlated) / 100.0;
-            lines[asset] *= 1.0 + ret;
+            returns[asset] =
+                (spec.mu[asset][year] + spec.sigma[asset][year] * correlated) / 100.0;
         }
+        let mut ptf3 = ptf2.clone();
+        for asset in 0..n {
+            ptf3[asset] *= 1.0 + returns[asset];
+        }
+        let gain = total(&ptf3) - value_before_returns;
+        let (ptf4, ptf5, cash_replenishment) = if gain > 0.0 {
+            let replenishment = (spec.cash_buffer - ptf3[spec.liquidity]).min(gain);
+            let mut ptf4 = ptf3.clone();
+            ptf4[spec.liquidity] += replenishment;
+            ptf4[spec.replenishment] -= replenishment;
+            let mut ptf5 = ptf4.clone();
+            rebalance(&mut ptf5, &spec.mix)?;
+            (ptf4, ptf5, replenishment)
+        } else {
+            (ptf3.clone(), ptf3.clone(), 0.0)
+        };
+        let end_value = total(&ptf5);
+        nav.push(end_value);
 
-        let gain = total(&lines) - value_before_returns;
-        if gain > 0.0 {
-            let replenishment = (spec.cash_buffer - lines[spec.liquidity]).min(gain);
-            lines[spec.liquidity] += replenishment;
-            lines[spec.replenishment] -= replenishment;
-            rebalance(&mut lines, &spec.mix)?;
+        if record {
+            let csv = outputs.csv.as_mut().expect("csv writer");
+            write_portfolio(csv, id, period, "ptf_bop", &names, &bop)?;
+            write_portfolio(csv, id, period, "ptf_eop", &names, &ptf5)?;
+            write_portfolio(csv, id, period, "ptf1", &names, &ptf1)?;
+            write_portfolio(csv, id, period, "ptf2", &names, &ptf2)?;
+            write_portfolio(csv, id, period, "ptf3", &names, &ptf3)?;
+            write_portfolio(csv, id, period, "ptf4", &names, &ptf4)?;
+            write_portfolio(csv, id, period, "ptf5", &names, &ptf5)?;
+            for asset in 0..n {
+                write_csv_line(csv, id, period, "returns", &names[asset], returns[asset])?;
+            }
+            let scalars = [
+                ("contributions", contributions),
+                ("withdrawals", withdrawals),
+                ("availableCash", available_after),
+                ("cashBuffer", spec.cash_buffer),
+                ("cashDepletion", cash_depletion),
+                ("shortfall", shortfall),
+                ("cashReplenishment", cash_replenishment),
+                ("financialGainLoss", gain),
+            ];
+            for (variable, value) in scalars {
+                write_csv_line(csv, id, period, variable, "", value)?;
+            }
         }
-        nav.push(total(&lines));
+        if let Some(audit) = outputs.audit.as_mut() {
+            write_audit_portfolio(audit, id, period, &names, &ptf5)?;
+        }
+        lines = ptf5;
     }
     Ok(nav)
 }
 
+fn open_output(path: &str, append: bool) -> Result<BufWriter<File>, String> {
+    let file = if append {
+        OpenOptions::new().create(true).append(true).open(path)
+    } else {
+        File::create(path)
+    }
+    .map_err(|err| format!("cannot write {path}: {err}"))?;
+    Ok(BufWriter::new(file))
+}
+
 pub fn run_packed(data: &[u8]) -> Result<Vec<f64>, String> {
     let spec = parse_spec(data)?;
+    let mut outputs = Outputs {
+        names: spec.names.clone(),
+        csv: match &spec.csv_path {
+            Some(path) => {
+                let mut csv = open_output(path, spec.append_outputs)?;
+                if !spec.append_outputs {
+                    writeln!(csv, "simulation,period,variable,risk,value")
+                        .map_err(|err| err.to_string())?;
+                }
+                Some(csv)
+            }
+            None => None,
+        },
+        audit: match &spec.audit_path {
+            Some(path) => {
+                let mut audit = open_output(path, spec.append_outputs)?;
+                if !spec.append_outputs {
+                    writeln!(
+                        audit,
+                        "rng_seed={} projections={} years={}",
+                        spec.rng_seed, spec.n_projections, spec.n_years
+                    )
+                    .map_err(|err| err.to_string())?;
+                }
+                Some(audit)
+            }
+            None => None,
+        },
+    };
     let mut nav = Vec::with_capacity(spec.n_projections * spec.n_years);
     for projection in 0..spec.n_projections {
-        nav.extend(run_projection(&spec, projection)?);
+        nav.extend(run_projection(&spec, projection, &mut outputs)?);
+    }
+    if let Some(csv) = outputs.csv.as_mut() {
+        csv.flush().map_err(|err| err.to_string())?;
+    }
+    if let Some(audit) = outputs.audit.as_mut() {
+        audit.flush().map_err(|err| err.to_string())?;
     }
     Ok(nav)
 }
