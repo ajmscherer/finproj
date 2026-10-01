@@ -700,14 +700,17 @@ def _sim_overlay_should_open() -> bool:
 _SIM_JOB_KEY = "_active_sim_job"
 
 
-def _sim_batch_size(nb_projections: int) -> int:
+def _sim_batch_size(nb_projections: int, engine_name: str = "Rust") -> int:
     """Projections to finish before the dialog redraws the bar and charts.
 
     The Rust engine is fast, so redrawing every few dozen paths spends the
     time in the browser update. Eight updates across the run is enough to
-    watch it move.
+    watch it move. The Python engine is slower, so each slice stays small
+    enough that the bar still moves.
     """
     total = max(1, int(nb_projections))
+    if engine_name == "Python":
+        return max(1, min(40, (total + 9) // 10))
     return max(1, (total + 7) // 8)
 
 
@@ -765,6 +768,22 @@ def _record_run_duration() -> None:
 def _clear_run_duration() -> None:
     st.session_state.pop("sim_run_seconds", None)
     st.session_state.pop("_sim_run_started", None)
+    st.session_state.pop("sim_engine_used", None)
+
+
+def _engine_mention() -> str:
+    """Step 4 line: which engines can run, and which one this session is using."""
+    rust_ok = inv_proj_runner.active_engine_name() == "Rust"
+    job = _get_active_sim_job()
+    if job is not None and _simulation_running():
+        running = f"The {job.engine_name} engine is running."
+    elif st.session_state.get("sim_engine_used"):
+        running = f"The last run used the {st.session_state.sim_engine_used} engine."
+    else:
+        choice = "Rust" if rust_ok else "Python"
+        running = f"The next run will use the {choice} engine."
+    rust_state = "available" if rust_ok else "unavailable"
+    return f"Rust engine is {rust_state}. Python engine is available. {running}"
 
 
 def _start_active_sim_job() -> Any:
@@ -777,7 +796,8 @@ def _start_active_sim_job() -> Any:
     config = assumptions.to_simulation_config()
     validate_allocation(config.risk_mix, config.asset_catalog)
     validate_correlation(config.risk_param, config.risk_correlation)
-    job = inv_proj_runner.SimulationJob(config)
+    job = inv_proj_runner.make_simulation_job(config)
+    st.session_state.sim_engine_used = job.engine_name
     _set_active_sim_job(job)
     return job
 
@@ -2299,7 +2319,7 @@ def _simulation_overlay() -> None:
             )
 
         # Advance after painting UI so native dismiss can be used between batches.
-        batch = _sim_batch_size(total)
+        batch = _sim_batch_size(total, getattr(job, "engine_name", "Rust"))
         try:
             status = job.run_batch(batch)
         except (RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
@@ -2357,6 +2377,7 @@ def _render_step_4_panel_content() -> None:
     """
     running = _simulation_running()
     has_result = _has_result()
+    st.caption(_engine_mention())
 
     # --- Slot 1: setup (always present) ---
     with st.container(key="sim_slot_setup_v5"):

@@ -41,6 +41,8 @@ You then have the option to run the program from the command line or from a web 
 cargo build --release --manifest-path rust/Cargo.toml -p finproj_engine
 ```
 
+That build is optional. When the Rust library is missing, the simulation runs in Python instead. Step 4 of the GUI says which engine is available and which one is running.
+
 ### 1. Run the programme from the command line (no graphic user interface)
 
 Python 3.8 or higher is required to run the program from the command line.

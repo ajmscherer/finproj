@@ -73,6 +73,15 @@ def _library_path() -> Path:
     )
 
 
+def rust_engine_available() -> bool:
+    """True when the compiled Rust library loads on this machine."""
+    try:
+        _library()
+    except (OSError, AttributeError):
+        return False
+    return True
+
+
 def _library() -> ctypes.CDLL:
     global _LIB
     if _LIB is None:

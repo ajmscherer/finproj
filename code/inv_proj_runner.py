@@ -389,6 +389,7 @@ class PythonSimulationJob:
         )
 
         self.config = config
+        self.engine_name = "Python"
         self.engine = _build_flow_engine(config)
         self.flows0 = [0.0] * config.max_year
         self.nb_projections = int(config.nb_projections)
@@ -486,6 +487,7 @@ class SimulationJob:
         config.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.config = config
+        self.engine_name = "Rust"
         self.nb_projections = int(config.nb_projections)
         self.completed = 0
         self._closed = False
@@ -584,16 +586,31 @@ class SimulationJob:
         self._closed = True
 
 
+def active_engine_name() -> str:
+    """``Rust`` when its library loads, otherwise ``Python``."""
+    from rust_engine import rust_engine_available
+
+    return "Rust" if rust_engine_available() else "Python"
+
+
+def make_simulation_job(config: SimulationConfig) -> PythonSimulationJob | SimulationJob:
+    """Start a job on the Rust engine, or on Python when Rust is unavailable."""
+    if active_engine_name() == "Rust":
+        return SimulationJob(config)
+    return PythonSimulationJob(config)
+
+
 def run_simulation(
     config: SimulationConfig,
     progress_callback: Callable[..., None] | None = None,
 ) -> RunResult:
     """
-    Run a simulation in the Rust engine.
+    Run a simulation. Uses the Rust engine when its library loads, and the
+    Python engine otherwise.
     config: the configuration for the simulation
     progress_callback: called after the run, with the finished fan chart
     """
-    job = SimulationJob(config)
+    job = make_simulation_job(config)
     try:
         job.run_batch(job.nb_projections, progress_callback)
         return job.result()

@@ -911,5 +911,24 @@ class RunDurationLabelTest(unittest.TestCase):
             self.assertEqual(gui_app._completed_in_label(), "Completed in 3.2 seconds.")
 
 
+class EngineMentionTest(unittest.TestCase):
+    def test_step_4_names_the_engine_in_use(self) -> None:
+        gui_app = _v1_app()
+        state = FakeSessionState()
+        state.simulation_running = True
+        state.sim_engine_used = "Python"
+        job = type("Job", (), {"engine_name": "Python"})()
+        state["_active_sim_job"] = job
+        with (
+            patch.object(gui_app.st, "session_state", state),
+            patch.object(gui_app.inv_proj_runner, "active_engine_name", return_value="Python"),
+        ):
+            text = gui_app._engine_mention()
+        self.assertEqual(
+            text,
+            "Rust engine is unavailable. Python engine is available. The Python engine is running.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

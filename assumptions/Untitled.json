@@ -7,7 +7,7 @@
   "withdrawals": "50k",
   "cash_buffer": "150k",
   "max_year": 20,
-  "nb_projections": 20000,
+  "nb_projections": 2000,
   "output_dir": "/Users/alex/Documents/CODE/PUBLISHED/finproj/output",
   "mix_preset": "performance",
   "asset_catalog": [

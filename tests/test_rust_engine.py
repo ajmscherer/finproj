@@ -9,17 +9,45 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "code"))
 
-from inv_proj_runner import default_config, run_simulation_python
-from rust_engine import run_simulation_rust
+from inv_proj_runner import (
+    PythonSimulationJob,
+    default_config,
+    make_simulation_job,
+    run_simulation,
+    run_simulation_python,
+)
+from rust_engine import run_simulation_rust, rust_engine_available
 
 
 def _close(left: float, right: float) -> bool:
     # Portfolio addition order in Python follows set iteration, so the same
     # seed can move the last bit when PYTHONHASHSEED changes. Stay well inside that.
     return abs(left - right) <= max(1e-6, 1e-9 * abs(left))
+
+
+class EngineFallbackTest(unittest.TestCase):
+    def test_rust_library_is_available_here(self) -> None:
+        self.assertTrue(rust_engine_available())
+
+    def test_missing_rust_library_runs_in_python(self) -> None:
+        config = default_config()
+        config.max_year = 1
+        config.nb_projections = 2
+        config.rng_seed = 1
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "rust_engine.rust_engine_available", return_value=False
+        ):
+            config.output_dir = Path(tmp)
+            job = make_simulation_job(copy.deepcopy(config))
+            self.assertIsInstance(job, PythonSimulationJob)
+            self.assertEqual(job.engine_name, "Python")
+            job.close()
+            result = run_simulation(copy.deepcopy(config))
+        self.assertEqual(len(result.nav_fan.values_by_year[1]), 2)
 
 
 class RustEngineMatchTest(unittest.TestCase):
