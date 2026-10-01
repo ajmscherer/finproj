@@ -9,6 +9,8 @@
 <div align="center">
 <img src="screenshots/bandeau_image.jpeg" alt="Illustration of a couple walking on a beach" height="200" style="border:0; outline:0; vertical-align:middle;">
 <img src="screenshots/screen_recording1.gif" alt="finproj GUI demo animation" height="200" style="border:0; outline:0; vertical-align:middle;">
+<br><br>
+<a href="https://buymeacoffee.com/xquucceazk"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60"></a>
 </div>
 
 
