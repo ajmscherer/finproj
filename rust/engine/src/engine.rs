@@ -329,6 +329,7 @@ fn total(lines: &[f64]) -> f64 {
     value
 }
 
+// Rebalance the portfolio to the given mix.
 fn rebalance(lines: &mut [f64], mix: &[(usize, f64)]) -> Result<(), String> {
     if mix.is_empty() {
         return Ok(());
@@ -348,6 +349,7 @@ fn rebalance(lines: &mut [f64], mix: &[(usize, f64)]) -> Result<(), String> {
     Ok(())
 }
 
+// Initialize the portfolio to the starting values.
 fn starting_portfolio(spec: &Spec) -> Result<Vec<f64>, String> {
     let mut lines = vec![0.0; spec.n_assets];
     lines[spec.liquidity] = spec.cash_buffer;
@@ -360,6 +362,7 @@ fn starting_portfolio(spec: &Spec) -> Result<Vec<f64>, String> {
     Ok(lines)
 }
 
+// Get the flows for the given projection.
 fn flows_for<'a>(spec: &'a Spec, projection: usize) -> &'a [f64] {
     if spec.per_projection_flows {
         let start = projection * spec.n_years;
@@ -369,12 +372,14 @@ fn flows_for<'a>(spec: &'a Spec, projection: usize) -> &'a [f64] {
     }
 }
 
+// Outputs to be written to the CSV and audit files.
 struct Outputs {
     names: Vec<String>,
     csv: Option<BufWriter<File>>,
     audit: Option<BufWriter<File>>,
 }
 
+// Format a number like Python does.
 fn py_num(value: f64) -> String {
     let text = format!("{value}");
     if text.contains('.') || text.contains('e') || text.contains('E') {
@@ -384,6 +389,7 @@ fn py_num(value: f64) -> String {
     }
 }
 
+// Write a line to the CSV file.
 fn write_csv_line(
     csv: &mut BufWriter<File>,
     id: usize,
@@ -395,6 +401,7 @@ fn write_csv_line(
     writeln!(csv, "{id},{period},{variable},{risk},{}", py_num(value)).map_err(|err| err.to_string())
 }
 
+// Write a portfolio to the CSV file.
 fn write_portfolio(
     csv: &mut BufWriter<File>,
     id: usize,
@@ -409,6 +416,7 @@ fn write_portfolio(
     Ok(())
 }
 
+// Write a portfolio to the audit file.
 fn write_audit_portfolio(
     audit: &mut BufWriter<File>,
     id: usize,
@@ -428,6 +436,7 @@ fn write_audit_portfolio(
     Ok(())
 }
 
+// Run a single projection.
 fn run_projection(
     spec: &Spec,
     projection: usize,
@@ -448,6 +457,7 @@ fn run_projection(
     let mut nav = Vec::with_capacity(spec.n_years);
     let record = outputs.csv.is_some();
 
+    // Iterate over each year of the projection.
     for period in 1..=spec.n_years {
         let flow = flows[period - 1];
         let contributions = flow.max(0.0);
@@ -530,6 +540,7 @@ fn run_projection(
     Ok(nav)
 }
 
+// Open an output file.
 fn open_output(path: &str, append: bool) -> Result<BufWriter<File>, String> {
     let file = if append {
         OpenOptions::new().create(true).append(true).open(path)
@@ -540,6 +551,7 @@ fn open_output(path: &str, append: bool) -> Result<BufWriter<File>, String> {
     Ok(BufWriter::new(file))
 }
 
+// Run the engine.
 pub fn run_packed(data: &[u8]) -> Result<Vec<f64>, String> {
     let spec = parse_spec(data)?;
     let mut outputs = Outputs {

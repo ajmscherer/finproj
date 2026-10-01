@@ -20,13 +20,13 @@
 - **Local web GUI** for editing assumptions, running simulations, and viewing live-updating charts and summary statistics (the program can also run from the command line and be used as a library in other application, subject to licensing)
 - Flexible input assumptions: expected returns, volatility, initial capital, contributions and withdrawals (with optional period ranges), cash buffer, horizon, and projection count
 - **Customizable asset classes** — rename, add, or remove optional investable assets; four core classes are always present (Cash, Money Market, Bonds, Stocks)
+- **Customizable flows through [Viva](https://github.com/ajmscherer/viva) integration** — user can define their own flows in the **Additional flows** editor, validate syntax, and save programs in assumptions JSON
 - **Save and load assumptions** as JSON files from the GUI sidebar
 - Correlated asset-class returns via Cholesky decomposition of a user-defined correlation matrix
 - Generates thousands of projections (default: 2,000 projections over 15 years)
 - **Interactive results**: NAV fan chart (median with nested probability-density bands), horizon-year NAV distribution histogram, and key outcome probabilities
 - Companion Excel workbook (`output/finproj.xlsx`) for deeper analysis (scenario navigator, additional charts)
 - Runs entirely on your local machine — no cloud services or third-party APIs; suitable for sensitive financial data
-- **Optional [Viva](https://github.com/ajmscherer/viva) integration** — all simulations build a Viva cash-flow program from step 1 inputs; add life-event flows in the **Additional flows** editor, validate syntax, and save programs in assumptions JSON
 
 ## Quick Start
 
