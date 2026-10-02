@@ -43,6 +43,16 @@ fi
 sudo -u finproj bash -lc "cd '$repo' && python3 -m venv .venv && .venv/bin/pip install -U pip && .venv/bin/pip install -r requirements.txt"
 sudo -u finproj bash -lc "source \"\$HOME/.cargo/env\" && cd '$repo' && CARGO_BUILD_JOBS=1 cargo build --release --manifest-path rust/Cargo.toml -p finproj_engine"
 
+# Account data stays outside the git checkout. The host secret is written
+# only when it is already in the environment and billing.env does not exist.
+install -d -o finproj -g finproj -m 700 /home/finproj/finproj-data
+billing_env=/home/finproj/finproj-data/billing.env
+if [[ -n "${FINPROJ_HOST_SECRET:-}" && ! -f "$billing_env" ]]; then
+  (umask 077; printf 'FINPROJ_HOST_SECRET=%s\n' "$FINPROJ_HOST_SECRET" > "$billing_env")
+  chown finproj:finproj "$billing_env"
+  chmod 600 "$billing_env"
+fi
+
 cat > /etc/systemd/system/finproj.service << 'EOF'
 [Unit]
 Description=finproj Streamlit
@@ -53,6 +63,8 @@ Type=simple
 User=finproj
 Group=finproj
 WorkingDirectory=/home/finproj/finproj
+Environment=FINPROJ_DATA_DIR=/home/finproj/finproj-data
+EnvironmentFile=-/home/finproj/finproj-data/billing.env
 ExecStart=/home/finproj/finproj/.venv/bin/python -m streamlit run gui/v1/app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 Restart=on-failure
 RestartSec=3
@@ -62,7 +74,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now finproj.service
+systemctl enable finproj.service
+systemctl restart finproj.service
 
 apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
 if [[ ! -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg ]]; then

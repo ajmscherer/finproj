@@ -87,6 +87,12 @@ The GUI runs on `localhost` only. The main workflow has these sections:
 
 Use the sidebar to name, save, load, or export assumption sets as JSON, and to set the output directory.
 
+A copy you start with `./run_gui.sh` or `run_gui.bat` stays on your own computer. That copy is for personal use. It does not ask you to sign in, and it does not limit how many simulations you run.
+
+The public website is operated by A Scherer. A guest can run 3 simulations a day. A free account (Plan A) can run 5 simulations a day. Plan B is $5 per month and allows 100 simulations per month. Plan C is $10 per month and has no usage cap. A day and a month reset at 00:00 UTC. One run is one click of **Run simulation** or **Refresh simulation**.
+
+Deploying this program on a remote server, or charging other people to use it, is reserved to A Scherer. For commercial use, open a [GitHub issue](https://github.com/ajmscherer/finproj/issues/new) or send a direct message on that repository.
+
 For additional charts and the scenario navigator, refresh `output/finproj.xlsx` in Excel as described below.
 
 ### 4. Visualize Results in Excel
@@ -137,7 +143,10 @@ The amount parser accepts shorthand values such as `40k`, `1M`, and `2.5B`, so y
 - `code/viva_summary.py` — Parse and summarize Viva programs for the GUI (lives, events, flows)
 - `code/inv_proj_runner.py` — Shared simulation configuration, Viva program composition, and runner (used by CLI and GUI)
 - `code/inv_proj_run.py` — Command-line entry point
+- `code/accounts.py` — Website sign-in, guest and plan usage limits
+- `code/stripe_billing.py` — Plan B and Plan C checkout for the public website
 - `gui/v1/app.py` — Streamlit GUI: assumptions, runs, charts, and summary statistics
+- `gui/v1/hosted.py` — Sign-in, plans, and terms screens for the public website
 - `gui/v1/charts.py` — Matplotlib chart builders (NAV fan chart, distribution histogram)
 - `gui/v1/formatting.py` — Compact number formatting and summary table HTML
 - `gui/v1/theme.py` — Browser styling tokens (fonts, colors, spacing, borders); edit `THEME` to customize

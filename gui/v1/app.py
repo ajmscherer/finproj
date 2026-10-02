@@ -44,6 +44,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "code"))
 
+import hosted
 import viva_summary as _viva_summary_module
 from asset_classes import AssetCatalog, AssetClass, default_asset_catalog, slugify
 from charts import (
@@ -173,6 +174,7 @@ def _render_app_header() -> None:
         with st.container(key="app_header_title"):
             st.title("finproj", help=PRODUCT_ABOUT_HELP)
         st.caption(caption)
+        st.markdown(hosted.header_links())
 
 
 def _correlation_pairs(catalog: AssetCatalog) -> list[tuple[str, str]]:
@@ -672,6 +674,8 @@ def _force_close_all_section_edits() -> None:
 
 def _request_simulation_run() -> None:
     """Queue a run and open the simulation overlay (live charts + results)."""
+    if not hosted.consume_for_run():
+        return
     _force_close_all_section_edits()
     st.session_state.run_simulation_requested = True
     st.session_state.sim_overlay_open = True
@@ -2411,6 +2415,9 @@ def _render_step_4_panel_content() -> None:
 
     # --- Slot 3: run controls ---
     with st.container(key="sim_slot_controls_v5"):
+        block = hosted.hosted_block_message()
+        if block:
+            st.warning(block)
         config_ok = _config_can_run()
         # Hide Run when configuration is invalid; show (disabled) while running.
         if config_ok or running:
@@ -2419,7 +2426,7 @@ def _render_step_4_panel_content() -> None:
                 run_label,
                 key="sim_run_btn_v5",
                 type="primary",
-                disabled=running or not config_ok,
+                disabled=running or not config_ok or bool(block),
                 width="stretch",
                 on_click=_request_simulation_run,
             )
@@ -2556,10 +2563,23 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     inject_theme()
+    mode = hosted.current_mode()
+    page = st.query_params.get("page", "")
+    if page == "terms":
+        hosted.render_terms()
+        return
+    if mode == "refused":
+        hosted.render_refused()
+        return
     _init_session_state()
     _process_pending_assumptions()
     # Before sidebar/_collect_assumptions can commit stale alloc_* widgets.
     _apply_pending_allocation_widget_sync()
+    if mode == "hosted":
+        hosted.prepare_hosted_session()
+        if st.query_params.get("page") == "account":
+            hosted.render_account_page()
+            return
 
     _render_app_header()
     _render_sidebar()
