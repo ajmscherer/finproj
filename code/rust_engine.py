@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import ctypes
 import struct
+from collections.abc import Callable
 from pathlib import Path
 
 from inv_proj import (
@@ -53,6 +54,7 @@ from inv_proj_runner import (
 )
 
 _LIB: ctypes.CDLL | None = None
+_ProgressCB = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p)
 
 
 def _library_path() -> Path:
@@ -97,6 +99,18 @@ def _library() -> ctypes.CDLL:
         lib.finproj_run.restype = ctypes.c_int
         lib.finproj_free.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t]
         lib.finproj_free.restype = None
+        if hasattr(lib, "finproj_run_with_progress"):
+            lib.finproj_run_with_progress.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.c_char_p,
+                ctypes.c_size_t,
+                _ProgressCB,
+                ctypes.c_void_p,
+            ]
+            lib.finproj_run_with_progress.restype = ctypes.c_int
         _LIB = lib
     return _LIB
 
@@ -268,20 +282,44 @@ def _pack_spec(
     return pack.finish()
 
 
-def _call_engine(spec: bytes) -> list[float]:
+def _call_engine(
+    spec: bytes,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> list[float]:
     lib = _library()
     buffer = (ctypes.c_uint8 * len(spec)).from_buffer_copy(spec)
     out_ptr = ctypes.POINTER(ctypes.c_double)()
     out_count = ctypes.c_size_t()
     err = ctypes.create_string_buffer(1024)
-    code = lib.finproj_run(
-        ctypes.cast(buffer, ctypes.c_void_p),
-        len(spec),
-        ctypes.byref(out_ptr),
-        ctypes.byref(out_count),
-        err,
-        len(err),
-    )
+    callback = None
+    if progress_callback is not None and hasattr(lib, "finproj_run_with_progress"):
+
+        def _on_progress(current: int, total: int, _user: object) -> None:
+            try:
+                progress_callback(int(current), int(total))
+            except Exception:
+                return
+
+        callback = _ProgressCB(_on_progress)
+        code = lib.finproj_run_with_progress(
+            ctypes.cast(buffer, ctypes.c_void_p),
+            len(spec),
+            ctypes.byref(out_ptr),
+            ctypes.byref(out_count),
+            err,
+            len(err),
+            callback,
+            None,
+        )
+    else:
+        code = lib.finproj_run(
+            ctypes.cast(buffer, ctypes.c_void_p),
+            len(spec),
+            ctypes.byref(out_ptr),
+            ctypes.byref(out_count),
+            err,
+            len(err),
+        )
     if code != 0:
         message = err.value.decode("utf-8", errors="replace") or "rust engine failed"
         raise ValueError(message)
@@ -299,12 +337,15 @@ def run_simulation_rust(
     projection_count: int | None = None,
     append_outputs: bool = False,
     flows: list[float] | list[list[float]] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> RunResult:
     """Project ``config`` in the Rust engine and return Python observer objects.
 
     ``start_projection`` is the 0-based index of the first path in this call.
     ``projection_count`` limits how many paths this call runs. Seeds stay the
     same as a full run, so the GUI can redraw every few hundred paths.
+    ``progress_callback(done, total)`` is called from Rust after each path in
+    this slice when the compiled library exposes ``finproj_run_with_progress``.
     """
     if int(config.nb_projections) < 1:
         raise ValueError("nb_projections must be at least 1")
@@ -341,7 +382,7 @@ def run_simulation_rust(
         start_projection=start,
         append_outputs=append_outputs,
     )
-    flat = _call_engine(spec)
+    flat = _call_engine(spec, progress_callback)
 
     n_proj = count
     n_years = int(config.max_year)

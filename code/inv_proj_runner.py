@@ -539,6 +539,18 @@ class SimulationJob:
         self._start_output_files()
         from rust_engine import run_simulation_rust
 
+        engine_progress = False
+
+        def on_engine_progress(done: int, _slice_total: int) -> None:
+            nonlocal engine_progress
+            engine_progress = True
+            _call_progress_callback(
+                progress_callback,
+                start + int(done),
+                self.nb_projections,
+                self.nav_fan,
+            )
+
         partial = run_simulation_rust(
             self.config,
             write_outputs=True,
@@ -546,6 +558,7 @@ class SimulationJob:
             projection_count=count,
             append_outputs=True,
             flows=self._slice_flows(start, count),
+            progress_callback=on_engine_progress if progress_callback else None,
         )
         for year, values in partial.nav_fan.values_by_year.items():
             self.nav_fan.values_by_year[year].extend(values)
@@ -564,12 +577,13 @@ class SimulationJob:
                 output_csv=self.config.output_dir / "output.csv",
                 audit_path=self.audit_path,
             )
-        _call_progress_callback(
-            progress_callback,
-            self.completed,
-            self.nb_projections,
-            self.nav_fan,
-        )
+        if not engine_progress:
+            _call_progress_callback(
+                progress_callback,
+                self.completed,
+                self.nb_projections,
+                self.nav_fan,
+            )
         return "done" if self.completed >= self.nb_projections else "running"
 
     def result(self) -> RunResult:

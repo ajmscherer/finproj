@@ -153,12 +153,12 @@ class RustEngineMatchTest(unittest.TestCase):
             seen: list[tuple[int, int]] = []
 
             def on_progress(current: int, total: int, fan) -> None:
-                seen.append((current, len(fan.values_by_year[1])))
+                seen.append((current, total))
 
             while job.run_batch(2, on_progress) != "done":
                 pass
             job.close()
-            self.assertEqual(seen, [(2, 2), (4, 4), (5, 5)])
+            self.assertEqual(seen, [(1, 5), (2, 5), (3, 5), (4, 5), (5, 5)])
             for year in range(1, config.max_year + 1):
                 self.assertEqual(
                     job.nav_fan.values_by_year[year],
@@ -232,6 +232,19 @@ class RustEngineMatchTest(unittest.TestCase):
         long_result = run_simulation_rust(long)
         for year, values in short_result.nav_fan.values_by_year.items():
             self.assertEqual(values, long_result.nav_fan.values_by_year[year][:4])
+
+    def test_rust_progress_callback_counts_each_projection(self) -> None:
+        config = default_config()
+        config.max_year = 2
+        config.nb_projections = 6
+        config.rng_seed = 4
+        seen: list[tuple[int, int]] = []
+
+        def on_progress(current: int, total: int) -> None:
+            seen.append((current, total))
+
+        run_simulation_rust(copy.deepcopy(config), progress_callback=on_progress)
+        self.assertEqual(seen, [(index, 6) for index in range(1, 7)])
 
 
 if __name__ == "__main__":

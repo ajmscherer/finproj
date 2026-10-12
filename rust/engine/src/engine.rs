@@ -21,6 +21,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
+use std::os::raw::c_void;
 
 use crate::py_random::PyRandom;
 
@@ -553,6 +554,16 @@ fn open_output(path: &str, append: bool) -> Result<BufWriter<File>, String> {
 
 // Run the engine.
 pub fn run_packed(data: &[u8]) -> Result<Vec<f64>, String> {
+    run_packed_with_progress(data, None, std::ptr::null_mut())
+}
+
+/// Same as `run_packed`, and calls `progress(done, total, user)` after each
+/// projection in this call (`done` is 1-based within the slice).
+pub fn run_packed_with_progress(
+    data: &[u8],
+    progress: Option<unsafe extern "C" fn(u32, u32, *mut c_void)>,
+    progress_user: *mut c_void,
+) -> Result<Vec<f64>, String> {
     let spec = parse_spec(data)?;
     let mut outputs = Outputs {
         names: spec.names.clone(),
@@ -584,8 +595,14 @@ pub fn run_packed(data: &[u8]) -> Result<Vec<f64>, String> {
         },
     };
     let mut nav = Vec::with_capacity(spec.n_projections * spec.n_years);
+    let total = spec.n_projections as u32;
     for projection in 0..spec.n_projections {
         nav.extend(run_projection(&spec, projection, &mut outputs)?);
+        if let Some(callback) = progress {
+            unsafe {
+                callback((projection as u32) + 1, total, progress_user);
+            }
+        }
     }
     if let Some(csv) = outputs.csv.as_mut() {
         csv.flush().map_err(|err| err.to_string())?;
