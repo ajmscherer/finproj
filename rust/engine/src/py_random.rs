@@ -121,7 +121,14 @@ impl PyRandom {
             self.gauss_next = Some(x2pi.sin() * g2rad);
             z
         };
-        mu + z * sigma
+        // The variate above is consumed even when sigma is zero, so a constant
+        // return does not shift the next draw. Skipping the multiply also keeps
+        // a non-finite z from turning 0 * z into NaN.
+        if sigma == 0.0 {
+            mu
+        } else {
+            mu + z * sigma
+        }
     }
 }
 
@@ -137,6 +144,16 @@ mod tests {
     fn random_matches_cpython_seed_1() {
         let mut rng = PyRandom::seed_u64(1);
         assert_close(rng.random(), 0.13436424411240122);
+    }
+
+    #[test]
+    fn gauss_zero_sigma_is_mu_and_still_consumes_one_variate() {
+        let mut rng = PyRandom::seed_u64(1);
+        assert_eq!(rng.gauss(8.4, 0.0), 8.4);
+        assert_eq!(rng.gauss(-3.25, -0.0), -3.25);
+        // Two zero-sigma draws consume the first two standard normals, so the
+        // next value is the third CPython sample, not the first.
+        assert_close(rng.gauss(0.0, 1.0), 0.06633580893826191);
     }
 
     #[test]

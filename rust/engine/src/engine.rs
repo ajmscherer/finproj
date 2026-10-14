@@ -485,8 +485,14 @@ fn run_projection(
                 correlated += spec.cholesky[asset][source] * shock;
             }
             let year = period - 1;
-            returns[asset] =
-                (spec.mu[asset][year] + spec.sigma[asset][year] * correlated) / 100.0;
+            // Zero volatility is exactly mu. Shocks were already drawn, so the
+            // stream shared with the other assets stays aligned.
+            let shock_scale = spec.sigma[asset][year];
+            returns[asset] = if shock_scale == 0.0 {
+                spec.mu[asset][year] / 100.0
+            } else {
+                (spec.mu[asset][year] + shock_scale * correlated) / 100.0
+            };
         }
         let mut ptf3 = ptf2.clone();
         for asset in 0..n {

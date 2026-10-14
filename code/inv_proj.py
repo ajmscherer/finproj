@@ -180,7 +180,11 @@ class Norm(RV):
         self.rn = random.Random()
 
     def draw(self):
-        return self.rn.gauss(mu=self.mu, sigma=self.sigma)
+        # Gauss is always consumed. Returning early would shift every later draw.
+        value = self.rn.gauss(mu=self.mu, sigma=self.sigma)
+        if self.sigma == 0.0:
+            return self.mu
+        return value
 
 
 def build_correlation_matrix(risk_classes, correlations=None):
@@ -260,7 +264,12 @@ class CorrelatedReturns:
         for i, risk_class in enumerate(self.risk_classes):
             rv = self.risk_distrib[risk_class].distribution[period]
             correlated_z = sum(self.cholesky[i][j] * z[j] for j in range(n))
-            returns[risk_class] = rv.mu + rv.sigma * correlated_z
+            # Zero volatility is exactly mu. The shock above is still drawn so
+            # the other assets keep this random stream, and 0 * non-finite is avoided.
+            if rv.sigma == 0.0:
+                returns[risk_class] = rv.mu
+            else:
+                returns[risk_class] = rv.mu + rv.sigma * correlated_z
 
         return returns
 
