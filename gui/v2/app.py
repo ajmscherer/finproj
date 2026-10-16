@@ -379,7 +379,7 @@ def _render_step_wealth() -> None:
             "wealth.cash",
             "Cash you keep aside",
             "A rainy-day reserve that is not invested in the mix below. "
-            "Yearly withdrawals are taken from here first. Must be less than starting wealth.",
+            "Yearly withdrawals are taken from here first. Must not be greater than starting wealth.",
             lambda: st.text_input(
                 "Cash reserve",
                 key="v2w_cash_buffer",

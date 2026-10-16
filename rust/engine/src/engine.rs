@@ -499,7 +499,7 @@ fn run_projection(
             ptf3[asset] *= 1.0 + returns[asset];
         }
         let gain = total(&ptf3) - value_before_returns;
-        let (ptf4, ptf5, cash_replenishment) = if gain > 0.0 {
+        let (ptf4, ptf5, cash_replenishment) = if gain >= 0.0 {
             let replenishment = (spec.cash_buffer - ptf3[spec.liquidity]).min(gain);
             let mut ptf4 = ptf3.clone();
             ptf4[spec.liquidity] += replenishment;

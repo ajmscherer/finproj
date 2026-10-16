@@ -625,7 +625,7 @@ class Projection(Observable):
         self.financialGainLoss = v2 - v1
 
         # determine if replenishment of cash is needed
-        if self.financialGainLoss > 0:
+        if self.financialGainLoss >= 0:
             liquidity_balance = self.ptf3.lines.get(self.liquidity_asset_id, 0.0)
             self.cashReplenishment = min(self.cashBuffer - liquidity_balance, v2 - v1)
             self.ptf4 = self.ptf3.dup()

@@ -265,7 +265,7 @@ PORTFOLIO_FIELD_HELP = {
     "cash_buffer": (
         "Target cash reserve held in the liquidity asset (Cash). "
         "Annual withdrawals are drawn from here before other assets are touched. "
-        "Must be less than initial capital. Supports shorthand such as 100k or 200k."
+        "Must not be greater than initial capital. Supports shorthand such as 100k or 200k."
     ),
     "max_year": (
         "Number of years each Monte Carlo projection runs. "
@@ -418,8 +418,8 @@ def _validate_amount_fields(
     if check_cash_vs_capital:
         capital = parsed.get("Initial capital")
         cash_buffer = parsed.get("Cash buffer")
-        if capital is not None and cash_buffer is not None and cash_buffer >= capital:
-            errors.append("Cash buffer must be less than initial capital.")
+        if capital is not None and cash_buffer is not None and cash_buffer > capital:
+            errors.append("Cash buffer must not be greater than initial capital.")
 
     return errors
 
